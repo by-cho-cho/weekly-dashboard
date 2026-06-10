@@ -365,6 +365,7 @@ function extractItems(rows, wmap, dept) {
 
     const cat = dept === '1반' ? getCategory(r, model) : getCategory(r, model);
     if (cat === null) continue; // 2반 카테고리 헤더는 건너뜀
+    if (cat === 'Cable') continue; // Cable 품목군 분석 제외
 
     const weekData = {}; let hasAny = false;
     for (const mo of Object.keys(wmap)) {
