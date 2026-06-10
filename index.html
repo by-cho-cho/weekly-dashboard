@@ -197,6 +197,8 @@
         </div>
         <button id="yoyBtn" onclick="toggleYoY()" class="btn"
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
+        <button id="forecastBtn" onclick="toggleForecast()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
       </div>
     </div>
     <div id="chartTrend" style="height:380px;"></div>
@@ -232,6 +234,8 @@ const APP = {
   dept: '1반',
   year: 2026,
   yoyOn: false,
+  forecastOn: false,
+  forecastH: 4,
   data: { 2026: {'1반':null,'2반':null}, 2025: {'1반':null,'2반':null} },
   selectedMonths: new Set(),
   selectedWeeks: new Set([1,2,3,4,5]),
@@ -509,6 +513,71 @@ function toggleYoY() {
   document.getElementById('yoyBtn').classList.toggle('active', APP.yoyOn);
   renderBody();
 }
+function toggleForecast() {
+  APP.forecastOn = !APP.forecastOn;
+  document.getElementById('forecastBtn').classList.toggle('active', APP.forecastOn);
+  renderChart();
+}
+
+/* ============================================================
+   예측 모델 — Holt's linear trend (이중 지수평활법) + 자동 α,β 탐색
+   - 직전 N 주차 데이터로 α,β를 그리드 탐색해 MSE 최소화
+   - h 주차 앞까지 예측 + 95% 신뢰구간
+   ============================================================ */
+function holtForecast(series, h) {
+  const n = series.length;
+  if (n < 4) return null;
+  // 첫 두 점으로 초기 level/trend
+  function fit(alpha, beta) {
+    let L = series[0], T = series[1] - series[0];
+    const fitted = [L];
+    let sse = 0;
+    for (let t = 1; t < n; t++) {
+      const f = L + T;          // one-step-ahead 예측
+      fitted.push(f);
+      const e = series[t] - f;
+      sse += e * e;
+      L = alpha * series[t] + (1 - alpha) * (L + T);
+      T = beta * (L - fitted[fitted.length-1]) + (1 - beta) * T;
+      // 보정
+      T = beta * (series[t] - series[t-1]) + (1 - beta) * T;
+    }
+    return { L, T, sse, fitted };
+  }
+  // 그리드 탐색
+  let best = { sse: Infinity, alpha: 0.3, beta: 0.1 };
+  for (let a = 0.1; a <= 0.9; a += 0.1) {
+    for (let b = 0.05; b <= 0.5; b += 0.05) {
+      const r = fit(a, b);
+      if (r.sse < best.sse) best = { sse: r.sse, alpha: a, beta: b, L: r.L, T: r.T, fitted: r.fitted };
+    }
+  }
+  // 잔차 표준편차
+  const resid = series.map((y, i) => y - best.fitted[i]).slice(1);
+  const meanR = resid.reduce((a,b)=>a+b,0) / resid.length;
+  const sigma = Math.sqrt(resid.reduce((s,r)=>s+(r-meanR)*(r-meanR),0) / (resid.length-1 || 1));
+  // h 단계 예측
+  const forecasts = [];
+  for (let k = 1; k <= h; k++) {
+    const point = Math.max(0, best.L + k * best.T);
+    // 신뢰구간 폭은 sqrt(k)에 비례
+    const band = 1.96 * sigma * Math.sqrt(k);
+    forecasts.push({ point, lo: Math.max(0, point - band), hi: point + band });
+  }
+  return {
+    forecasts,
+    alpha: best.alpha, beta: best.beta, sigma,
+    rmse: Math.sqrt(best.sse / (n-1)),
+    accuracy: Math.max(0, 100 - (sigma / (series.reduce((a,b)=>a+b,0)/n || 1)) * 100), // 평균 대비 변동률
+  };
+}
+
+// 다음 주차 라벨 생성 (5주 단위 wrap)
+function nextWeekLabel(mo, wk) {
+  if (wk < 5) return { mo, wk: wk+1, label: `${mo}월${wk+1}주` };
+  const nm = mo === 12 ? 1 : mo+1;
+  return { mo: nm, wk: 1, label: `${nm}월1주` };
+}
 
 function selectAllMonths() {
   const data = getData(); if (!data) return;
@@ -741,6 +810,25 @@ function renderChart() {
   const yoy = APP.yoyOn ? aggregateYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
   const xData = agg.map(r => r.label);
 
+  // 예측 모드: 미래 4주 라벨 추가
+  let futureLabels = [], forecastMap = null;
+  if (APP.forecastOn && agg.length >= 4) {
+    let last = { mo: agg[agg.length-1].mo, wk: agg[agg.length-1].wk };
+    for (let k = 0; k < APP.forecastH; k++) {
+      const nxt = nextWeekLabel(last.mo, last.wk);
+      futureLabels.push(nxt.label);
+      last = { mo: nxt.mo, wk: nxt.wk };
+    }
+    forecastMap = {};
+    for (const m of METRICS) {
+      if (!APP.activeMetrics.has(m)) continue;
+      const series = agg.map(r => r[m]);
+      const fc = holtForecast(series, APP.forecastH);
+      if (fc) forecastMap[m] = fc;
+    }
+  }
+  const xDataAll = [...xData, ...futureLabels];
+
   // YoY를 같은 mo/wk로 매핑
   const yoyMap = yoy ? new Map(yoy.map(r => [`${r.mo}-${r.wk}`, r])) : null;
 
@@ -764,12 +852,13 @@ function renderChart() {
 
   const series = [];
   const legend = [];
+  const padFuture = (arr) => [...arr, ...futureLabels.map(_=>null)];
   METRICS.filter(m => APP.activeMetrics.has(m)).forEach((m, idx) => {
     series.push({
       name: m,
       type: m === '불량' ? 'bar' : 'line',
       smooth: true, symbol:'circle', symbolSize:7,
-      data: agg.map(r => r[m]),
+      data: padFuture(agg.map(r => r[m])),
       yAxisIndex: m === '불량' ? 1 : 0,
       lineStyle: { color: METRIC_COLORS[m], width: 2.5 },
       itemStyle: { color: METRIC_COLORS[m] },
@@ -777,6 +866,52 @@ function renderChart() {
       markLine: (idx === 0 && markLineCfg) ? markLineCfg : undefined,
     });
     legend.push(m);
+
+    // 예측 시리즈
+    if (forecastMap?.[m]) {
+      const fc = forecastMap[m];
+      const lastVal = agg[agg.length-1][m];
+      // 실측 마지막 → 예측 첫 점 연결을 위해 마지막 위치에 lastVal 두기
+      const fcData = new Array(agg.length-1).fill(null);
+      fcData.push(lastVal);
+      fc.forecasts.forEach(f => fcData.push(Math.round(f.point)));
+      const loData = new Array(agg.length-1).fill(null);
+      loData.push(lastVal);
+      fc.forecasts.forEach(f => loData.push(Math.round(f.lo)));
+      const hiData = new Array(agg.length-1).fill(null);
+      hiData.push(lastVal);
+      fc.forecasts.forEach(f => hiData.push(Math.round(f.hi)));
+
+      const fcName = `${m}(예측)`;
+      // 신뢰구간 (하단)
+      series.push({
+        name: `${m}_lo`, type: 'line', smooth: true,
+        data: loData, yAxisIndex: m === '불량' ? 1 : 0,
+        lineStyle: { width: 0, opacity: 0 }, symbol:'none',
+        stack: `band_${m}`, silent: true, tooltip: { show: false },
+        z: 1,
+      });
+      // 신뢰구간 (상단 - 차이)
+      series.push({
+        name: `${m}_band`, type: 'line', smooth: true,
+        data: hiData.map((h, i) => h == null ? null : (h - loData[i])),
+        yAxisIndex: m === '불량' ? 1 : 0,
+        lineStyle: { width: 0, opacity: 0 }, symbol:'none',
+        stack: `band_${m}`, silent: true, tooltip: { show: false },
+        areaStyle: { color: METRIC_COLORS[m], opacity: 0.10 },
+        z: 1,
+      });
+      // 예측선 (점선)
+      series.push({
+        name: fcName, type: 'line', smooth: true,
+        symbol: 'diamond', symbolSize: 8,
+        data: fcData, yAxisIndex: m === '불량' ? 1 : 0,
+        lineStyle: { color: METRIC_COLORS[m], width: 2, type: 'dashed' },
+        itemStyle: { color: METRIC_COLORS[m] },
+        z: 5,
+      });
+      legend.push(fcName);
+    }
     if (yoyMap) {
       const otherYear = APP.year === 2026 ? '25' : '26';
       const yoyName = `${m}(${otherYear})`;
@@ -784,7 +919,7 @@ function renderChart() {
         name: yoyName,
         type: m === '불량' ? 'bar' : 'line',
         smooth: true, symbol:'emptyCircle', symbolSize:5,
-        data: agg.map(r => yoyMap.get(`${r.mo}-${r.wk}`)?.[m] ?? null),
+        data: padFuture(agg.map(r => yoyMap.get(`${r.mo}-${r.wk}`)?.[m] ?? null)),
         yAxisIndex: m === '불량' ? 1 : 0,
         lineStyle: { color: METRIC_COLORS[m], width: 1.5, type: 'dashed', opacity: 0.6 },
         itemStyle: { color: METRIC_COLORS[m], opacity: 0.6 },
@@ -812,9 +947,12 @@ function renderChart() {
         return h;
       }
     },
-    legend: { data: legend, textStyle:{color:'#8A9BBF'}, top:6, type:'scroll' },
+    legend: { data: legend.filter(n => !n.endsWith('_lo') && !n.endsWith('_band')), textStyle:{color:'#8A9BBF'}, top:6, type:'scroll' },
     grid: { left:55, right:55, top:40, bottom:30 },
-    xAxis: { type:'category', data:xData, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', rotate: xData.length > 10 ? 30 : 0} },
+    xAxis: { type:'category', data:xDataAll, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', rotate: xDataAll.length > 10 ? 30 : 0,
+      formatter: (v) => futureLabels.includes(v) ? `{f|${v}}` : v,
+      rich: { f: { color: '#AB8FE0', fontWeight: 700 } }
+    } },
     yAxis: [
       { type:'value', name:'수량', nameTextStyle:{color:'#6B7693',fontSize:10}, splitLine:{lineStyle:{color:'#1A2236'}}, axisLabel:{color:'#8A9BBF', formatter:v=>v>=1000?Math.round(v/1000)+'k':v} },
       { type:'value', name:'불량', nameTextStyle:{color:'#E63946',fontSize:10}, splitLine:{show:false}, axisLabel:{color:'#E63946'} },
@@ -825,8 +963,13 @@ function renderChart() {
   const catLabel = getCats().size > 0 ? `${getCats().size}품목군` : `전체 품목군`;
   const itemLabel = getItems().size > 0 ? ` · ${getItems().size}품목 선택` : '';
   const yoyLabel = APP.yoyOn ? ' · 점선=동기간' : '';
+  let fcLabel = '';
+  if (forecastMap) {
+    const accAvg = Object.values(forecastMap).reduce((s,f)=>s+f.accuracy,0) / Object.keys(forecastMap).length;
+    fcLabel = ` · 🔮 ${APP.forecastH}주 예측 (정확도 ${accAvg.toFixed(0)}%, Holt's α/β 자동최적)`;
+  }
   document.getElementById('trendSub').textContent =
-    `${APP.year}년 · ${months.join('월·')}월 · ${catLabel}${itemLabel} · ${agg.length}개 주차${yoyLabel}`;
+    `${APP.year}년 · ${months.join('월·')}월 · ${catLabel}${itemLabel} · ${agg.length}개 주차${yoyLabel}${fcLabel}`;
 }
 
 function renderTable() {
