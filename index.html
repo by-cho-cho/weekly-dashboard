@@ -73,6 +73,8 @@
   .chip-year.active  { background: rgba(171,143,224,0.25); border-color: var(--purple); box-shadow:0 0 6px rgba(171,143,224,0.3); }
   .chip-month        { color: var(--cyan); border-color: rgba(79,195,247,0.35); background: rgba(79,195,247,0.05); }
   .chip-month.active { background: rgba(79,195,247,0.25); border-color: var(--cyan); box-shadow:0 0 6px rgba(79,195,247,0.3); }
+  .chip-week         { color: var(--mint); border-color: rgba(0,229,160,0.35); background: rgba(0,229,160,0.05); }
+  .chip-week.active  { background: rgba(0,229,160,0.25); border-color: var(--mint); box-shadow:0 0 6px rgba(0,229,160,0.3); }
   .chip-cat          { color: var(--amber); border-color: rgba(255,181,71,0.35); background: rgba(255,181,71,0.05); }
   .chip-cat.active   { background: rgba(255,181,71,0.25); border-color: var(--amber); box-shadow:0 0 6px rgba(255,181,71,0.3); }
   .chip-item         { color: var(--text-secondary); border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); font-size: 10px; padding:3px 9px;}
@@ -126,7 +128,6 @@
       <span style="font-size:10px;color:var(--text-muted);">부서</span>
       <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반 (액상)</button>
       <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반 (카테터)</button>
-      <button id="yoyBtn" class="btn" onclick="toggleYoY()" style="margin-left:8px;">📊 동기간 비교</button>
     </div>
   </div>
 
@@ -140,6 +141,12 @@
     <div class="filter-grid" id="monthChips"></div>
     <button class="btn" onclick="selectAllMonths()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:4px 10px;">최근 3개월</button>
+  </div>
+
+  <div class="filter-row">
+    <span class="filter-label">주차</span>
+    <div class="filter-grid" id="weekChips"></div>
+    <button class="btn" onclick="selectAllWeeks()" style="font-size:10px;padding:4px 10px;">전체</button>
   </div>
 
   <div class="filter-row">
@@ -180,12 +187,16 @@
         <div class="kpi-label">주간 추이 (수주 · 생산 · 출고 · 불량)</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="trendSub">—</div>
       </div>
-      <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
-        <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
-        <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
-        <span class="chip metric active" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
-        <span class="chip metric active" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
-        <span class="chip metric active" data-metric="불량" onclick="toggleMetric('불량')" style="color:#E63946;border-color:rgba(230,57,70,0.4);background:rgba(230,57,70,0.15);">불량</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
+          <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
+          <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
+          <span class="chip metric active" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
+          <span class="chip metric active" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
+          <span class="chip metric active" data-metric="불량" onclick="toggleMetric('불량')" style="color:#E63946;border-color:rgba(230,57,70,0.4);background:rgba(230,57,70,0.15);">불량</span>
+        </div>
+        <button id="yoyBtn" onclick="toggleYoY()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
       </div>
     </div>
     <div id="chartTrend" style="height:380px;"></div>
@@ -223,6 +234,7 @@ const APP = {
   yoyOn: false,
   data: { 2026: {'1반':null,'2반':null}, 2025: {'1반':null,'2반':null} },
   selectedMonths: new Set(),
+  selectedWeeks: new Set([1,2,3,4,5]),
   selectedCats:  { '1반': new Set(), '2반': new Set() },
   selectedItems: { '1반': new Set(), '2반': new Set() },
   activeMetrics: new Set(METRICS),
@@ -377,9 +389,11 @@ function filterItems(items) {
 
 function aggregateByWeek(items, months) {
   const out = [];
+  const weekFilter = APP.selectedWeeks;
   for (const mo of months) {
     const wks = items[0]?.weekData?.[mo] ? Object.keys(items[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
     for (const wk of wks) {
+      if (weekFilter.size > 0 && !weekFilter.has(wk)) continue;
       const sums = { 수주:0, 생산:0, 출고:0, 불량:0 };
       for (const it of items) {
         const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
@@ -429,6 +443,17 @@ function renderMonthChips() {
   document.getElementById('monthChips').innerHTML = months.map(m =>
     `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" data-ftype="month" data-fval="${m}">${m}월</span>`
   ).join('');
+}
+
+function renderWeekChips() {
+  const weeks = [1,2,3,4,5];
+  document.getElementById('weekChips').innerHTML = weeks.map(w =>
+    `<span class="chip chip-week ${APP.selectedWeeks.has(w)?'active':''}" data-ftype="week" data-fval="${w}">${w}주</span>`
+  ).join('');
+}
+function selectAllWeeks() {
+  APP.selectedWeeks = new Set([1,2,3,4,5]);
+  renderWeekChips(); renderBody();
 }
 
 function renderCatChips() {
@@ -518,6 +543,7 @@ const DRAG = { active:false, mode:null, touched:new Set(), moved:false };
 
 function isFilterOn(type, val) {
   if (type === 'month') return APP.selectedMonths.has(+val);
+  if (type === 'week')  return APP.selectedWeeks.has(+val);
   if (type === 'cat')   return getCats().has(val);
   if (type === 'item')  return getItems().has(val);
   return false;
@@ -526,6 +552,9 @@ function setFilterState(type, val, on) {
   if (type === 'month') {
     val = +val;
     if (on) APP.selectedMonths.add(val); else APP.selectedMonths.delete(val);
+  } else if (type === 'week') {
+    val = +val;
+    if (on) APP.selectedWeeks.add(val); else APP.selectedWeeks.delete(val);
   } else if (type === 'cat') {
     const set = getCats();
     if (on) set.add(val); else set.delete(val);
@@ -574,7 +603,7 @@ document.addEventListener('mouseup', () => {
       if (months.length) APP.selectedMonths.add(months[0]);
     }
   }
-  renderMonthChips(); renderCatChips(); renderItemChips();
+  renderMonthChips(); renderWeekChips(); renderCatChips(); renderItemChips();
   renderBody();
 });
 
@@ -831,7 +860,7 @@ function switchDept(dept) {
   document.getElementById('deptTitle').textContent = dept;
   document.querySelectorAll('.btn[data-dept]').forEach(b => b.classList.toggle('active', b.dataset.dept === dept));
   document.getElementById('itemSearch').value = '';
-  renderYearChips(); renderCatChips(); renderItemChips();
+  renderYearChips(); renderWeekChips(); renderCatChips(); renderItemChips();
   selectRecentMonths();
 }
 window.addEventListener('resize', () => APP.chart && APP.chart.resize());
@@ -876,7 +905,7 @@ async function init() {
     });
 
     document.getElementById('loadingOverlay').style.display = 'none';
-    renderYearChips(); renderCatChips(); renderItemChips();
+    renderYearChips(); renderWeekChips(); renderCatChips(); renderItemChips();
     selectRecentMonths();
   } catch (err) {
     document.getElementById('loadingOverlay').innerHTML = `
