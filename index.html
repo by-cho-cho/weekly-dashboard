@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>생산 종합 현황</title>
+<title>생산부 주간 대시보드</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,15 +14,14 @@
     --bg-card: #131826;
     --bg-card-hi: #1A2032;
     --border: #243049;
-    --border-gold: rgba(201,169,97,0.35);
     --text-primary: #EDF2FB;
     --text-secondary: #B8C2D9;
     --text-muted: #6B7693;
-    --accent-gold: #C9A961;
-    --accent-cyan: #4FC3F7;
-    --accent-mint: #00E5A0;
-    --accent-red: #E63946;
-    --accent-amber: #FFB547;
+    --gold: #C9A961;
+    --cyan: #4FC3F7;
+    --mint: #00E5A0;
+    --red: #E63946;
+    --amber: #FFB547;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -31,13 +30,13 @@
     color: var(--text-primary);
     font-family: 'Pretendard', -apple-system, sans-serif;
     font-size: 13px;
-    min-height: 100vh;
   }
   body {
     background:
       radial-gradient(ellipse at top, rgba(201,169,97,0.08), transparent 50%),
       radial-gradient(ellipse at bottom, rgba(79,195,247,0.05), transparent 50%),
       var(--bg-deep);
+    min-height: 100vh;
   }
   .num { font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; }
   .card {
@@ -46,1001 +45,157 @@
     border-radius: 14px;
     padding: 20px;
   }
-  .card-gold { border-color: var(--border-gold); }
-  .pulse-dot {
-    display: inline-block; width: 8px; height: 8px;
-    border-radius: 50%;
-    background: var(--accent-mint);
-    box-shadow: 0 0 0 0 rgba(0,229,160,0.7);
-    animation: pulse 2s infinite;
+  .header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(10,14,24,0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
   }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(0,229,160,0.7); }
-    70% { box-shadow: 0 0 0 8px rgba(0,229,160,0); }
-    100% { box-shadow: 0 0 0 0 rgba(0,229,160,0); }
-  }
-  .toggle-btn {
-    padding: 10px 24px;
-    border-radius: 10px;
-    font-weight: 700;
-    font-size: 14px;
-    cursor: pointer;
-    border: 1px solid var(--border);
-    background: rgba(255,255,255,0.03);
-    color: var(--text-secondary);
+  .btn {
+    padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 12px;
+    cursor: pointer; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.03); color: var(--text-secondary);
     transition: all .2s;
-    letter-spacing: 0.04em;
   }
-  .toggle-btn:hover { background: rgba(255,255,255,0.06); }
-  .toggle-btn.active {
-    background: linear-gradient(135deg, rgba(201,169,97,0.20), rgba(201,169,97,0.08));
-    border-color: var(--accent-gold);
-    color: var(--accent-gold);
-    box-shadow: 0 0 16px rgba(201,169,97,0.25);
+  .btn:hover { background: rgba(255,255,255,0.06); }
+  .btn.active {
+    background: linear-gradient(135deg, rgba(201,169,97,0.22), rgba(201,169,97,0.08));
+    border-color: var(--gold); color: var(--gold);
   }
-  .toggle-btn[data-dept="2반"].active {
-    background: linear-gradient(135deg, rgba(230,57,70,0.20), rgba(230,57,70,0.08));
-    border-color: var(--accent-red);
-    color: var(--accent-red);
-    box-shadow: 0 0 16px rgba(230,57,70,0.25);
+  .btn[data-dept="2반"].active {
+    background: linear-gradient(135deg, rgba(230,57,70,0.22), rgba(230,57,70,0.08));
+    border-color: var(--red); color: var(--red);
   }
-  .kpi-mega {
-    font-size: 40px; font-weight: 700; line-height: 1.1;
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-variant-numeric: tabular-nums;
-  }
-  .kpi-label {
+  .chip {
+    display: inline-flex; align-items: center;
+    padding: 4px 11px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
-    color: var(--text-muted);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    cursor: pointer; border: 1px solid; transition: all .15s;
+    user-select: none;
   }
+  .chip-month        { color: var(--cyan); border-color: rgba(79,195,247,0.35); background: rgba(79,195,247,0.05); }
+  .chip-month.active { background: rgba(79,195,247,0.22); border-color: var(--cyan); }
+  .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .kpi-val { font-size: 30px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
-  .delta-up { color: var(--accent-mint); }
-  .delta-down { color: var(--accent-red); }
-  .delta-neutral { color: var(--accent-amber); }
-  .badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-  }
+  .up   { color: var(--mint); }
+  .down { color: var(--red); }
   table.exec th, table.exec td { padding: 8px 12px; }
   table.exec thead th {
-    background: rgba(255,255,255,0.03);
-    color: var(--text-muted);
-    font-size: 11px;
-    font-weight: 600;
-    text-align: left;
+    background: rgba(255,255,255,0.03); color: var(--text-muted);
+    font-size: 11px; font-weight: 600; text-align: left;
     border-bottom: 1px solid var(--border);
   }
   table.exec tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
   table.exec tbody tr:hover { background: rgba(255,255,255,0.02); }
-  .verdict-pill {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 6px 18px;
-    border-radius: 12px;
-    font-size: 13px; font-weight: 700;
-    letter-spacing: 0.04em;
-  }
-  /* Sticky 헤더 */
-  .sticky-top {
-    position: sticky;
-    top: 0;
-    z-index: 50;
-    background: rgba(10,14,24,0.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--border);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
-  }
-  /* 필터 칩 */
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    padding: 4px 11px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    border: 1px solid;
-    transition: all .15s;
-    user-select: none;
-    line-height: 1.4;
-  }
-  .chip-year         { color: var(--accent-gold); border-color: rgba(201,169,97,0.35); background: rgba(201,169,97,0.05); }
-  .chip-year.active  { background: rgba(201,169,97,0.22); border-color: var(--accent-gold); box-shadow: 0 0 6px rgba(201,169,97,0.3); }
-  .chip-month        { color: var(--accent-cyan); border-color: rgba(79,195,247,0.35); background: rgba(79,195,247,0.05); }
-  .chip-month.active { background: rgba(79,195,247,0.22); border-color: var(--accent-cyan); box-shadow: 0 0 6px rgba(79,195,247,0.3); }
-  .chip-cat          { color: var(--accent-red); border-color: rgba(230,57,70,0.35); background: rgba(230,57,70,0.05); }
-  .chip-cat.active   { background: rgba(230,57,70,0.22); border-color: var(--accent-red); box-shadow: 0 0 6px rgba(230,57,70,0.3); }
-  .chip-all          { color: var(--text-secondary); border-color: rgba(255,255,255,0.25); background: rgba(255,255,255,0.04); font-size: 10px; }
-  .chip-all:hover    { background: rgba(255,255,255,0.10); color: var(--text-primary); }
-  .filter-row        { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:3px 0; }
-  .filter-label      { font-size:11px; font-weight:700; color:var(--text-muted); min-width:50px; }
-  .filter-grid       { display:flex; flex-wrap:wrap; gap:4px; flex:1; user-select:none; -webkit-user-select:none; }
-  .filter-summary    {
-    font-size:10px; color:var(--text-muted);
-    padding-top:6px; margin-top:4px;
-    border-top:1px dashed rgba(255,255,255,0.08);
-  }
-  /* 인쇄용 */
-  @media print {
-    body { background: white; color: black; }
-    .no-print { display: none !important; }
-    .card { break-inside: avoid; }
-    .sticky-top { position: static; box-shadow: none; backdrop-filter: none; }
-  }
 </style>
 </head>
 <body>
 
-<!-- 데이터는 Apps Script 서버에서 실시간 로딩 -->
-
-<!-- 로딩 오버레이 -->
-<div id="loadingOverlay" style="
-  position:fixed;inset:0;z-index:99999;
-  background:rgba(10,14,24,0.97);
-  display:flex;align-items:center;justify-content:center;
-  flex-direction:column;gap:20px;">
-  <div style="font-size:20px;color:#C9A961;font-weight:700;letter-spacing:0.05em;">데이터 로딩 중</div>
+<!-- 로딩 -->
+<div id="loadingOverlay" style="position:fixed;inset:0;z-index:99999;background:rgba(10,14,24,0.97);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;">
+  <div style="font-size:18px;color:#C9A961;font-weight:700;letter-spacing:0.05em;">주간 데이터 로딩 중</div>
   <div style="width:220px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;">
-    <div style="height:100%;background:linear-gradient(90deg,#C9A961,#4FC3F7);border-radius:2px;
-                animation:ldbar 1.6s ease-in-out infinite;"></div>
+    <div style="height:100%;background:linear-gradient(90deg,#C9A961,#4FC3F7);animation:ldbar 1.6s ease-in-out infinite;"></div>
   </div>
-  <div style="font-size:12px;color:#6B7693;">구글 스프레드시트에서 실시간 데이터를 가져오는 중…</div>
   <style>@keyframes ldbar{0%{transform:translateX(-100%)}50%{transform:translateX(60%)}100%{transform:translateX(220%)}}</style>
 </div>
 
-<!-- 표지로 돌아가기 (항상 표시) -->
-<button onclick="showCover()" class="no-print" title="표지로 돌아가기" style="
-        position:fixed; bottom:18px; right:18px; z-index:8000;
-        padding:8px 14px; font-size:11px; font-weight:700; letter-spacing:0.15em;
-        background:linear-gradient(135deg, rgba(201,169,97,0.18), rgba(201,169,97,0.06));
-        color:#C9A961; border:1px solid rgba(201,169,97,0.5);
-        border-radius:10px; cursor:pointer;
-        box-shadow:0 4px 16px rgba(0,0,0,0.4);
-        transition:all .2s;"
-  onmouseover="this.style.background='linear-gradient(135deg, rgba(201,169,97,0.32), rgba(201,169,97,0.12))'"
-  onmouseout="this.style.background='linear-gradient(135deg, rgba(201,169,97,0.18), rgba(201,169,97,0.06))'">
-  ⌂ 표지
-</button>
-
-<!-- ────────────────────────────────────────────────────── -->
-<!-- 표지 (클릭 시 대시보드 진입) -->
-<!-- ────────────────────────────────────────────────────── -->
-<div id="coverScreen" onclick="enterDashboard()" style="
-     position:fixed; inset:0; z-index:9999; cursor:pointer;
-     display:flex; align-items:center; justify-content:center;
-     background:
-       radial-gradient(ellipse at 30% 20%, rgba(201,169,97,0.18), transparent 55%),
-       radial-gradient(ellipse at 70% 80%, rgba(79,195,247,0.12), transparent 55%),
-       linear-gradient(180deg, #0A0E18 0%, #131826 100%);
-     transition: opacity .55s ease, transform .55s ease;">
-  <!-- 장식 라인 -->
-  <div style="position:absolute; top:0; left:0; right:0; height:4px;
-              background: linear-gradient(90deg, transparent, #C9A961 50%, transparent);"></div>
-  <div style="position:absolute; bottom:0; left:0; right:0; height:4px;
-              background: linear-gradient(90deg, transparent, #4FC3F7 50%, transparent);"></div>
-
-  <div style="text-align:center; max-width:900px; padding:40px;">
-    <h1 style="font-size:64px; font-weight:800; line-height:1.15;
-               color:#EDF2FB; letter-spacing:-0.02em; margin:0;">
-      생산부 <span style="color:#C9A961;">5월</span> 월간보고자료
-    </h1>
-
-    <!-- 구분선 -->
-    <div style="width:120px; height:2px; margin:36px auto;
-                background:linear-gradient(90deg, transparent, #C9A961, transparent);"></div>
-
-    <div style="font-size:14px; color:#B8C2D9; letter-spacing:0.08em;">
-      보고일 <span style="color:#EDF2FB; margin-left:8px; font-weight:600;">2026년 6월 8일</span>
-    </div>
-
-    <!-- 진입 안내 -->
-    <div style="margin-top:64px; font-size:12px; color:#6B7693; letter-spacing:0.3em;">
-      <span class="pulse-dot" style="margin-right:10px;"></span>
-      CLICK TO ENTER
-    </div>
-  </div>
-</div>
-
-<script>
-function enterDashboard() {
-  const c = document.getElementById('coverScreen');
-  if (!c) return;
-  c.style.opacity = '0';
-  c.style.transform = 'scale(1.04)';
-  setTimeout(()=>{
-    c.style.display = 'none';
-    showMonthlyReport();
-  }, 550);
-}
-function showCover() {
-  const c = document.getElementById('coverScreen');
-  const r = document.getElementById('monthlyReport');
-  if (r) r.style.display = 'none';
-  if (!c) return;
-  c.style.display = 'flex';
-  void c.offsetWidth;
-  c.style.opacity = '1';
-  c.style.transform = 'scale(1)';
-}
-function showMonthlyReport() {
-  const r = document.getElementById('monthlyReport');
-  if (!r) return;
-  r.style.display = 'flex';
-  void r.offsetWidth;
-  r.style.opacity = '1';
-}
-function enterMainDashboard() {
-  const r = document.getElementById('monthlyReport');
-  if (r) { r.style.opacity='0'; setTimeout(()=>{ r.style.display='none'; }, 400); }
-}
-</script>
-
-<!-- ── 월간 보고 섹션 ───────────────────────────────────── -->
-<div id="monthlyReport" style="
-  display:none; opacity:0;
-  position:fixed; inset:0; z-index:9000;
-  background: radial-gradient(ellipse at 15% 15%, rgba(201,169,97,0.09), transparent 50%),
-              radial-gradient(ellipse at 85% 85%, rgba(79,195,247,0.06), transparent 50%),
-              #0A0E18;
-  overflow-y:auto;
-  transition: opacity .4s ease;
-  flex-direction: column;">
-
-  <div style="height:3px;background:linear-gradient(90deg,transparent,#C9A961 40%,#4FC3F7 60%,transparent);flex-shrink:0;"></div>
-
-  <div style="max-width:1200px;margin:0 auto;padding:36px 40px 80px;width:100%;">
-
-    <!-- 타이틀 -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;flex-wrap:wrap;gap:12px;">
-      <div style="display:flex;align-items:center;gap:20px;">
-        <div style="width:4px;height:52px;background:linear-gradient(180deg,#C9A961,#4FC3F7);border-radius:2px;"></div>
-        <div>
-          <div style="font-size:10px;color:#6B7693;letter-spacing:0.35em;margin-bottom:6px;">MONTHLY REPORT · 생산부</div>
-          <h1 style="font-size:32px;font-weight:800;color:#EDF2FB;margin:0;letter-spacing:-0.02em;">
-            생산부 <span style="color:#C9A961;">5월</span> 월간보고자료
-            <span style="font-size:14px;font-weight:400;color:#6B7693;margin-left:12px;">/ 6월 계획 포함</span>
-          </h1>
-        </div>
-      </div>
-    </div>
-
-    <!-- ■■■ 팀별 보고 (NEW) ■■■ -->
-
-    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-    <!-- 생산팀                                           -->
-    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-    <div style="margin-bottom:22px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-        <div style="width:3px;height:26px;background:linear-gradient(180deg,#C9A961,#FFB547);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:20px;font-weight:800;color:#C9A961;letter-spacing:0.1em;">생산팀</span>
-        <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(201,169,97,0.4),transparent);"></div>
-        <span style="font-size:10px;color:#6B7693;letter-spacing:0.1em;">PRODUCTION TEAM</span>
-      </div>
-
-      <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(201,169,97,0.18);border-radius:14px;padding:20px;border-left:3px solid #C9A961;">
-        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;">
-          <thead>
-            <tr>
-              <th rowspan="2" style="padding:9px 14px;text-align:left;background:rgba(255,255,255,0.03);color:#6B7693;border:1px solid #1E2A40;font-size:11px;width:80px;">품목군</th>
-              <th colspan="5" style="text-align:center;padding:10px;background:rgba(201,169,97,0.08);color:#C9A961;border:1px solid #1E2A40;font-size:16px;font-weight:700;letter-spacing:0.08em;">5월 계획 및 실적</th>
-              <th style="text-align:center;padding:10px;background:rgba(79,195,247,0.10);color:#4FC3F7;border:1px solid #1E2A40;font-size:16px;font-weight:700;letter-spacing:0.06em;">6월 안전재고 확보</th>
-            </tr>
-            <tr style="background:rgba(255,255,255,0.02);">
-              <th style="padding:7px 11px;text-align:right;color:#6B7693;border:1px solid #1E2A40;font-weight:600;font-size:10px;">수주량</th>
-              <th style="padding:7px 11px;text-align:right;color:#6B7693;border:1px solid #1E2A40;font-weight:600;font-size:10px;">생산계획</th>
-              <th style="padding:7px 11px;text-align:right;color:#6B7693;border:1px solid #1E2A40;font-weight:600;font-size:10px;">생산량</th>
-              <th style="padding:7px 11px;text-align:right;color:#6B7693;border:1px solid #1E2A40;font-weight:600;font-size:10px;">출고량</th>
-              <th style="padding:7px 11px;text-align:right;color:#6B7693;border:1px solid #1E2A40;font-weight:600;font-size:10px;">달성률</th>
-              <th style="padding:7px 11px;text-align:right;color:#4FC3F7;border:1px solid #1E2A40;font-weight:600;font-size:10px;">계획</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style="padding:11px 14px;border:1px solid #1E2A40;font-weight:700;color:#EDF2FB;">BL / BE</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">38,520</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">38,330</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#EDF2FB;font-weight:600;" class="num">33,310</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">20,860</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;" class="num"><span style="background:rgba(255,183,71,0.15);color:#FFB547;padding:3px 10px;border-radius:20px;font-weight:700;">86.9%</span></td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;font-weight:700;color:#4FC3F7;" class="num">42,160</td>
-            </tr>
-            <tr>
-              <td style="padding:11px 14px;border:1px solid #1E2A40;font-weight:700;color:#EDF2FB;">C / F</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">5,000</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">22,000</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#EDF2FB;font-weight:600;" class="num">25,000</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">23,198</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;" class="num"><span style="background:rgba(0,229,160,0.15);color:#00E5A0;padding:3px 10px;border-radius:20px;font-weight:700;">113.6%</span></td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;font-weight:700;color:#4FC3F7;" class="num">17,000</td>
-            </tr>
-            <tr>
-              <td style="padding:11px 14px;border:1px solid #1E2A40;font-weight:700;color:#EDF2FB;">Catheter</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">381</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">980</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#EDF2FB;font-weight:600;" class="num">1,025</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;color:#B8C2D9;" class="num">465</td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;" class="num"><span style="background:rgba(0,229,160,0.15);color:#00E5A0;padding:3px 10px;border-radius:20px;font-weight:700;">104.6%</span></td>
-              <td style="padding:11px 14px;text-align:right;border:1px solid #1E2A40;border-radius:0;font-size:11px;" class="num">
-                <div style="font-weight:700;color:#4FC3F7;">720</div>
-                <div style="font-size:10px;color:#6B7693;margin-top:2px;">DUO DECA 200개</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        <!-- 특이사항 카드 -->
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
-          <div style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,183,71,0.2);">
-            <div style="padding:8px 12px;background:linear-gradient(135deg,rgba(255,183,71,0.18),rgba(255,183,71,0.05));display:flex;align-items:center;justify-content:space-between;">
-              <span style="font-size:11px;font-weight:700;color:#FFB547;">BL / BE</span>
-              <span style="font-size:9px;font-weight:700;letter-spacing:0.08em;padding:2px 7px;border-radius:20px;background:rgba(255,183,71,0.2);color:#FFB547;border:1px solid rgba(255,183,71,0.4);">SCHEDULE REVISED</span>
-            </div>
-            <div style="padding:12px;background:rgba(255,183,71,0.03);">
-              <div style="font-size:11px;font-weight:600;color:#EDF2FB;margin-bottom:6px;">생산 스케줄 리파이닝</div>
-              <div style="font-size:11px;color:#6B7693;line-height:1.7;">C/F Safety Buffer Stock 확보 우선화에 따라 6월 이후 수주 파이프라인 재편 및 생산 캘린더 조정</div>
-            </div>
-          </div>
-          <div style="border-radius:10px;overflow:hidden;border:1px solid rgba(0,229,160,0.2);">
-            <div style="padding:8px 12px;background:linear-gradient(135deg,rgba(0,229,160,0.18),rgba(0,229,160,0.05));display:flex;align-items:center;justify-content:space-between;">
-              <span style="font-size:11px;font-weight:700;color:#00E5A0;">C / F</span>
-              <span style="font-size:9px;font-weight:700;letter-spacing:0.08em;padding:2px 7px;border-radius:20px;background:rgba(0,229,160,0.2);color:#00E5A0;border:1px solid rgba(0,229,160,0.4);">OUTPERFORMING</span>
-            </div>
-            <div style="padding:12px;background:rgba(0,229,160,0.03);">
-              <div style="font-size:11px;font-weight:600;color:#EDF2FB;margin-bottom:6px;">Pre-production 초과달성</div>
-              <div style="font-size:11px;color:#6B7693;line-height:1.7;">제이시스(국내) Safety Stock 3K 확보 완료 및 텐텍 Pre-production 물량 계획 대비 상향 집행</div>
-            </div>
-          </div>
-          <div style="border-radius:10px;overflow:hidden;border:1px solid rgba(230,57,70,0.2);">
-            <div style="padding:8px 12px;background:linear-gradient(135deg,rgba(230,57,70,0.18),rgba(230,57,70,0.05));display:flex;align-items:center;justify-content:space-between;">
-              <span style="font-size:11px;font-weight:700;color:#E63946;">Catheter</span>
-              <span style="font-size:9px;font-weight:700;letter-spacing:0.08em;padding:2px 7px;border-radius:20px;background:rgba(230,57,70,0.2);color:#E63946;border:1px solid rgba(230,57,70,0.4);">RISK IDENTIFIED</span>
-            </div>
-            <div style="padding:12px;background:rgba(230,57,70,0.03);">
-              <div style="font-size:11px;font-weight:600;color:#EDF2FB;margin-bottom:6px;">DUO DECA Critical Path 지연</div>
-              <div style="font-size:11px;color:#6B7693;line-height:1.7;">웰딩 숙련인력 부재 및 EPO Probe Expedited Delivery 대응으로 리소스 전용 → <span style="color:#E63946;font-weight:600;">–45EA 미달</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-    <!-- 구매팀                                           -->
-    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-    <div style="margin-bottom:22px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-        <div style="width:3px;height:26px;background:linear-gradient(180deg,#FFB547,#C9A961);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:20px;font-weight:800;color:#FFB547;letter-spacing:0.1em;">구매팀</span>
-        <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(255,183,71,0.4),transparent);"></div>
-        <span style="font-size:10px;color:#6B7693;letter-spacing:0.1em;">PROCUREMENT TEAM</span>
-      </div>
-
-      <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(255,183,71,0.18);border-radius:14px;padding:20px;border-left:3px solid #FFB547;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <!-- 5월 현황 -->
-        <div>
-          <div style="font-size:18px;font-weight:700;color:#FFB547;letter-spacing:0.06em;margin-bottom:14px;">5월 현황</div>
-          <div style="display:flex;gap:12px;margin-bottom:12px;">
-            <div style="flex:1;text-align:center;padding:14px 10px;background:rgba(255,183,71,0.07);border-radius:10px;border:1px solid rgba(255,183,71,0.12);">
-              <div style="font-size:10px;color:#6B7693;margin-bottom:5px;">누적 원가절감</div>
-              <div style="font-size:18px;font-weight:700;color:#FFB547;font-family:'IBM Plex Sans',sans-serif;line-height:1.2;">1억<br>2,400만원</div>
-            </div>
-            <div style="flex:1;text-align:center;padding:14px 10px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid #1E2A40;">
-              <div style="font-size:10px;color:#6B7693;margin-bottom:5px;">목표 달성률</div>
-              <div style="font-size:30px;font-weight:700;color:#FFB547;font-family:'IBM Plex Sans',sans-serif;">62%</div>
-              <div style="font-size:10px;color:#6B7693;">목표 2억 대비</div>
-            </div>
-          </div>
-          <div style="font-size:11px;color:#6B7693;padding:9px 12px;background:rgba(255,255,255,0.02);border-radius:8px;">
-            26년 1~5월 총 매입비용 <span style="color:#B8C2D9;font-weight:600;">9억 3,600만원</span>
-          </div>
-        </div>
-        <!-- 6월 계획 -->
-        <div>
-          <div style="font-size:18px;font-weight:700;color:#4FC3F7;letter-spacing:0.04em;margin-bottom:10px;">6월 계획</div>
-          <div style="font-size:11px;color:#6B7693;margin-top:-8px;margin-bottom:10px;">절감 아이템 업체 변경</div>
-          <!-- 절감 금액 강조 -->
-          <div style="padding:9px 14px;background:rgba(255,183,71,0.08);border:1px solid rgba(255,183,71,0.25);border-radius:8px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
-            <span style="font-size:16px;font-weight:700;color:#FFB547;font-family:'IBM Plex Sans',sans-serif;">1억 3천만원</span>
-            <span style="font-size:10px;color:#6B7693;">절감 Target 아이템</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(79,195,247,0.05);border-radius:8px;border:1px solid rgba(79,195,247,0.12);">
-              <div style="width:5px;height:5px;border-radius:50%;background:#4FC3F7;flex-shrink:0;"></div>
-              <span style="font-size:11px;color:#B8C2D9;">EP커넥터 공급업체 변경</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(79,195,247,0.05);border-radius:8px;border:1px solid rgba(79,195,247,0.12);">
-              <div style="width:5px;height:5px;border-radius:50%;background:#4FC3F7;flex-shrink:0;"></div>
-              <span style="font-size:11px;color:#B8C2D9;">팁캡 공급업체 변경</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(79,195,247,0.05);border-radius:8px;border:1px solid rgba(79,195,247,0.12);">
-              <div style="width:5px;height:5px;border-radius:50%;background:#4FC3F7;flex-shrink:0;"></div>
-              <span style="font-size:11px;color:#B8C2D9;">블루블랙 타이백 포장지 변경</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(79,195,247,0.05);border-radius:8px;border:1px solid rgba(79,195,247,0.12);">
-              <div style="width:5px;height:5px;border-radius:50%;background:#4FC3F7;flex-shrink:0;"></div>
-              <span style="font-size:11px;color:#B8C2D9;">ENBD용 드레인튜브 업체 변경</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-    <!-- 생산기술팀                                        -->
-    <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
-    <div style="margin-bottom:32px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-        <div style="width:3px;height:26px;background:linear-gradient(180deg,#4FC3F7,#00E5A0);border-radius:2px;flex-shrink:0;"></div>
-        <span style="font-size:20px;font-weight:800;color:#4FC3F7;letter-spacing:0.1em;">생산기술팀</span>
-        <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(79,195,247,0.4),transparent);"></div>
-        <span style="font-size:10px;color:#6B7693;letter-spacing:0.1em;">PRODUCTION TECHNOLOGY TEAM</span>
-      </div>
-
-      <!-- 상단 2열: Steerable sheath + RFA -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-
-        <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(79,195,247,0.18);border-radius:14px;padding:18px;border-left:3px solid #4FC3F7;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <span style="font-size:22px;font-weight:700;color:#4FC3F7;letter-spacing:0.04em;">Steerable Sheath</span>
-            <span style="font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(255,183,71,0.15);color:#FFB547;border:1px solid rgba(255,183,71,0.3);font-weight:600;">IN PROGRESS</span>
-          </div>
-          <div style="font-size:11px;color:#B8C2D9;line-height:1.8;margin-bottom:12px;">
-            APT 계약 진행 중<br>
-            7월 내 인증용 샘플 <span style="color:#EDF2FB;font-weight:600;">100개</span> 수급 요청<br>
-            국내 GMP 품목 추가 필요<br>
-            <span style="font-size:10px;color:#6B7693;">측정 및 유도용기구(II)</span>
-          </div>
-          <div style="padding:9px 12px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.15);border-radius:8px;">
-            <span style="font-size:10px;color:#00E5A0;font-weight:700;">6월 계획 ›</span>
-            <span style="font-size:11px;color:#B8C2D9;margin-left:6px;">계약 완료 및 인증용 샘플 진행</span>
-          </div>
-        </div>
-
-        <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(79,195,247,0.18);border-radius:14px;padding:18px;border-left:3px solid #4FC3F7;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <span style="font-size:22px;font-weight:700;color:#4FC3F7;letter-spacing:0.04em;">RFA 개발</span>
-            <span style="font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(79,195,247,0.15);color:#4FC3F7;border:1px solid rgba(79,195,247,0.3);font-weight:600;">DIRECTION CHANGE</span>
-          </div>
-          <div style="font-size:11px;color:#B8C2D9;line-height:1.8;margin-bottom:12px;">
-            Pjt drop → <span style="color:#4FC3F7;font-weight:600;">RFA/PFA Hybrid</span> 개발 방향 변경<br>
-            Accupath · 생기원 <span style="color:#EDF2FB;font-weight:600;">투트랙 전략</span> 진행<br>
-            <span style="font-size:10px;color:#6B7693;">Target Mode : Abotte DUO Flex</span>
-          </div>
-          <div style="padding:9px 12px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.15);border-radius:8px;">
-            <span style="font-size:10px;color:#00E5A0;font-weight:700;">6월 계획 ›</span>
-            <span style="font-size:11px;color:#B8C2D9;margin-left:6px;">에보트 RFA Flexability 역설계 시작</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 하단 3열: 6Fr Deca + Sustaining + UZ -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-
-        <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(79,195,247,0.18);border-radius:14px;padding:18px;border-left:3px solid #4FC3F7;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <span style="font-size:22px;font-weight:700;color:#4FC3F7;">6Fr 스티어러블 Deca</span>
-            <span style="font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(255,183,71,0.15);color:#FFB547;border:1px solid rgba(255,183,71,0.3);font-weight:600;">SAMPLING</span>
-          </div>
-          <div style="font-size:11px;color:#B8C2D9;line-height:1.8;margin-bottom:12px;">
-            커브 등 형상 <span style="color:#00E5A0;font-weight:600;">모두 만족</span><br>
-            Distal 쿠션감 확보 필요<br>
-            <span style="color:#FFB547;font-size:10px;">대안 ›</span> Non Braide 샤프트<br>
-            W/T 감소·레진 구매 후 샘플<br>
-            <span style="color:#FFB547;font-weight:600;">7/15 이내</span> 입고 예정
-          </div>
-          <div style="padding:9px 12px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.15);border-radius:8px;">
-            <div style="font-size:10px;color:#00E5A0;font-weight:700;margin-bottom:3px;">6월 계획</div>
-            <div style="font-size:11px;color:#B8C2D9;line-height:1.6;">샤프트 내경 확대 가능여부 검토<br>중국 제작업체 수급 논의 시작</div>
-          </div>
-        </div>
-
-        <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(79,195,247,0.18);border-radius:14px;padding:18px;border-left:3px solid #4FC3F7;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <span style="font-size:22px;font-weight:700;color:#4FC3F7;">Sustaining</span>
-            <span style="font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(0,229,160,0.15);color:#00E5A0;border:1px solid rgba(0,229,160,0.3);font-weight:600;">1ST VERIFIED</span>
-          </div>
-          <div style="font-size:11px;color:#B8C2D9;line-height:1.8;margin-bottom:12px;">
-            용접방법 개선<br>
-            웰딩(2회) → <span style="color:#4FC3F7;font-weight:600;">에폭시 도포</span><br>
-            1차 검증 <span style="color:#00E5A0;font-weight:600;">완료</span><br>
-            기존 대비 생산성 <span style="color:#00E5A0;font-weight:600;">약 2배</span> 향상
-          </div>
-          <div style="padding:9px 12px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.15);border-radius:8px;">
-            <span style="font-size:10px;color:#00E5A0;font-weight:700;">6월 계획 ›</span>
-            <span style="font-size:11px;color:#B8C2D9;margin-left:6px;">최종 검증 완료</span>
-          </div>
-        </div>
-
-        <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(79,195,247,0.18);border-radius:14px;padding:18px;border-left:3px solid #4FC3F7;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <span style="font-size:22px;font-weight:700;color:#4FC3F7;">UZ</span>
-            <span style="font-size:9px;padding:2px 7px;border-radius:20px;background:rgba(79,195,247,0.15);color:#4FC3F7;border:1px solid rgba(79,195,247,0.3);font-weight:600;">SCHEDULED</span>
-          </div>
-          <div style="font-size:11px;color:#B8C2D9;line-height:1.8;margin-bottom:12px;">
-            6/7 입국<br>
-            <span style="color:#4FC3F7;font-weight:600;">15일 체류</span> 예정
-          </div>
-          <div style="padding:9px 12px;background:rgba(0,229,160,0.06);border:1px solid rgba(0,229,160,0.15);border-radius:8px;">
-            <div style="font-size:10px;color:#00E5A0;font-weight:700;margin-bottom:3px;">6월 계획</div>
-            <div style="font-size:11px;color:#B8C2D9;">법인장 OJT 및 UZ 준비사항 F/U</div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- 대시보드 진입 버튼 -->
-    <div style="text-align:center;margin-top:36px;">
-      <button onclick="enterMainDashboard()" style="
-        padding:14px 52px;
-        background:linear-gradient(135deg,rgba(201,169,97,0.20),rgba(201,169,97,0.08));
-        border:1px solid rgba(201,169,97,0.5);color:#C9A961;
-        font-size:13px;font-weight:700;border-radius:12px;cursor:pointer;
-        letter-spacing:0.1em;box-shadow:0 0 24px rgba(201,169,97,0.15);transition:all .2s;"
-        onmouseover="this.style.background='linear-gradient(135deg,rgba(201,169,97,0.32),rgba(201,169,97,0.12))'"
-        onmouseout="this.style.background='linear-gradient(135deg,rgba(201,169,97,0.20),rgba(201,169,97,0.08))'">
-        실시간 대시보드 보기 →
-      </button>
-      <div style="font-size:10px;color:#6B7693;margin-top:10px;letter-spacing:0.25em;">LIVE DASHBOARD</div>
-    </div>
-
-  </div>
-
-  <div style="height:3px;background:linear-gradient(90deg,transparent,#4FC3F7 50%,transparent);margin-top:auto;flex-shrink:0;"></div>
-
-  <!-- 구버전 섹션 제거됨 -->
-  <div style="display:none;">
-  <div style="max-width:1100px; margin:0 auto; padding:48px 40px 80px; width:100%;">
-
-    <!-- 타이틀 -->
-    <div style="text-align:center; margin-bottom:48px;">
-      <div style="font-size:12px;color:#6B7693;letter-spacing:0.3em;margin-bottom:12px;">MONTHLY PRODUCTION REPORT</div>
-      <h1 style="font-size:42px;font-weight:800;color:#EDF2FB;letter-spacing:-0.02em;margin:0;">
-        2026년 <span style="color:#C9A961;">5월</span> 생산부 보고
-      </h1>
-      <div style="width:80px;height:2px;background:linear-gradient(90deg,transparent,#C9A961,transparent);margin:20px auto;"></div>
-      <div style="font-size:13px;color:#B8C2D9;">보고기준일 <span style="color:#EDF2FB;font-weight:600;">2026년 6월 8일</span></div>
-    </div>
-
-    <!-- KPI 카드 3개 -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
-      <!-- 1반 -->
-      <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(201,169,97,0.3);border-radius:16px;padding:28px 24px;">
-        <div style="font-size:11px;font-weight:700;color:#6B7693;letter-spacing:0.1em;margin-bottom:12px;">1반 (액상 의료기기)</div>
-        <div style="font-size:48px;font-weight:700;color:#FFB547;font-family:'IBM Plex Sans',sans-serif;line-height:1;">86.9%</div>
-        <div style="font-size:12px;color:#B8C2D9;margin-top:10px;">생산 달성률</div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7693;margin-bottom:6px;">
-            <span>계획</span><span style="color:#B8C2D9;font-weight:600;">38,330개</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7693;">
-            <span>실적</span><span style="color:#EDF2FB;font-weight:700;">33,310개</span>
-          </div>
-        </div>
-      </div>
-      <!-- 2반 -->
-      <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(0,229,160,0.25);border-radius:16px;padding:28px 24px;">
-        <div style="font-size:11px;font-weight:700;color:#6B7693;letter-spacing:0.1em;margin-bottom:12px;">2반 (카테터)</div>
-        <div style="font-size:48px;font-weight:700;color:#00E5A0;font-family:'IBM Plex Sans',sans-serif;line-height:1;">104.6%</div>
-        <div style="font-size:12px;color:#B8C2D9;margin-top:10px;">생산 달성률 ✅ 초과달성</div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7693;margin-bottom:6px;">
-            <span>계획</span><span style="color:#B8C2D9;font-weight:600;">980개</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7693;">
-            <span>실적</span><span style="color:#EDF2FB;font-weight:700;">1,025개</span>
-          </div>
-        </div>
-      </div>
-      <!-- C/F -->
-      <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(79,195,247,0.25);border-radius:16px;padding:28px 24px;">
-        <div style="font-size:11px;font-weight:700;color:#6B7693;letter-spacing:0.1em;margin-bottom:12px;">C/F (커플링플로이드)</div>
-        <div style="font-size:48px;font-weight:700;color:#4FC3F7;font-family:'IBM Plex Sans',sans-serif;line-height:1;">113.6%</div>
-        <div style="font-size:12px;color:#B8C2D9;margin-top:10px;">생산 달성률 ✅ 초과달성</div>
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);">
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7693;margin-bottom:6px;">
-            <span>계획</span><span style="color:#B8C2D9;font-weight:600;">22,000개</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;color:#6B7693;">
-            <span>실적</span><span style="color:#EDF2FB;font-weight:700;">25,000개</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 하단 2열 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
-
-      <!-- 주요 이슈 -->
-      <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(230,57,70,0.25);border-radius:16px;padding:28px 24px;">
-        <div style="font-size:11px;font-weight:700;color:#E63946;letter-spacing:0.1em;margin-bottom:18px;">⚠ 주요 이슈</div>
-
-        <div style="margin-bottom:16px;">
-          <div style="font-size:12px;font-weight:700;color:#EDF2FB;margin-bottom:8px;">1반 미달 품목</div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(230,57,70,0.08);border-radius:8px;margin-bottom:6px;">
-            <span style="font-size:12px;color:#B8C2D9;">Endospic Marker</span>
-            <span style="font-size:13px;font-weight:700;color:#E63946;">50%</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(230,57,70,0.08);border-radius:8px;">
-            <span style="font-size:12px;color:#B8C2D9;">Blue Eye 미국향</span>
-            <span style="font-size:13px;font-weight:700;color:#E63946;">0%</span>
-          </div>
-        </div>
-
-        <div style="padding-top:16px;border-top:1px solid rgba(255,255,255,0.06);">
-          <div style="font-size:12px;font-weight:700;color:#EDF2FB;margin-bottom:8px;">DUO DECA 미달 <span style="color:#FFB547;">75%</span></div>
-          <div style="font-size:11px;color:#6B7693;line-height:1.8;">
-            · EPO PROBE 긴급투입 → 생산라인 우선순위 변경<br>
-            · 숙련 팀장급 인력 1명 부재 → 공정 능력 일시 저하
-          </div>
-        </div>
-      </div>
-
-      <!-- 6월 계획 + 경영진 관심사항 -->
-      <div style="display:flex;flex-direction:column;gap:16px;">
-        <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(201,169,97,0.25);border-radius:16px;padding:24px;">
-          <div style="font-size:11px;font-weight:700;color:#C9A961;letter-spacing:0.1em;margin-bottom:16px;">📅 6월 생산 계획</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            <div style="text-align:center;padding:14px;background:rgba(201,169,97,0.06);border-radius:10px;border:1px solid rgba(201,169,97,0.15);">
-              <div style="font-size:10px;color:#6B7693;margin-bottom:6px;">1반</div>
-              <div style="font-size:24px;font-weight:700;color:#C9A961;font-family:'IBM Plex Sans',sans-serif;">42,160</div>
-              <div style="font-size:10px;color:#6B7693;margin-top:4px;">개</div>
-            </div>
-            <div style="text-align:center;padding:14px;background:rgba(79,195,247,0.06);border-radius:10px;border:1px solid rgba(79,195,247,0.15);">
-              <div style="font-size:10px;color:#6B7693;margin-bottom:6px;">2반</div>
-              <div style="font-size:24px;font-weight:700;color:#4FC3F7;font-family:'IBM Plex Sans',sans-serif;">720</div>
-              <div style="font-size:10px;color:#6B7693;margin-top:4px;">개</div>
-            </div>
-          </div>
-        </div>
-
-        <div style="background:linear-gradient(135deg,#131826,#1A2032);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;flex:1;">
-          <div style="font-size:11px;font-weight:700;color:#B8C2D9;letter-spacing:0.1em;margin-bottom:14px;">💡 경영진 관심 사항</div>
-          <div style="font-size:11px;color:#6B7693;line-height:2;">
-            <span style="color:#FFB547;font-weight:600;">① DUO DECA</span> 연속 미달 방지 — 6월 인력 정상화 확인 필요<br>
-            <span style="color:#4FC3F7;font-weight:600;">② 구매 단가 절감</span> — 신규 공급업체 협상 진행 중<br>
-            <span style="color:#B8C2D9;font-size:10px;">&nbsp;&nbsp;&nbsp;(EP Connector·Tip Cap 등 최대 30~40% 절감 가능)</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 대시보드 진입 버튼 -->
-    <div style="text-align:center;margin-top:40px;">
-      <button onclick="enterMainDashboard()" style="
-        padding:14px 48px;
-        background:linear-gradient(135deg,rgba(201,169,97,0.20),rgba(201,169,97,0.08));
-        border:1px solid rgba(201,169,97,0.5);
-        color:#C9A961;font-size:13px;font-weight:700;
-        border-radius:12px;cursor:pointer;
-        letter-spacing:0.1em;
-        transition:all .2s;
-        box-shadow:0 0 24px rgba(201,169,97,0.15);"
-        onmouseover="this.style.background='linear-gradient(135deg,rgba(201,169,97,0.32),rgba(201,169,97,0.12))'"
-        onmouseout="this.style.background='linear-gradient(135deg,rgba(201,169,97,0.20),rgba(201,169,97,0.08))'">
-        실시간 대시보드 보기 →
-      </button>
-      <div style="font-size:10px;color:#6B7693;margin-top:12px;letter-spacing:0.2em;">LIVE DASHBOARD</div>
-    </div>
-
-  </div></div>
-
-  <!-- 하단 장식선 -->
-  <div style="height:3px;background:linear-gradient(90deg,transparent,#4FC3F7 50%,transparent);margin-top:auto;flex-shrink:0;"></div>
-</div>
-
-<header class="sticky-top" style="padding: 16px 40px 12px;
-               background: linear-gradient(180deg, rgba(10,14,24,0.95), rgba(10,14,24,0.90));">
-  <div class="flex items-start justify-between flex-wrap gap-4">
+<!-- 헤더 -->
+<header class="header">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
-      <h1 class="text-[20px] font-bold" style="color: var(--text-primary); letter-spacing: -0.01em;">
-        생산<span id="reportDeptTitle" style="color: var(--accent-gold);">2반</span> 종합현황 - <span id="reportDeptSuffix">카테터</span>
+      <h1 style="font-size:20px;font-weight:800;margin:0;letter-spacing:-0.01em;">
+        생산<span id="deptTitle" style="color:var(--gold);">1반</span> <span style="color:var(--text-muted);font-size:14px;font-weight:600;">주간 변동 현황</span>
       </h1>
-      <div class="text-[11px] mt-1" style="color: var(--text-muted);">
-        <span class="pulse-dot"></span>
-        <span id="reportDate">—</span> 기준
-        <span id="reportRange" style="display:none;">—</span>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+        <span id="syncDate">—</span> 기준 · 주간 단위 집계
       </div>
     </div>
-
-    <!-- 1반 / 2반 토글 -->
-    <div class="flex gap-2 items-center no-print">
-      <span class="text-[10px]" style="color: var(--text-muted); margin-right: 4px;">부서 선택</span>
-      <button class="toggle-btn active" data-dept="1반" onclick="switchDept('1반')"
-        style="padding: 8px 16px; font-size: 12px;">
-        1반 (액상 의료기기)
-      </button>
-      <button class="toggle-btn" data-dept="2반" onclick="switchDept('2반')"
-        style="padding: 8px 16px; font-size: 12px;">
-        2반 (카테터)
-      </button>
-      <button class="toggle-btn no-print" onclick="window.print()"
-        style="margin-left: 8px; padding: 8px 14px; font-size: 11px;">
-        🖨 인쇄
-      </button>
-      <button id="presentBtn" class="toggle-btn no-print" onclick="togglePresentMode()"
-        style="margin-left: 4px; padding: 8px 14px; font-size: 11px;">
-        🖥 발표 모드
-      </button>
-      <!-- 배율 조절 -->
-      <div id="zoomBar" class="no-print" style="display:none;align-items:center;gap:4px;margin-left:4px;">
-        <button onclick="setZoom(-5)" style="padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;">−</button>
-        <span id="zoomLabel" style="font-size:11px;color:var(--text-muted);min-width:36px;text-align:center;">80%</span>
-        <button onclick="setZoom(+5)" style="padding:6px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;">+</button>
-      </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span style="font-size:10px;color:var(--text-muted);">부서</span>
+      <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반</button>
+      <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반</button>
     </div>
   </div>
 
-<script>
-let _presentMode = false;
-let _zoom = 80;
-
-function togglePresentMode() {
-  _presentMode = !_presentMode;
-  const btn = document.getElementById('presentBtn');
-  const zoomBar = document.getElementById('zoomBar');
-  if (_presentMode) {
-    _zoom = Math.round(Math.min(window.innerWidth / 1600, window.innerHeight / 900) * 100);
-    _zoom = Math.max(60, Math.min(_zoom, 95));
-    applyZoom();
-    btn.classList.add('active');
-    btn.textContent = '✕ 발표 모드';
-    zoomBar.style.display = 'flex';
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-  } else {
-    document.documentElement.style.zoom = '100%';
-    btn.classList.remove('active');
-    btn.textContent = '🖥 발표 모드';
-    zoomBar.style.display = 'none';
-    if (document.fullscreenElement) document.exitFullscreen?.();
-  }
-}
-
-function setZoom(delta) {
-  _zoom = Math.max(50, Math.min(_zoom + delta, 100));
-  applyZoom();
-}
-
-function applyZoom() {
-  document.documentElement.style.zoom = _zoom + '%';
-  document.getElementById('zoomLabel').textContent = _zoom + '%';
-}
-
-document.addEventListener('fullscreenchange', () => {
-  if (!document.fullscreenElement && _presentMode) {
-    _presentMode = false;
-    document.documentElement.style.zoom = '100%';
-    const btn = document.getElementById('presentBtn');
-    if (btn) { btn.classList.remove('active'); btn.textContent = '🖥 발표 모드'; }
-    const zoomBar = document.getElementById('zoomBar');
-    if (zoomBar) zoomBar.style.display = 'none';
-  }
-});
-
-</script>
-
-  <!-- 필터 패널 (항상 펼침) -->
-  <div id="filterPanel" class="mt-3 pt-3 no-print" style="border-top: 1px dashed rgba(255,255,255,0.08);">
-    <div class="filter-row">
-      <span class="filter-label">연도</span>
-      <div class="filter-grid" id="filterYears"></div>
-      <span class="chip chip-all" onclick="toggleAllFilter('years')">전체선택</span>
-    </div>
-    <div class="filter-row">
-      <span class="filter-label">월 <span style="font-weight:400;color:var(--text-muted);font-size:9px;">(<span id="filterMonthYear">2026</span>년)</span></span>
-      <div class="filter-grid" id="filterMonths"></div>
-      <span class="chip chip-all" onclick="toggleAllFilter('months')">전체선택</span>
-    </div>
-    <div class="filter-row">
-      <span class="filter-label">품목군</span>
-      <div class="filter-grid" id="filterCats"></div>
-      <span class="chip chip-all" onclick="toggleAllFilter('categories')">전체선택</span>
-    </div>
-    <div class="filter-row">
-      <span class="filter-label">품목 <span id="filterItemCount" style="font-weight:400;color:var(--text-muted);font-size:10px;">전체</span></span>
-      <div style="flex:1; display:flex; align-items:center; gap:6px;">
-        <input id="filterItemSearch" placeholder="🔍 품목 검색…" oninput="renderItemPicker()"
-          style="background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-primary);
-                 border-radius:8px; padding:5px 10px; font-size:11px; width:240px; outline:none;">
-        <button onclick="document.getElementById('itemPickerPanel').style.display = document.getElementById('itemPickerPanel').style.display==='block'?'none':'block'"
-          class="chip chip-all" style="cursor:pointer;">▼ 품목 선택</button>
-      </div>
-      <span class="chip chip-all" onclick="toggleAllFilter('items')">전체선택</span>
-      <button onclick="resetFilters()" class="chip chip-all"
-        style="background:rgba(201,169,97,0.10); border-color:var(--accent-gold); color:var(--accent-gold);">
-        ⟳ 필터 초기화
-      </button>
-    </div>
-    <!-- 품목 선택 드롭다운 (접힘) -->
-    <div id="itemPickerPanel" style="display:none; max-height:200px; overflow-y:auto; margin-top:6px;
-         padding:8px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:8px;">
-      <div id="itemPickerList" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:4px;"></div>
-    </div>
-    <div class="filter-summary" id="filterSummary">—</div>
+  <!-- 월 필터 -->
+  <div style="margin-top:12px;padding-top:10px;border-top:1px dashed rgba(255,255,255,0.08);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    <span style="font-size:11px;font-weight:700;color:var(--text-muted);">월 선택</span>
+    <div id="monthChips" style="display:flex;flex-wrap:wrap;gap:4px;flex:1;"></div>
+    <button class="btn" onclick="selectAllMonths()" style="font-size:10px;padding:5px 12px;">전체</button>
+    <button class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:5px 12px;">최근 3개월</button>
   </div>
 </header>
 
-<!-- ────────────────────────────────────────────────────── -->
-<!-- KPI + 월별 추이 차트 (통합 카드) -->
-<!-- ────────────────────────────────────────────────────── -->
-<section class="grid grid-cols-1 xl:grid-cols-12 gap-4" style="padding: 14px 40px 0;">
-  <div class="card xl:col-span-12">
+<!-- KPI 카드 -->
+<section style="padding:18px 32px 0;">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+    <div class="card">
+      <div class="kpi-label">최근주 수주</div>
+      <div class="kpi-val" style="color:var(--gold);" id="kpiOrder">—</div>
+      <div class="kpi-sub" id="kpiOrderSub">—</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">최근주 생산</div>
+      <div class="kpi-val" style="color:var(--cyan);" id="kpiProd">—</div>
+      <div class="kpi-sub" id="kpiProdSub">—</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">최근주 출고</div>
+      <div class="kpi-val" style="color:var(--mint);" id="kpiShip">—</div>
+      <div class="kpi-sub" id="kpiShipSub">—</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">최근주 불량</div>
+      <div class="kpi-val" style="color:var(--red);" id="kpiDef">—</div>
+      <div class="kpi-sub" id="kpiDefSub">—</div>
+    </div>
+  </div>
+</section>
 
-    <!-- 차트 제목 + 컨트롤 -->
-    <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+<!-- 주간 추이 차트 -->
+<section style="padding:18px 32px 0;">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
       <div>
-        <div class="kpi-label">월별 생산·수주·출고 추이 (KPI 통합)</div>
-        <div class="text-[11px] mt-0.5" style="color: var(--text-muted);" id="trendSubtitle">2026년 월별 실적</div>
+        <div class="kpi-label">주간 추이 (수주 · 생산 · 출고 · 불량)</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="trendSub">—</div>
       </div>
-      <div class="flex items-center gap-2 flex-wrap no-print">
-        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;
-                    background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
-          <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
-          <span class="chip chip-trend-metric active" data-metric="수주" onclick="toggleTrendMetric('수주')"
-            style="padding:3px 9px;font-size:10px;color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
-          <span class="chip chip-trend-metric active" data-metric="생산" onclick="toggleTrendMetric('생산')"
-            style="padding:3px 9px;font-size:10px;color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
-          <span class="chip chip-trend-metric active" data-metric="출고" onclick="toggleTrendMetric('출고')"
-            style="padding:3px 9px;font-size:10px;color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
-        </div>
-        <button id="trendYoYBtn" onclick="toggleTrendYoY()" class="toggle-btn"
-          style="padding:5px 10px;font-size:10px;">📊 25년 비교</button>
-        <span style="font-size:10px;color:var(--text-muted);padding:0 4px;">
-          🏷 품목 기준: 헤더 필터 적용
-        </span>
+      <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
+        <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
+        <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
+        <span class="chip metric active" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
+        <span class="chip metric active" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
+        <span class="chip metric active" data-metric="불량" onclick="toggleMetric('불량')" style="color:#E63946;border-color:rgba(230,57,70,0.4);background:rgba(230,57,70,0.15);">불량</span>
       </div>
     </div>
-
-    <!-- 차트 + KPI 오버레이 통합 컨테이너 -->
-    <div style="position:relative;">
-      <!-- 차트 -->
-      <div id="chartTrend" style="height: 380px;"></div>
-
-      <!-- KPI 5개 오버레이 (차트 안 상단 빈공간) -->
-      <div id="megaKpiStrip"
-           style="position:absolute; top:6px; left:55px; right:20px; z-index:5;
-                  display:grid; grid-template-columns:repeat(5,1fr); gap:0;
-                  pointer-events:none;
-                  background:linear-gradient(180deg, rgba(10,14,24,0.55), rgba(10,14,24,0.0));
-                  border-radius:10px; padding:6px 2px;">
-        <div style="padding:4px 10px;border-right:1px solid rgba(255,255,255,0.06);">
-          <div class="kpi-label" style="font-size:10px;">총 수주</div>
-          <div style="font-size:26px;font-weight:700;line-height:1.1;font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;color:var(--accent-gold);margin-top:2px;" id="kpiOrders">—</div>
-          <div class="kpi-sub" style="margin-top:2px;" id="kpiOrdersSub">—</div>
-        </div>
-        <div style="padding:4px 10px;border-right:1px solid rgba(255,255,255,0.06);">
-          <div class="kpi-label" style="font-size:10px;">총 생산</div>
-          <div style="font-size:26px;font-weight:700;line-height:1.1;font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;color:var(--accent-cyan);margin-top:2px;" id="kpiProduction">—</div>
-          <div class="kpi-sub" style="margin-top:2px;" id="kpiProductionSub">—</div>
-        </div>
-        <div style="padding:4px 10px;border-right:1px solid rgba(255,255,255,0.06);">
-          <div class="kpi-label" style="font-size:10px;">총 출고</div>
-          <div style="font-size:26px;font-weight:700;line-height:1.1;font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;color:var(--accent-mint);margin-top:2px;" id="kpiShipped">—</div>
-          <div class="kpi-sub" style="margin-top:2px;" id="kpiShippedSub">—</div>
-        </div>
-        <div style="padding:4px 10px;border-right:1px solid rgba(255,255,255,0.06);">
-          <div class="kpi-label" style="font-size:10px;">달성률</div>
-          <div style="font-size:26px;font-weight:700;line-height:1.1;font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;margin-top:2px;" id="kpiAchieve">—</div>
-          <div class="kpi-sub" style="margin-top:2px;" id="kpiAchieveSub">—</div>
-        </div>
-        <div style="padding:4px 10px;">
-          <div class="kpi-label" style="font-size:10px;">불량율</div>
-          <div style="font-size:26px;font-weight:700;line-height:1.1;font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;margin-top:2px;" id="kpiDefect">—</div>
-          <div class="kpi-sub" style="margin-top:2px;" id="kpiDefectSub">—</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 푸터 (누적 설명 + 종합 판정) -->
-    <div class="flex items-center justify-between flex-wrap gap-2 mt-3 pt-2"
-         style="border-top:1px dashed var(--border);">
-      <div class="text-[11px]" style="color: var(--text-muted);">
-        ※ 2026년 1월 1일~기준일까지 누적 · 전년 동기 = 2025년 실측 월별 데이터 기반
-      </div>
-      <span id="overallVerdict" class="verdict-pill">— 분석 중 —</span>
-    </div>
+    <div id="chartTrend" style="height:380px;"></div>
   </div>
 </section>
 
-<!-- ────────────────────────────────────────────────────── -->
-<!-- 4. TOP 성장/하락 품목 -->
-<!-- ────────────────────────────────────────────────────── -->
-<section class="grid grid-cols-1 xl:grid-cols-12 gap-4" style="padding: 24px 40px 0;">
-
-  <div class="card xl:col-span-6">
-    <div class="kpi-label">📈 TOP 5 성장 품목 (전년 동기 比)</div>
-    <div class="mt-3" id="topGrowth"></div>
-  </div>
-
-  <div class="card xl:col-span-6">
-    <div class="kpi-label">📉 TOP 5 하락 품목 (전년 동기 比)</div>
-    <div class="mt-3" id="topDecline"></div>
+<!-- 주차별 상세표 -->
+<section style="padding:18px 32px 30px;">
+  <div class="card">
+    <div class="kpi-label">주차별 상세 (전주 대비)</div>
+    <div id="weekTable" style="margin-top:10px;"></div>
   </div>
 </section>
-
-<!-- ────────────────────────────────────────────────────── -->
-<!-- 5. 품목군별 성과 + 재고 알림 -->
-<!-- ────────────────────────────────────────────────────── -->
-<section class="grid grid-cols-1 xl:grid-cols-12 gap-4" style="padding: 24px 40px 40px;">
-
-  <div class="card xl:col-span-7">
-    <div class="kpi-label">품목군별 성과</div>
-    <div class="text-[11px] mt-1" style="color: var(--text-muted);">생산량 기준 점유율 · 누적 수주/생산/달성률</div>
-    <div class="mt-3" id="catTable"></div>
-  </div>
-
-  <div class="card xl:col-span-5">
-    <div class="kpi-label">⚠ 재고 부족 알림</div>
-    <div class="text-[11px] mt-1" style="color: var(--text-muted);">실가용재고 = 현재고 − 미출오더 기준</div>
-    <div class="mt-3" id="stockAlerts"></div>
-  </div>
-</section>
-
-<span id="footSyncTime" style="display:none;"></span>
 
 <script>
-/* ============================================================
-   STATE & CONFIG
-   ============================================================ */
+const SHEET_ID = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
+const GIDS = { '1반': '2145094968', '2반': '680125344' };
+const METRICS = ['수주','생산','출고','불량'];
+const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946' };
 const APP = {
-  currentDept: '1반',
-  trendYoY: false,
-  trendCats: null,
+  dept: '1반',
   data: { '1반': null, '2반': null },
-  charts: {},
-  filters: {
-    '1반': null,
-    '2반': null,
-  },
+  selectedMonths: new Set(),
+  activeMetrics: new Set(METRICS),
+  chart: null,
 };
 
-const CAT_COLORS = ['#C9A961','#4FC3F7','#00E5A0','#FFB547','#E63946','#FF8A65','#AB8FE0','#5AD8C0'];
-const METRIC_COLORS = { '수주': '#C9A961', '생산': '#4FC3F7', '출고': '#00E5A0' };
-const APP_TREND_METRICS = new Set(['수주', '생산', '출고']); // 전역 — 부서 공통
-
-const YEAR_OPTIONS = [2023, 2024, 2025, 2026];
-const MONTH_OPTIONS = [1,2,3,4,5,6,7,8,9,10,11,12];
-
-function makeDefaultFilter(items) {
-  const cats = [...new Set(items.map(it => it.category))];
-  return {
-    years: new Set([2026]),
-    months: new Set(MONTH_OPTIONS.filter(m => m <= new Date().getMonth())), // 말일 지난 달까지만 기본 선택
-    categories: new Set(cats),
-    items: new Set(),  // empty = 전체 (필터 해제와 같음)
-  };
-}
-
-function getCurFilters() { return APP.filters[APP.currentDept]; }
-
-function filterItems(items) {
-  const f = getCurFilters();
-  if (!f) return items;
-  const itemAll = f.items.size === 0;
-  return items.filter(it => {
-    if (!f.categories.has(it.category)) return false;
-    if (!itemAll && !f.items.has(it.model)) return false;
-    return true;
-  });
-}
-
-const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
-const fmtPct = (v, dp=1) => v == null ? '—' : v.toFixed(dp) + '%';
-const parseNum = v => {
-  if (v == null || v === '') return 0;
-  const n = Number(String(v).replace(/,/g, '').trim());
-  return isFinite(n) ? n : 0;
-};
-
-/* ============================================================
-   1반 파서 (1반 대쉬보드.html에서 발췌)
-   ============================================================ */
 function parseCSV(text){
   const rows=[]; let row=[],cell='',q=false;
   for(let i=0;i<text.length;i++){
@@ -1054,557 +209,211 @@ function parseCSV(text){
   if(cell||row.length){row.push(cell);rows.push(row);}
   return rows;
 }
-
-function parse1Bu() {
-  const csv = window._CSV_1BAN?.['2145094968'];
-  if (!csv) return null;
-  const rows = parseCSV(csv);
-  const monthly2026 = {1:77,2:84,3:91,4:98,5:105,6:112,7:119,8:126,9:133,10:140,11:147,12:154};
-  const yearCols = {
-    2022:{생산:32,출고:33,불량:35,수주:37},
-    2023:{생산:39,출고:40,불량:42,수주:44},
-    2024:{생산:46,출고:47,불량:49,수주:51},
-    2025:{생산:55,출고:56,불량:58,수주:60},
-  };
-  const CAT_DEFS = [
-    {cat:'Black Eye',     totalRow:7,  sheetRows:[8,9,10,11,12]},
-    {cat:'Blue Eye',      totalRow:13, sheetRows:[14,15,16,17,18,19,20]},
-    {cat:'커플링플로이드',  totalRow:21, sheetRows:[22,23,24,25,26,27,28,29,30,31,32]},
-    {cat:'창상피복제',     totalRow:33, sheetRows:[34,35]},
-    {cat:'시린지',         totalRow:36, sheetRows:[37,38,39]},
-    {cat:'BE/벨라',       totalRow:40, sheetRows:[41,42]},
-    {cat:'IOT',           totalRow:43, sheetRows:[44]},
-  ];
-  const M = ['수주','생산','출고','불량'];
-  function readRow(sr){
-    const row = rows[sr-1]||[];
-    const monthData = {};
-    for (const mo of Object.keys(monthly2026)){
-      const c = monthly2026[mo];
-      monthData[+mo] = {
-        생산: parseNum(row[c]), 출고: parseNum(row[c+1]),
-        불량: parseNum(row[c+3]), 수주: parseNum(row[c+5]),
-      };
-    }
-    const yearData = {};
-    for (const yr of [2022,2023,2024,2025]){
-      yearData[yr] = {수주:0,생산:0,출고:0,불량:0};
-      for (const me of M) yearData[yr][me] = parseNum(row[yearCols[yr][me]]);
-    }
-    yearData[2026] = {수주:0,생산:0,출고:0,불량:0};
-    for (const mm of Object.values(monthData)) for (const me of M) yearData[2026][me] += mm[me]||0;
-    if (yearData[2026]['생산'] === 0) {
-      yearData[2026]['생산'] = parseNum(row[64]);
-      yearData[2026]['출고'] = parseNum(row[65]);
-      yearData[2026]['불량'] = parseNum(row[67]);
-      yearData[2026]['수주'] = parseNum(row[69]);
-    }
-    return {
-      yearData, monthData,
-      safetyStock: parseNum(row[4]),
-      currentStock: parseNum(row[9]),
-      unshipped: parseNum(row[11]),
-      model: (row[2]||row[1]||'').trim(),
-      spec: (row[3]||'').trim(),
-    };
-  }
-  const items = [];
-  for (const cd of CAT_DEFS){
-    for (const sr of cd.sheetRows){
-      const d = readRow(sr);
-      if (!d.model || d.model.toLowerCase() === 'total') continue;
-      items.push({...d, category: cd.cat});
-    }
-  }
-  // 25년 실측 주입
-  if (window.DATA_1BAN_2025?.items?.length) {
-    const norm = s => (s||'').replace(/\s+/g,'').replace(/[（）()]/g,'').toLowerCase();
-    const stripAlias = s => norm(s).replace(/범용/g,'');
-    const lookup = new Map();
-    for (const r of window.DATA_1BAN_2025.items) lookup.set(norm(r.model)+'||'+norm(r.spec), r);
-    for (const it of items) {
-      const k1 = norm(it.model)+'||'+norm(it.spec);
-      const k2 = stripAlias(it.model)+'||'+norm(it.spec);
-      const r = lookup.get(k1) || lookup.get(k2);
-      if (r) {
-        it.monthData2025 = {};
-        for (let m=1; m<=12; m++) it.monthData2025[m] = r.monthData[m] || r.monthData[String(m)] || {생산:0,출고:0,불량:0,수주:0};
-        it.yearData[2025] = {...it.yearData[2025], ...r.yearData};
-      }
-    }
-  }
-  return { items, has2025: !!window.DATA_1BAN_2025 };
-}
+const parseNum = v => {
+  if (v == null || v === '') return 0;
+  const n = Number(String(v).replace(/,/g, '').trim());
+  return isFinite(n) ? n : 0;
+};
+const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
 
 /* ============================================================
-   2반 파서
+   주간 컬럼 파싱
+   시트 패턴: "M월 계획" 헤더 다음으로 각 주차마다
+     "M-W 수주", "계획", "M월W주 생산", "출고", "불량", "성능", "외관", "기타"
    ============================================================ */
-function parse2Ban() {
-  const csv = window._CSV_2BAN?.['680125344'];
-  if (!csv) return null;
-  const rows = parseCSV(csv);
-  const headers = rows[0] || [];
-
-  const colMap = { safetyStock:-1, currentStock:-1, unshipped:-1, yearTotals:{}, monthly:{}, weeklyStart:-1 };
-  const M = ['수주','생산','출고','불량','성능','외관','기타'];
-  let currentYear = null, currentMonth = null, inWeekly = false;
-  for (let i=0; i<headers.length; i++) {
+function buildWeeklyColumnMap(headers) {
+  // 결과: weeklyMap[month][week] = { 수주, 생산, 출고, 불량 } 컬럼 인덱스
+  const map = {};
+  for (let i = 0; i < headers.length; i++) {
     const h = (headers[i]||'').trim();
-    if (h.includes('안전재고')) { colMap.safetyStock = i; continue; }
-    if (h.includes('현재고')) { colMap.currentStock = i; continue; }
-    if (h.includes('미출오더')) { colMap.unshipped = i; continue; }
-    if (h.includes('계획') || /^\d+-\d+/.test(h) || /^\d+월\s*계획/.test(h)) { if (colMap.weeklyStart === -1) colMap.weeklyStart = i; inWeekly = true; }
-    if (inWeekly) continue;
-    const yt = h.match(/^(\d{4})년\s*TOTAL\s*(\S+)/);
-    if (yt) { currentYear = +yt[1]; currentMonth = null;
-      colMap.yearTotals[currentYear] = colMap.yearTotals[currentYear]||{};
-      colMap.yearTotals[currentYear][yt[2]] = i; continue; }
-    const mt = h.match(/^(\d{1,2})월\s+(\S+)/);
-    if (mt) { currentMonth = +mt[1]; currentYear = null;
-      colMap.monthly[currentMonth] = colMap.monthly[currentMonth]||{};
-      colMap.monthly[currentMonth][mt[2]] = i; continue; }
-    if (M.includes(h) && currentYear) colMap.yearTotals[currentYear][h] = i;
-    else if (M.includes(h) && currentMonth) colMap.monthly[currentMonth][h] = i;
+    // "M-W 수주" 패턴
+    const m1 = h.match(/^(\d{1,2})-(\d)\s*수주$/);
+    if (m1) {
+      const mo = +m1[1], wk = +m1[2];
+      map[mo] = map[mo] || {};
+      // 수주: i, 계획: i+1, 생산: i+2, 출고: i+3, 불량: i+4
+      map[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4 };
+    }
   }
+  return map;
+}
 
-  const CAT_HEADERS = ['EP','ENBD','EPO Probe','Cable total','Cable'];
-  const DUO = ['SM720SJD','SM720SOD'];
-  const EXCLUDE = new Set(['Cable']);
+function parseSheet(csvText, dept) {
+  const rows = parseCSV(csvText);
+  const headers = rows[0] || [];
+  const wmap = buildWeeklyColumnMap(headers);
+
+  // 1반은 model 컬럼이 [2], 2반은 [0]
+  const modelCol = dept === '1반' ? 2 : 0;
+  const specCol = dept === '1반' ? 3 : 1;
 
   const items = [];
-  const catStocks = {};   // 카테고리별 재고 데이터 (EP·ENBD 등)
-  let currentCategory = null;
-  for (let r=1; r<rows.length; r++) {
-    const row = rows[r]; if (!row || !row[0]) continue;
-    const model = (row[0]||'').trim();
-    const spec = (row[1]||'').trim();
-    if (model === '전품목' || model.toLowerCase() === 'total') continue;
-    if (CAT_HEADERS.includes(model) || /^(EP|ENBD|Cable\s*total|Cable|EPO\s*Probe)$/i.test(model)) {
-      const norm = /cable/i.test(model) ? 'Cable'
-                 : /epo/i.test(model) ? 'EPO Probe'
-                 : /enbd/i.test(model) ? 'ENBD'
-                 : /^ep$/i.test(model) ? 'EP'
-                 : model;
-      currentCategory = norm;
-      // 카테고리 행의 재고 데이터 저장
-      const catSS = colMap.safetyStock >= 0 ? parseNum(row[colMap.safetyStock]) : 0;
-      const catCS = colMap.currentStock >= 0 ? parseNum(row[colMap.currentStock]) : 0;
-      const catUS = colMap.unshipped  >= 0 ? parseNum(row[colMap.unshipped])  : 0;
-      if (catSS > 0) catStocks[norm] = { model: norm, spec: '(품목군 합계)', category: norm, safetyStock: catSS, currentStock: catCS, unshipped: catUS };
-      continue;
-    }
-    if (!currentCategory) continue;
-    if (EXCLUDE.has(currentCategory)) continue;
-    let category = currentCategory;
-    if (DUO.includes(model)) category = 'DUO DECA';
-    const safetyStock = colMap.safetyStock >= 0 ? parseNum(row[colMap.safetyStock]) : 0;
-    const currentStock = colMap.currentStock >= 0 ? parseNum(row[colMap.currentStock]) : 0;
-    const unshipped = colMap.unshipped >= 0 ? parseNum(row[colMap.unshipped]) : 0;
-    const yearData = {};
-    for (const [yr, mm] of Object.entries(colMap.yearTotals)) {
-      const y = +yr;
-      yearData[y] = {};
-      for (const me of M) yearData[y][me] = mm[me]!=null ? parseNum(row[mm[me]]) : 0;
-    }
-    const monthData = {};
-    for (const [mo, mm] of Object.entries(colMap.monthly)) {
-      const mn = +mo;
-      monthData[mn] = {};
-      for (const me of M) monthData[mn][me] = mm[me]!=null ? parseNum(row[mm[me]]) : 0;
-    }
-    items.push({ model, spec, category, safetyStock, currentStock, unshipped, yearData, monthData });
-  }
-
-  // 25년 실측 주입
-  if (window.DATA_2BAN_2025?.items?.length) {
-    const norm = s => (s||'').replace(/\s+/g,'').replace(/\n/g,'').toLowerCase();
-    const lookup25 = new Map();
-    for (const r of window.DATA_2BAN_2025.items) lookup25.set(norm(r.model), r);
-    for (const it of items) {
-      const r = lookup25.get(norm(it.model));
-      if (r) {
-        it.monthData2025 = {};
-        for (let m=1; m<=12; m++) it.monthData2025[m] = r.monthData[m] || r.monthData[String(m)] || {수주:0,생산:0,출고:0,불량:0};
-        it.yearData[2025] = {...it.yearData[2025], ...r.yearData};
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r]; if (!row) continue;
+    const model = (row[modelCol]||'').trim();
+    if (!model) continue;
+    if (/^(total|item|품명|품목|spec|규격|전품목)$/i.test(model)) continue;
+    // 1반: 카테고리 헤더 행 (Black Eye, Blue Eye 등) 일부 스킵 — 모델명에 매출 정보 없는 경우만 포함
+    const weekData = {}; // weekData[mo][wk] = {수주,생산,출고,불량}
+    let hasAny = false;
+    for (const mo of Object.keys(wmap)) {
+      weekData[mo] = {};
+      for (const wk of Object.keys(wmap[mo])) {
+        const c = wmap[mo][wk];
+        const w = {};
+        for (const me of METRICS) w[me] = parseNum(row[c[me]]);
+        weekData[mo][wk] = w;
+        if (w.수주 + w.생산 + w.출고 + w.불량 > 0) hasAny = true;
       }
     }
+    if (!hasAny) continue;
+    items.push({ model, spec: (row[specCol]||'').trim(), weekData });
   }
-  return { items, has2025: !!window.DATA_2BAN_2025, catStocks };
+  return { items, weeksByMonth: getWeeksByMonth(wmap) };
+}
+
+function getWeeksByMonth(wmap) {
+  // 각 월별로 존재하는 주차 번호 목록
+  const r = {};
+  for (const mo of Object.keys(wmap)) {
+    r[+mo] = Object.keys(wmap[mo]).map(Number).sort((a,b)=>a-b);
+  }
+  return r;
 }
 
 /* ============================================================
-   RENDERING
+   집계
    ============================================================ */
-function getCurrentData() { return APP.data[APP.currentDept]; }
-
-function getSyncDateStr() {
-  return APP.currentDept === '1반' ? window._CSV_1BAN_DATE : window._CSV_2BAN_DATE;
-}
-
-function getCurrentMonth() {
-  const ds = getSyncDateStr();
-  const dt = ds ? new Date(ds.replace(' ','T')) : new Date();
-  return dt.getMonth() + 1;
-}
-
-function syncHeaderHeight() {
-  const h = document.querySelector('header.sticky-top');
-  if (h) document.documentElement.style.setProperty('--header-h', h.offsetHeight + 'px');
-}
-
-function renderHeader() {
-  document.getElementById('reportDeptTitle').textContent = APP.currentDept;
-  const suffixEl = document.getElementById('reportDeptSuffix');
-  if (suffixEl) suffixEl.textContent = APP.currentDept === '1반' ? '액상의료기기' : '카테터';
-  const ds = getSyncDateStr();
-  const dt = ds ? new Date(ds.replace(' ','T')) : new Date();
-  document.getElementById('reportDate').textContent =
-    `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-  document.getElementById('footSyncTime').textContent =
-    ds || dt.toLocaleString('ko-KR');
-  const curM = getCurrentMonth();
-  document.getElementById('reportRange').textContent = `2026년 1월 ~ ${curM}월 누적`;
-}
-
-// 단일 연도 집계 (필터 월·품목 적용)
-function aggForYear(metric, items, year) {
-  const f = getCurFilters();
-  const months = f ? [...f.months] : MONTH_OPTIONS;
-  let sum = 0;
-  for (const it of items) {
-    if (year === 2026) {
-      for (const m of months) sum += it.monthData?.[m]?.[metric] || 0;
-    } else if (year === 2025 && it.monthData2025) {
-      for (const m of months) sum += it.monthData2025[m]?.[metric] || 0;
-    } else {
-      sum += (it.yearData?.[year]?.[metric] || 0) * (months.length / 12);
+function aggregateByWeek(items, months) {
+  // months: 정렬된 월 배열 → 결과: [{label:"5월1주", 수주, 생산, 출고, 불량, mo, wk}, ...]
+  const out = [];
+  for (const mo of months) {
+    const weeks = items[0]?.weekData?.[mo] ? Object.keys(items[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
+    for (const wk of weeks) {
+      const sums = { 수주:0, 생산:0, 출고:0, 불량:0 };
+      for (const it of items) {
+        const w = it.weekData?.[mo]?.[wk];
+        if (!w) continue;
+        for (const me of METRICS) sums[me] += w[me] || 0;
+      }
+      // 전부 0이면 미진행 주차 — 표시 제외
+      if (sums.수주 + sums.생산 + sums.출고 + sums.불량 > 0) {
+        out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums });
+      }
     }
   }
-  return sum;
+  return out;
 }
 
-// 다년 합산 (현재 필터 연도들 합산)
-function aggMetric(metric, items) {
-  const f = getCurFilters();
-  if (!f) return 0;
-  let sum = 0;
-  for (const yr of f.years) sum += aggForYear(metric, items, yr);
-  return sum;
+/* ============================================================
+   렌더링
+   ============================================================ */
+function getData() { return APP.data[APP.dept]; }
+
+function renderMonthChips() {
+  const data = getData(); if (!data) return;
+  const months = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  const box = document.getElementById('monthChips');
+  box.innerHTML = months.map(m =>
+    `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" onclick="toggleMonth(${m})">${m}월</span>`
+  ).join('');
 }
 
-// 호환용 (yr/months 명시) — 기존 호출부 처리
-function aggMetricExplicit(metric, items, yr, monthsToSum) {
-  let sum = 0;
-  for (const it of items) {
-    if (yr === 2026) {
-      for (const m of monthsToSum) sum += it.monthData?.[m]?.[metric] || 0;
-    } else if (yr === 2025 && it.monthData2025) {
-      for (const m of monthsToSum) sum += it.monthData2025[m]?.[metric] || 0;
+function toggleMonth(m) {
+  if (APP.selectedMonths.has(m)) APP.selectedMonths.delete(m);
+  else APP.selectedMonths.add(m);
+  if (APP.selectedMonths.size === 0) APP.selectedMonths.add(m); // 최소 1개
+  renderMonthChips(); renderBody();
+}
+
+function selectAllMonths() {
+  const data = getData(); if (!data) return;
+  APP.selectedMonths = new Set(Object.keys(data.weeksByMonth).map(Number));
+  renderMonthChips(); renderBody();
+}
+
+function selectRecentMonths() {
+  const data = getData(); if (!data) return;
+  const months = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>b-a);
+  // 실제 데이터가 있는 월만 → 최근 3개
+  const aggAll = aggregateByWeek(data.items, months);
+  const monthsWithData = [...new Set(aggAll.map(r => r.mo))].sort((a,b)=>b-a).slice(0, 3);
+  APP.selectedMonths = new Set(monthsWithData);
+  renderMonthChips(); renderBody();
+}
+
+function toggleMetric(m) {
+  if (APP.activeMetrics.has(m)) {
+    if (APP.activeMetrics.size === 1) return;
+    APP.activeMetrics.delete(m);
+  } else APP.activeMetrics.add(m);
+  document.querySelectorAll('.chip.metric').forEach(el => {
+    const me = el.dataset.metric;
+    const col = METRIC_COLORS[me];
+    if (APP.activeMetrics.has(me)) {
+      el.classList.add('active'); el.style.opacity='1';
+      el.style.background = col + '26'; el.style.borderColor = col + '99';
     } else {
-      sum += (it.yearData?.[yr]?.[metric] || 0) * (monthsToSum.length / 12);
+      el.classList.remove('active'); el.style.opacity='0.35';
+      el.style.background = 'transparent'; el.style.borderColor = 'rgba(255,255,255,0.12)';
     }
-  }
-  return sum;
+  });
+  renderChart();
 }
 
 function renderKPI() {
-  const data = getCurrentData(); if (!data) return;
-  const items = filterItems(data.items);
-  const f = getCurFilters();
-  // KPI 카드는 "선택된 연도" 누적값을 표시
-  const o26 = aggMetric('수주', items);
-  const p26 = aggMetric('생산', items);
-  const s26 = aggMetric('출고', items);
-  const d26 = aggMetric('불량', items);
-  // YoY 비교는 선택 연도 중 가장 최근 연도 vs 직전 연도
-  const yrs = [...f.years].sort();
-  const cur = yrs[yrs.length-1] || 2026;
-  const prev = cur - 1;
-  const months = [...f.months];
-  const o26y = aggMetricExplicit('수주', items, cur, months);
-  const p26y = aggMetricExplicit('생산', items, cur, months);
-  const s26y = aggMetricExplicit('출고', items, cur, months);
-  const o25 = aggMetricExplicit('수주', items, prev, months);
-  const p25 = aggMetricExplicit('생산', items, prev, months);
-  const s25 = aggMetricExplicit('출고', items, prev, months);
-
-  const ach = o26 > 0 ? p26/o26*100 : null;
-  const def = p26 > 0 ? d26/p26*100 : null;
-  const oG = o25 > 0 ? (o26y-o25)/o25*100 : null;
-  const pG = p25 > 0 ? (p26y-p25)/p25*100 : null;
-  const sG = s25 > 0 ? (s26y-s25)/s25*100 : null;
-
-  const arrowSub = (g, p25v) => g == null ? `전년 동기 비교 없음`
-    : `<span class="${g>=0?'delta-up':'delta-down'}">${g>=0?'▲':'▼'} ${Math.abs(g).toFixed(1)}%</span> · 전년 동기 ${fmtN(p25v)}`;
-
-  document.getElementById('kpiOrders').textContent = fmtN(o26);
-  document.getElementById('kpiOrdersSub').innerHTML = arrowSub(oG, o25);
-  document.getElementById('kpiProduction').textContent = fmtN(p26);
-  document.getElementById('kpiProductionSub').innerHTML = arrowSub(pG, p25);
-  // 차트 오버레이 미니 KPI 업데이트
-  const mo = document.getElementById('miniKpiOrder');
-  const mp = document.getElementById('miniKpiProd');
-  const mos = document.getElementById('miniKpiOrderSub');
-  const mps = document.getElementById('miniKpiProdSub');
-  if (mo) mo.textContent = fmtN(o26);
-  if (mp) mp.textContent = fmtN(p26);
-  const miniArrow = (g, prev) => {
-    if (prev == null || prev === 0) return '—';
-    const arrow = g >= 0 ? '▲' : '▼';
-    const col = g >= 0 ? '#00E5A0' : '#E63946';
-    return `<span style="color:${col};">${arrow} ${Math.abs(g).toFixed(1)}%</span> · 전년 동기 ${fmtN(prev)}`;
+  const data = getData(); if (!data) return;
+  const months = [...APP.selectedMonths].sort((a,b)=>a-b);
+  const agg = aggregateByWeek(data.items, months);
+  if (agg.length === 0) {
+    ['kpiOrder','kpiProd','kpiShip','kpiDef'].forEach(id => document.getElementById(id).textContent = '—');
+    ['kpiOrderSub','kpiProdSub','kpiShipSub','kpiDefSub'].forEach(id => document.getElementById(id).textContent = '데이터 없음');
+    return;
+  }
+  const cur = agg[agg.length-1];
+  const prev = agg[agg.length-2];
+  const fmtDelta = (cur, prev) => {
+    if (!prev || prev === 0) return `<span style="color:var(--text-muted);">기준 ${cur.label} · 전주 데이터 없음</span>`;
+    const diff = cur - prev;
+    const rate = diff/prev*100;
+    const sign = diff >= 0 ? '▲' : '▼';
+    const cls = diff >= 0 ? 'up' : 'down';
+    return `<span class="${cls}">${sign} ${Math.abs(rate).toFixed(1)}%</span> · 전주 ${fmtN(prev)}`;
   };
-  if (mos) mos.innerHTML = miniArrow(oG, o25);
-  if (mps) mps.innerHTML = miniArrow(pG, p25);
-  document.getElementById('kpiShipped').textContent = fmtN(s26);
-  document.getElementById('kpiShippedSub').innerHTML = arrowSub(sG, s25);
-
-  const achClr = ach == null ? 'var(--text-muted)' : ach>=100?'var(--accent-mint)':ach>=90?'var(--accent-gold)':ach>=75?'var(--accent-amber)':'var(--accent-red)';
-  const defClr = def == null ? 'var(--text-muted)' : def<=0.5?'var(--accent-mint)':def<=1?'var(--accent-gold)':def<=2?'var(--accent-amber)':'var(--accent-red)';
-  const achEl = document.getElementById('kpiAchieve');
-  achEl.textContent = fmtPct(ach);
-  achEl.style.color = achClr;
-  document.getElementById('kpiAchieveSub').innerHTML = ach == null ? '—'
-    : (ach >= 100 ? `초과 +${fmtN(p26-o26)}개` : `부족 ${fmtN(o26-p26)}개`);
-  const defEl = document.getElementById('kpiDefect');
-  defEl.textContent = fmtPct(def, 2);
-  defEl.style.color = defClr;
-  document.getElementById('kpiDefectSub').innerHTML = def == null ? '—' : `불량 ${fmtN(d26)}개 / 생산 ${fmtN(p26)}개`;
-
-  // 종합 판정
-  const scores = [oG, pG, sG].filter(v => v != null);
-  const avg = scores.length ? scores.reduce((a,b)=>a+b,0)/scores.length : 0;
-  const verdict = document.getElementById('overallVerdict');
-  let vText, vColor, vBg;
-  if (avg > 12) { vText = '🚀 성장 가속'; vColor = '#00E5A0'; vBg = 'rgba(0,229,160,0.15)'; }
-  else if (avg > 3) { vText = '✅ 안정 성장'; vColor = '#C9A961'; vBg = 'rgba(201,169,97,0.15)'; }
-  else if (avg > -3) { vText = '⚡ 보합 유지'; vColor = '#FFB547'; vBg = 'rgba(255,181,71,0.15)'; }
-  else { vText = '⚠️ 점검 필요'; vColor = '#E63946'; vBg = 'rgba(230,57,70,0.15)'; }
-  verdict.textContent = vText;
-  verdict.style.cssText = `background:${vBg}; color:${vColor}; border:1px solid ${vColor}55; padding:6px 18px; border-radius:12px;`;
-}
-
-function renderYoY() {
-  const data = getCurrentData(); if (!data) return;
-  const items = filterItems(data.items);
-  const f = getCurFilters();
-  const months = [...f.months];
-  const yrs = [...f.years].sort();
-  const cur = yrs[yrs.length-1] || 2026;
-  const prev = cur - 1;
-  const list = document.getElementById('yoyList');
-  if (!list) return;
-  list.innerHTML = '';
-
-  const metrics = [
-    {key:'수주', color:'var(--accent-gold)'},
-    {key:'생산', color:'var(--accent-cyan)'},
-    {key:'출고', color:'var(--accent-mint)'},
-  ];
-  metrics.forEach(({key, color}) => {
-    const v26 = aggMetricExplicit(key, items, cur, months);
-    const v25 = aggMetricExplicit(key, items, prev, months);
-    const diff = v26 - v25;
-    const rate = v25 > 0 ? diff/v25*100 : null;
-    const rateClr = rate == null ? 'var(--text-muted)' : rate >= 0 ? 'var(--accent-mint)' : 'var(--accent-red)';
-    const arrow = rate == null ? '—' : rate >= 0 ? '▲' : '▼';
-    list.innerHTML += `
-      <div style="display:grid;grid-template-columns:60px 1fr 1fr 100px;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-        <span class="badge" style="background:${color}22; color:${color};">${key}</span>
-        <div class="text-[10px]" style="color:var(--text-muted);">'${String(prev).slice(2)} 동기<br><span class="num" style="font-size:14px;color:var(--text-secondary);">${fmtN(v25)}</span></div>
-        <div class="text-[10px]" style="color:var(--text-muted);">'${String(cur).slice(2)} 누적<br><span class="num" style="font-size:14px;color:var(--text-primary);font-weight:600;">${fmtN(v26)}</span></div>
-        <div style="text-align:right;font-weight:700;font-size:14px;color:${rateClr};">
-          ${arrow} ${rate==null?'—':Math.abs(rate).toFixed(1)+'%'}
-          <div class="text-[10px]" style="font-weight:600;">${fmtN(Math.abs(diff))}개 ${diff>=0?'+':'-'}</div>
-        </div>
-      </div>`;
+  const def = ['kpiOrder','kpiProd','kpiShip','kpiDef'];
+  const subs = ['kpiOrderSub','kpiProdSub','kpiShipSub','kpiDefSub'];
+  METRICS.forEach((me, i) => {
+    document.getElementById(def[i]).textContent = fmtN(cur[me]);
+    document.getElementById(subs[i]).innerHTML = `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;">${cur.label}</div>${fmtDelta(cur[me], prev?.[me])}`;
   });
 }
 
+function renderChart() {
+  const data = getData(); if (!data) return;
+  const months = [...APP.selectedMonths].sort((a,b)=>a-b);
+  const agg = aggregateByWeek(data.items, months);
+  const xData = agg.map(r => r.label);
+  const series = METRICS.filter(m => APP.activeMetrics.has(m)).map(m => ({
+    name: m,
+    type: m === '불량' ? 'bar' : 'line',
+    smooth: true,
+    symbol: 'circle', symbolSize: 7,
+    data: agg.map(r => r[m]),
+    yAxisIndex: m === '불량' ? 1 : 0,
+    lineStyle: { color: METRIC_COLORS[m], width: 2.5 },
+    itemStyle: { color: METRIC_COLORS[m] },
+    barWidth: '30%',
+  }));
 
-function toggleTrendMetric(metric) {
-  if (APP_TREND_METRICS.has(metric)) {
-    if (APP_TREND_METRICS.size === 1) return; // 최소 1개 유지
-    APP_TREND_METRICS.delete(metric);
-  } else {
-    APP_TREND_METRICS.add(metric);
-  }
-  // 칩 시각 업데이트
-  document.querySelectorAll('.chip-trend-metric').forEach(el => {
-    const m = el.dataset.metric;
-    const col = METRIC_COLORS[m];
-    if (APP_TREND_METRICS.has(m)) {
-      el.classList.add('active');
-      el.style.opacity = '1';
-      el.style.background = col + '26';
-      el.style.borderColor = col + '99';
-    } else {
-      el.classList.remove('active');
-      el.style.opacity = '0.35';
-      el.style.background = 'transparent';
-      el.style.borderColor = 'rgba(255,255,255,0.12)';
-    }
-  });
-  renderTrendChart();
-}
-
-function buildTrendCatChecks() {
-  const data = getCurrentData(); if (!data) return;
-  const cats = [...new Set(data.items.map(it => it.category))];
-  const box = document.getElementById('trendCatChecks');
-  if (!box) return;
-  box.innerHTML = cats.map((c, i) => {
-    const checked = !APP.trendCats || APP.trendCats.has(c);
-    return `<label style="display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer;font-size:11px;
-             color:${CAT_COLORS[i % CAT_COLORS.length]};">
-      <input type="checkbox" value="${c}" ${checked?'checked':''}
-        onchange="toggleTrendCat(this.value, this.checked)">${c}
-    </label>`;
-  }).join('');
-  // 전체 체크박스 상태
-  const allEl = document.getElementById('trendCatAll');
-  if (allEl) allEl.checked = !APP.trendCats;
-}
-
-function toggleTrendCat(cat, checked) {
-  const data = getCurrentData(); if (!data) return;
-  const allCats = [...new Set(data.items.map(it => it.category))];
-  if (!APP.trendCats) APP.trendCats = new Set(allCats);
-  if (checked) APP.trendCats.add(cat);
-  else APP.trendCats.delete(cat);
-  // 모두 선택 시 null(전체) 로 복원
-  if (APP.trendCats.size === allCats.length) APP.trendCats = null;
-  const allEl = document.getElementById('trendCatAll');
-  if (allEl) allEl.checked = !APP.trendCats;
-  // 버튼 라벨 업데이트
-  const btn = document.getElementById('trendCatBtn');
-  if (btn) btn.textContent = APP.trendCats ? `🏷 ${APP.trendCats.size}개 선택 ▾` : '🏷 품목군 ▾';
-  renderTrendChart();
-}
-
-function toggleTrendCatAll(checked) {
-  APP.trendCats = checked ? null : new Set();
-  buildTrendCatChecks();
-  const btn = document.getElementById('trendCatBtn');
-  if (btn) btn.textContent = '🏷 품목군 ▾';
-  renderTrendChart();
-}
-
-function renderTrendChart() {
-  const data = getCurrentData(); if (!data) return;
-  const f = getCurFilters();
-  const curM = getCurrentMonth();
-  const showYoY = APP.trendYoY && data.has2025;
-  // 마감 완료된 월만 표시 (현재 진행 중인 월 제외)
-  const latestYr = [...f.years].sort((a,b)=>b-a)[0] || 2026;
-  const curYearCutoff = latestYr === 2026 ? curM - 1 : 12;
-  const monthsToShow = MONTH_OPTIONS.filter(m => f.months.has(m) && m <= curYearCutoff);
-
-  // 선택된 품목군 목록 — 헤더 필터(품목군 + 품목 선택) 기준
-  const filteredItems = filterItems(data.items);
-  const allCats = [...new Set(data.items.map(it => it.category))];
-  const activeCats = [...new Set(filteredItems.map(it => it.category))];
-
-  // 카테고리별 / 전체 여부 — 2개 이상이면 카테고리별 분리 표시
-  const showByCat = activeCats.length > 1 && activeCats.length < allCats.length;
-
-  const xData = monthsToShow.map(m => `${m}월`);
-  const series = [];
-  const legendData = [];
-
-  // 지표 색상 (전역 METRIC_COLORS 사용)
-
-  if (!showByCat) {
-    // 단일 품목군 or 전체 합산 — 3개 지표 실선 + 25년 점선
-    const catItems = activeCats.length === 1
-      ? filterItems(data.items).filter(it => it.category === activeCats[0])
-      : filterItems(data.items);
-
-    ['수주','생산','출고'].filter(m => APP_TREND_METRICS.has(m)).forEach((metric, mi) => {
-      const col = METRIC_COLORS[metric];
-      const arr26 = [], arr25 = [];
-      for (const m of monthsToShow) {
-        let v26=0, v25=0;
-        for (const it of catItems) {
-          v26 += it.monthData?.[m]?.[metric]||0;
-          if (showYoY) v25 += it.monthData2025?.[m]?.[metric]||0;
-        }
-        arr26.push(v26);
-        arr25.push(v25);
-      }
-      series.push({
-        name: metric,
-        type: 'line', smooth:true, symbol:'circle', symbolSize:7,
-        data: arr26,
-        lineStyle:{color:col, width:2.5}, itemStyle:{color:col},
-        areaStyle: mi===1 ? {color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:col+'40'},{offset:1,color:col+'05'}]}} : undefined,
-        connectNulls: false
-      });
-      legendData.push(metric);
-      if (showYoY) {
-        series.push({
-          name: metric + "(25)",
-          type:'line', smooth:true, symbol:'emptyCircle', symbolSize:5,
-          data: arr25,
-          lineStyle:{color:col, width:1.5, type:'dashed', opacity:0.6},
-          itemStyle:{color:col, opacity:0.6},
-          areaStyle:{opacity:0},
-        });
-        legendData.push(metric + "(25)");
-      }
-    });
-
-  } else {
-    // 복수 품목군 — 품목군별로 생산 실선 표시 + 25년 점선
-    activeCats.forEach((cat, ci) => {
-      const col = CAT_COLORS[ci % CAT_COLORS.length];
-      const catItems = filterItems(data.items).filter(it => it.category === cat);
-      const arr26 = [], arr25 = [];
-      for (const m of monthsToShow) {
-        let v26=0, v25=0;
-        for (const it of catItems) {
-          v26 += it.monthData?.[m]?.['생산']||0;
-          if (showYoY) v25 += it.monthData2025?.[m]?.['생산']||0;
-        }
-        arr26.push(v26);
-        arr25.push(v25);
-      }
-      series.push({
-        name: cat,
-        type:'line', smooth:true, symbol:'circle', symbolSize:7,
-        data: arr26,
-        lineStyle:{color:col, width:2.5}, itemStyle:{color:col},
-      });
-      legendData.push(cat);
-      if (showYoY) {
-        series.push({
-          name: cat+"(25)",
-          type:'line', smooth:true, symbol:'emptyCircle', symbolSize:5,
-          data: arr25,
-          lineStyle:{color:col, width:1.5, type:'dashed', opacity:0.6},
-          itemStyle:{color:col, opacity:0.6},
-          areaStyle:{opacity:0},
-        });
-        legendData.push(cat+"(25)");
-      }
-    });
-  }
-
-  if (!APP.charts.trend) APP.charts.trend = echarts.init(document.getElementById('chartTrend'));
-  APP.charts.trend.setOption({
+  if (!APP.chart) APP.chart = echarts.init(document.getElementById('chartTrend'));
+  APP.chart.setOption({
     backgroundColor: 'transparent',
     textStyle: { fontFamily:'Pretendard', color:'#8A9BBF' },
     tooltip: {
       trigger:'axis', backgroundColor:'#0F1520', borderColor:'#243049', textStyle:{color:'#EDF2FB'},
-      confine: true,
-      position: function(point, params, dom, rect, size){
-        // 차트 좌측 plot 영역(legend 아래)에 고정 표시 — KPI 오버레이와 겹치지 않게
-        return [10, 130];
-      },
       formatter(params){
         let h = `<div style="font-weight:700;margin-bottom:4px;">${params[0].axisValue}</div>`;
         params.forEach(p => {
-          if (p.value==null) return;
           h += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
             <span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block;"></span>
             <span>${p.seriesName}:</span>
@@ -1613,630 +422,113 @@ function renderTrendChart() {
         return h;
       }
     },
-    legend: { data:legendData, textStyle:{color:'#8A9BBF'}, top:90, left:'center',
-              type:'scroll', pageTextStyle:{color:'#8A9BBF'} },
-    grid: { left:55, right:20, top:120, bottom:30 },
-    xAxis: { type:'category', data:xData, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF'} },
-    yAxis: { type:'value', splitLine:{lineStyle:{color:'#1A2236'}},
-             axisLabel:{color:'#8A9BBF', formatter:v=>v>=1000?Math.round(v/1000)+'k':v} },
+    legend: { data: METRICS.filter(m => APP.activeMetrics.has(m)), textStyle:{color:'#8A9BBF'}, top:6 },
+    grid: { left:55, right:55, top:40, bottom:30 },
+    xAxis: { type:'category', data:xData, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', rotate: xData.length > 10 ? 30 : 0} },
+    yAxis: [
+      { type:'value', name:'수량', nameTextStyle:{color:'#6B7693',fontSize:10}, splitLine:{lineStyle:{color:'#1A2236'}}, axisLabel:{color:'#8A9BBF', formatter:v=>v>=1000?Math.round(v/1000)+'k':v} },
+      { type:'value', name:'불량', nameTextStyle:{color:'#E63946',fontSize:10}, splitLine:{show:false}, axisLabel:{color:'#E63946'} },
+    ],
     series
   }, true);
 
-  // 서브타이틀
-  const catLabel = activeCats.length === allCats.length ? '전체 품목군'
-    : activeCats.length === 1 ? activeCats[0]
-    : `${activeCats.length}개 품목군`;
-  const yoyLabel = showYoY ? ' | 실선=26년 점선=25년 동기' : '';
-  document.getElementById('trendSubtitle').textContent =
-    `${showByCat ? '품목군별 생산 비교' : '수주·생산·출고 추이'} — ${catLabel}${yoyLabel}`;
-  document.getElementById('trendYoYBtn').classList.toggle('active', showYoY);
+  document.getElementById('trendSub').textContent =
+    `${months.join('월·')}월 · 주차별 합계 (${agg.length}개 주차)`;
 }
 
-function renderCatTable() {
-  const data = getCurrentData(); if (!data) return;
-  const f = getCurFilters();
-  const months = [...f.months];
-  const yrs = [...f.years].sort();
-  const cur = yrs[yrs.length-1] || 2026;
-  const prev = cur - 1;
-  // 헤더 필터와 무관하게 전체 품목군 항상 표시
-  const cats = [...new Set(data.items.map(it => it.category))];
-
-  const rows = cats.map(cat => {
-    const grp = data.items.filter(it => it.category === cat);
-    const o = aggMetricExplicit('수주', grp, cur, months);
-    const p = aggMetricExplicit('생산', grp, cur, months);
-    const s = aggMetricExplicit('출고', grp, cur, months);
-    const o25 = aggMetricExplicit('수주', grp, prev, months);
-    const p25 = aggMetricExplicit('생산', grp, prev, months);
-    const ach = o > 0 ? p/o*100 : null;
-    const oG = o25 > 0 ? (o-o25)/o25*100 : null;
-    const pG = p25 > 0 ? (p-p25)/p25*100 : null;
-    return {cat, o, p, s, ach, oG, pG, count:grp.length};
-  }).filter(r => r.o > 0 || r.p > 0 || r.s > 0).sort((a,b) => b.p - a.p);
-
-  const totalP = rows.reduce((s,r) => s+r.p, 0);
-  const fmtG = g => g == null ? '<span style="color:var(--text-muted)">—</span>'
-    : `<span style="color:${g>=0?'var(--accent-mint)':'var(--accent-red)'};font-weight:700;">${g>=0?'▲':'▼'} ${Math.abs(g).toFixed(1)}%</span>`;
-
+function renderTable() {
+  const data = getData(); if (!data) return;
+  const months = [...APP.selectedMonths].sort((a,b)=>a-b);
+  const agg = aggregateByWeek(data.items, months);
   let html = `<table class="exec" style="width:100%;border-collapse:collapse;">
     <thead><tr>
-      <th>품목군</th>
-      <th style="text-align:right">수주</th>
-      <th style="text-align:right">생산</th>
-      <th style="text-align:right">출고</th>
-      <th style="text-align:right">생산 비중</th>
-      <th style="text-align:right">달성률</th>
-      <th style="text-align:right">생산 YoY</th>
+      <th>주차</th>
+      <th style="text-align:right">수주</th><th style="text-align:right">Δ수주</th>
+      <th style="text-align:right">생산</th><th style="text-align:right">Δ생산</th>
+      <th style="text-align:right">출고</th><th style="text-align:right">Δ출고</th>
+      <th style="text-align:right">불량</th><th style="text-align:right">불량율</th>
     </tr></thead><tbody>`;
-  rows.forEach(r => {
-    const share = totalP > 0 ? (r.p/totalP*100) : 0;
-    const achClr = r.ach == null ? 'var(--text-muted)' : r.ach>=100?'var(--accent-mint)':r.ach>=90?'var(--accent-gold)':r.ach>=75?'var(--accent-amber)':'var(--accent-red)';
+  agg.forEach((r, i) => {
+    const prev = i > 0 ? agg[i-1] : null;
+    const delta = (cur, prev) => {
+      if (!prev || prev === 0) return '<span style="color:var(--text-muted);">—</span>';
+      const d = cur - prev;
+      const cls = d >= 0 ? 'up' : 'down';
+      const sign = d >= 0 ? '▲' : '▼';
+      return `<span class="${cls}" style="font-weight:700;">${sign} ${fmtN(Math.abs(d))}</span>`;
+    };
+    const defRate = r.생산 > 0 ? (r.불량/r.생산*100).toFixed(2)+'%' : '—';
     html += `<tr>
-      <td><span class="badge" style="background:rgba(201,169,97,0.15);color:var(--accent-gold);">${r.cat}</span> <span style="font-size:10px;color:var(--text-muted);">${r.count}종</span></td>
-      <td style="text-align:right;color:var(--accent-gold);font-weight:600;" class="num">${fmtN(r.o)}</td>
-      <td style="text-align:right;color:var(--accent-cyan);font-weight:600;" class="num">${fmtN(r.p)}</td>
-      <td style="text-align:right;color:var(--accent-mint);font-weight:600;" class="num">${fmtN(r.s)}</td>
-      <td style="text-align:right;color:var(--text-secondary);" class="num">${share.toFixed(1)}%</td>
-      <td style="text-align:right;color:${achClr};font-weight:700;" class="num">${fmtPct(r.ach)}</td>
-      <td style="text-align:right;">${fmtG(r.pG)}</td>
+      <td style="font-weight:700;color:var(--text-primary);">${r.label}</td>
+      <td style="text-align:right;color:var(--gold);font-weight:600;" class="num">${fmtN(r.수주)}</td>
+      <td style="text-align:right;" class="num">${delta(r.수주, prev?.수주)}</td>
+      <td style="text-align:right;color:var(--cyan);font-weight:600;" class="num">${fmtN(r.생산)}</td>
+      <td style="text-align:right;" class="num">${delta(r.생산, prev?.생산)}</td>
+      <td style="text-align:right;color:var(--mint);font-weight:600;" class="num">${fmtN(r.출고)}</td>
+      <td style="text-align:right;" class="num">${delta(r.출고, prev?.출고)}</td>
+      <td style="text-align:right;color:var(--red);font-weight:600;" class="num">${fmtN(r.불량)}</td>
+      <td style="text-align:right;color:var(--text-secondary);" class="num">${defRate}</td>
     </tr>`;
   });
   html += '</tbody></table>';
-  document.getElementById('catTable').innerHTML = html;
+  if (agg.length === 0) html = '<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 월에 주간 데이터가 없습니다.</div>';
+  document.getElementById('weekTable').innerHTML = html;
 }
 
-function setStockFilter(key) {
-  window._stockFilter = (window._stockFilter === key) ? 'all' : key;
-  renderStockAlerts();
-}
-
-function renderStockAlerts() {
-  const data = getCurrentData(); if (!data) return;
-  const items = filterItems(data.items);
-  // 2반: 개별 품목 재고 없으면 카테고리 재고 사용
-  const catItems = data.catStocks ? Object.values(data.catStocks) : [];
-  const allItems = items.some(it => it.safetyStock > 0) ? items : [...items, ...catItems];
-  const shortItems = allItems.filter(it => {
-    if (!it.safetyStock) return false;
-    const eff = it.currentStock - (it.unshipped || 0);
-    return eff < it.safetyStock;
-  }).map(it => ({
-    ...it,
-    shortage: it.safetyStock - (it.currentStock - (it.unshipped || 0)),
-    rate: (it.currentStock - (it.unshipped || 0)) / it.safetyStock
-  })).sort((a,b) => b.shortage - a.shortage);
-
-  const totalUnship = items.reduce((s,it) => s + (it.unshipped||0), 0);
-  const dangerCnt = shortItems.filter(it => it.rate < 0.5).length;
-  const warnCnt = shortItems.filter(it => it.rate >= 0.5 && it.rate < 0.8).length;
-
-  // 현재 필터 상태 (danger/warn/all)
-  const cur_sf = window._stockFilter || 'all';
-
-  const dangerItems = shortItems.filter(it => it.rate < 0.5);
-  const warnItems   = shortItems.filter(it => it.rate >= 0.5 && it.rate < 0.8);
-  const unshipItems = items.filter(it => (it.unshipped||0) > 0).sort((a,b)=>(b.unshipped||0)-(a.unshipped||0));
-
-  const activeStyle = (key, col) => cur_sf === key
-    ? `background:${col};border:1px solid ${col};border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;`
-    : `background:${col.replace('0.3','0.08').replace('rgba(','rgba(').replace(',0.3',',0.08')};border:1px solid ${col};border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;opacity:${cur_sf==='all'?1:0.45};`;
-
-  let html = `<div class="grid grid-cols-3 gap-2 mb-3">
-    <div onclick="setStockFilter('danger')" style="${cur_sf==='danger'?'background:rgba(230,57,70,0.25);':'background:rgba(230,57,70,0.08);'}border:1px solid rgba(230,57,70,${cur_sf==='danger'?'0.7':'0.3'});border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;">
-      <div class="text-[10px]" style="color:var(--text-muted);">위험 (&lt;50%)</div>
-      <div class="num" style="font-size:20px;font-weight:700;color:var(--accent-red);">${dangerCnt}</div>
-    </div>
-    <div onclick="setStockFilter('warn')" style="${cur_sf==='warn'?'background:rgba(255,181,71,0.25);':'background:rgba(255,181,71,0.08);'}border:1px solid rgba(255,181,71,${cur_sf==='warn'?'0.7':'0.3'});border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;">
-      <div class="text-[10px]" style="color:var(--text-muted);">주의 (50~80%)</div>
-      <div class="num" style="font-size:20px;font-weight:700;color:var(--accent-amber);">${warnCnt}</div>
-    </div>
-    <div onclick="setStockFilter('unship')" style="${cur_sf==='unship'?'background:rgba(201,169,97,0.25);':'background:rgba(201,169,97,0.08);'}border:1px solid rgba(201,169,97,${cur_sf==='unship'?'0.7':'0.3'});border-radius:8px;padding:8px;text-align:center;cursor:pointer;transition:all .2s;">
-      <div class="text-[10px]" style="color:var(--text-muted);">미출 품목수</div>
-      <div class="num" style="font-size:20px;font-weight:700;color:var(--accent-gold);">${unshipItems.length}</div>
-    </div>
-  </div>`;
-
-  // 필터에 따른 목록 결정
-  let listItems = [];
-  let cols = '';
-  if (cur_sf === 'danger') {
-    listItems = dangerItems;
-    cols = `<th>품목</th><th style="text-align:right">안전</th><th style="text-align:right">가용재고</th><th style="text-align:right">부족</th>`;
-  } else if (cur_sf === 'warn') {
-    listItems = warnItems;
-    cols = `<th>품목</th><th style="text-align:right">안전</th><th style="text-align:right">가용재고</th><th style="text-align:right">부족</th>`;
-  } else if (cur_sf === 'unship') {
-    listItems = unshipItems.map(it => ({...it, rate:1}));
-    cols = `<th>품목</th><th style="text-align:right">미출오더</th>`;
-  } else {
-    listItems = shortItems;
-    cols = `<th>품목</th><th style="text-align:right">안전</th><th style="text-align:right">가용재고</th><th style="text-align:right">부족</th>`;
-  }
-
-  if (listItems.length === 0) {
-    html += '<div style="text-align:center;padding:16px;color:var(--accent-mint);font-weight:600;">✓ 해당 품목 없음</div>';
-  } else {
-    html += `<table class="exec" style="width:100%;border-collapse:collapse;font-size:11px;"><thead><tr>${cols}</tr></thead><tbody>`;
-    listItems.slice(0, 10).forEach(it => {
-      const clr = it.rate < 0.5 ? 'var(--accent-red)' : it.rate < 0.8 ? 'var(--accent-amber)' : 'var(--accent-gold)';
-      if (cur_sf === 'unship') {
-        html += `<tr>
-          <td style="font-size:11px;"><div style="font-weight:600;">${it.model}</div><div style="font-size:9px;color:var(--text-muted);">${it.spec||''} · ${it.category}</div></td>
-          <td style="text-align:right;color:var(--accent-gold);font-weight:700;" class="num">${fmtN(it.unshipped)}</td>
-        </tr>`;
-      } else {
-        html += `<tr>
-          <td style="font-size:11px;"><div style="font-weight:600;">${it.model}</div><div style="font-size:9px;color:var(--text-muted);">${it.spec||''} · ${it.category}</div></td>
-          <td style="text-align:right;color:var(--text-muted);" class="num">${fmtN(it.safetyStock)}</td>
-          <td style="text-align:right;color:var(--text-primary);" class="num">${fmtN(it.currentStock - (it.unshipped||0))}</td>
-          <td style="text-align:right;color:${clr};font-weight:700;" class="num">▼ ${fmtN(it.shortage)}</td>
-        </tr>`;
-      }
-    });
-    if (listItems.length > 10) html += `<tr><td colspan="4" style="text-align:center;color:var(--text-muted);font-size:10px;padding:6px;">… 외 ${listItems.length - 10}개</td></tr>`;
-    html += '</tbody></table>';
-  }
-  document.getElementById('stockAlerts').innerHTML = html;
-}
-
-function renderTopMovers() {
-  const data = getCurrentData(); if (!data) return;
-  const items = filterItems(data.items);
-  const f = getCurFilters();
-  const months = [...f.months];
-  const yrs = [...f.years].sort();
-  const cur = yrs[yrs.length-1] || 2026;
-  const prev = cur - 1;
-
-  const moves = items.map(it => {
-    let p26 = 0, p25 = 0;
-    for (const m of months) {
-      if (cur === 2026) p26 += it.monthData?.[m]?.['생산']||0;
-      else p26 += (it.yearData?.[cur]?.['생산']||0) * (1/12);
-      if (prev === 2025) p25 += it.monthData2025?.[m]?.['생산'] || (it.yearData?.[2025]?.['생산']||0)/12;
-      else p25 += (it.yearData?.[prev]?.['생산']||0) * (1/12);
-    }
-    const diff = p26 - p25;
-    const rate = p25 > 0 ? diff/p25*100 : null;
-    return {model:it.model, spec:it.spec, cat:it.category, p26, p25, diff, rate};
-  }).filter(m => m.rate != null && (m.p26 + m.p25) >= 10);  // 총수량 10개 미만 제외
-
-  const growth = [...moves].filter(m => m.rate > 0).sort((a,b) => b.rate - a.rate).slice(0, 5);
-  const decline = [...moves].filter(m => m.rate < 0).sort((a,b) => a.rate - b.rate).slice(0, 5);
-
-  const rowHTML = (m, color) => `
-    <div style="display:grid;grid-template-columns:1fr 80px 80px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-      <div>
-        <div style="font-weight:600;font-size:12px;">${m.model}</div>
-        <div style="font-size:9px;color:var(--text-muted);">${m.spec||''} · ${m.cat}</div>
-      </div>
-      <div style="text-align:right;font-size:11px;color:var(--text-secondary);" class="num">${fmtN(m.p26)} ← ${fmtN(Math.round(m.p25))}</div>
-      <div style="text-align:right;font-weight:700;color:${color};font-size:14px;">${m.rate>=0?'▲':'▼'} ${Math.abs(m.rate).toFixed(1)}%</div>
-    </div>`;
-
-  document.getElementById('topGrowth').innerHTML = growth.length
-    ? growth.map(m => rowHTML(m, 'var(--accent-mint)')).join('')
-    : '<div style="color:var(--text-muted);padding:14px;text-align:center;">데이터 없음</div>';
-
-  document.getElementById('topDecline').innerHTML = decline.length
-    ? decline.map(m => rowHTML(m, 'var(--accent-red)')).join('')
-    : '<div style="color:var(--text-muted);padding:14px;text-align:center;">데이터 없음</div>';
-}
-
-function renderExecSummary() {
-  const data = getCurrentData(); if (!data) return;
-  const items = filterItems(data.items);
-  const f = getCurFilters();
-  const months = [...f.months];
-  const yrs = [...f.years].sort();
-  const cur = yrs[yrs.length-1] || 2026;
-  const prev = cur - 1;
-
-  const o26 = aggMetricExplicit('수주', items, cur, months);
-  const p26 = aggMetricExplicit('생산', items, cur, months);
-  const s26 = aggMetricExplicit('출고', items, cur, months);
-  const d26 = aggMetricExplicit('불량', items, cur, months);
-  const o25 = aggMetricExplicit('수주', items, prev, months);
-  const p25 = aggMetricExplicit('생산', items, prev, months);
-  const ach = o26 > 0 ? p26/o26*100 : null;
-  const def = p26 > 0 ? d26/p26*100 : null;
-  const oG = o25 > 0 ? (o26-o25)/o25*100 : null;
-  const pG = p25 > 0 ? (p26-p25)/p25*100 : null;
-
-  // 가장 큰 성장/하락 카테고리
-  const cats = [...new Set(items.map(it => it.category))];
-  const catPerf = cats.map(cat => {
-    const grp = items.filter(it => it.category === cat);
-    const p = aggMetricExplicit('생산', grp, cur, months);
-    const p25c = aggMetricExplicit('생산', grp, prev, months);
-    const g = p25c > 0 ? (p-p25c)/p25c*100 : null;
-    return {cat, p, g};
-  });
-  const topCat = catPerf.filter(c => c.g!=null).sort((a,b) => b.g - a.g)[0];
-  const botCat = catPerf.filter(c => c.g!=null).sort((a,b) => a.g - b.g)[0];
-
-  // 부족 재고 카운트
-  const shortCnt = items.filter(it => it.safetyStock && (it.currentStock - (it.unshipped||0)) < it.safetyStock).length;
-
-  const lines = [];
-  lines.push(`<b style="color:var(--accent-gold);">${APP.currentDept}</b>의 2026년 1~${curM}월 누적 실적: 수주 <b class="num">${fmtN(o26)}개</b>, 생산 <b class="num">${fmtN(p26)}개</b>, 출고 <b class="num">${fmtN(s26)}개</b>.`);
-
-  if (oG != null && pG != null) {
-    const oArrow = oG >= 0 ? '↑' : '↓';
-    const pArrow = pG >= 0 ? '↑' : '↓';
-    lines.push(`전년 동기 대비 수주 <b style="color:${oG>=0?'var(--accent-mint)':'var(--accent-red)'};">${oArrow} ${Math.abs(oG).toFixed(1)}%</b>, 생산 <b style="color:${pG>=0?'var(--accent-mint)':'var(--accent-red)'};">${pArrow} ${Math.abs(pG).toFixed(1)}%</b> ${oG>=0&&pG>=0?'동반 성장':oG<0&&pG<0?'동반 하락':'혼조'}.`);
-  }
-  if (ach != null) {
-    const achLbl = ach >= 100 ? '목표 초과 달성' : ach >= 90 ? '목표 근접' : ach >= 75 ? '관리 필요' : '달성 부족';
-    lines.push(`달성률 <b>${ach.toFixed(1)}%</b> — ${achLbl}.`);
-  }
-  if (def != null) {
-    const defLbl = def <= 0.5 ? '우수' : def <= 1 ? '양호' : def <= 2 ? '주의' : '심각';
-    lines.push(`불량율 <b>${def.toFixed(2)}%</b> — 품질 ${defLbl} 수준 (불량 ${fmtN(d26)}개).`);
-  }
-  if (topCat && botCat && topCat.cat !== botCat.cat) {
-    lines.push(`성장 견인 품목군: <b style="color:var(--accent-mint);">${topCat.cat}</b> (${topCat.g>=0?'+':''}${topCat.g.toFixed(1)}%). 점검 필요 품목군: <b style="color:var(--accent-red);">${botCat.cat}</b> (${botCat.g.toFixed(1)}%).`);
-  }
-  if (shortCnt > 0) lines.push(`<b style="color:var(--accent-red);">⚠ 안전재고 부족 ${shortCnt}품목</b> — 신속한 보충 생산 검토 필요.`);
-  else lines.push(`✓ 안전재고 전 품목 충족.`);
-
-  document.getElementById('execSummary').innerHTML = lines.map(l => `<div style="margin-bottom:6px;">▶ ${l}</div>`).join('');
-}
-
-/* ============================================================
-   필터 렌더링 & 핸들러
-   ============================================================ */
-function renderFilters() {
-  const f = getCurFilters(); if (!f) return;
-  const data = getCurrentData(); if (!data) return;
-
-  // 연도 칩
-  document.getElementById('filterYears').innerHTML = YEAR_OPTIONS.map(y =>
-    `<span class="chip chip-year ${f.years.has(y)?'active':''}" data-ftype="years" data-fval="${y}" onclick="toggleFilter('years',${y})">${y}</span>`
-  ).join('');
-
-  // 월 칩 + 라벨에 monthlyYear 표기 (가장 최근 선택 연도)
-  const latestYr = [...f.years].sort((a,b)=>b-a)[0] || 2026;
-  document.getElementById('filterMonthYear').textContent = latestYr;
-  document.getElementById('filterMonths').innerHTML = MONTH_OPTIONS.map(m =>
-    `<span class="chip chip-month ${f.months.has(m)?'active':''}" data-ftype="months" data-fval="${m}" onclick="toggleFilter('months',${m})">${m}월</span>`
-  ).join('');
-
-  // 카테고리 칩 (부서별)
-  const allCats = [...new Set(data.items.map(it => it.category))];
-  document.getElementById('filterCats').innerHTML = allCats.map(c =>
-    `<span class="chip chip-cat ${f.categories.has(c)?'active':''}" data-ftype="categories" data-fval="${escapeAttr(c)}" onclick="toggleFilter('categories','${escapeAttr(c)}')">${c}</span>`
-  ).join('');
-
-  // 품목 카운트
-  const totalItems = data.items.filter(it => f.categories.has(it.category)).length;
-  document.getElementById('filterItemCount').textContent =
-    f.items.size === 0 ? `(전체 ${totalItems}개)` : `(${f.items.size}개 선택 / 가능 ${totalItems}개)`;
-
-  // 품목 picker
-  renderItemPicker();
-
-  // 요약
-  document.getElementById('filterSummary').textContent =
-    `연도 ${f.years.size}개 / 월 ${f.months.size}개 / 품목군 ${f.categories.size}개 / 적용 품목 ${f.items.size===0?totalItems:f.items.size}개`;
-}
-
-function escapeAttr(s) { return String(s).replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
-
-function renderItemPicker() {
-  const data = getCurrentData(); if (!data) return;
-  const f = getCurFilters();
-  const search = (document.getElementById('filterItemSearch')?.value || '').toLowerCase().trim();
-  const list = document.getElementById('itemPickerList');
-  if (!list) return;
-  const visible = data.items.filter(it =>
-    f.categories.has(it.category) &&
-    (!search || it.model.toLowerCase().includes(search) || (it.spec||'').toLowerCase().includes(search))
-  );
-  list.innerHTML = visible.map(it => {
-    const sel = f.items.has(it.model);
-    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 6px;cursor:pointer;
-              background:${sel?'rgba(201,169,97,0.12)':'transparent'};border-radius:4px;font-size:11px;">
-      <input type="checkbox" ${sel?'checked':''} onchange="toggleFilter('items','${escapeAttr(it.model)}')">
-      <span style="flex:1;color:${sel?'var(--accent-gold)':'var(--text-secondary)'};">${it.model}
-        <span style="color:var(--text-muted);font-size:10px;">${it.spec||''}</span></span>
-      <span style="color:var(--text-muted);font-size:9px;">${it.category}</span>
-    </label>`;
-  }).join('');
-}
-
-function setFilterState(type, val, on) {
-  const f = getCurFilters(); if (!f) return false;
-  if (type === 'years' || type === 'months') val = +val;
-  const set = f[type];
-  const has = set.has(val);
-  if (on && !has) set.add(val);
-  else if (!on && has) set.delete(val);
-  else return false;
-  if (type === 'categories') {
-    const data = getCurrentData();
-    const validModels = new Set(data.items.filter(it => f.categories.has(it.category)).map(it => it.model));
-    f.items = new Set([...f.items].filter(m => validModels.has(m)));
-  }
-  return true;
-}
-
-// 드래그 선택 — 월·품목군·연도 칩에서 마우스 드래그로 일괄 토글
-const DRAG = { active:false, mode:null, touched:new Set(), moved:false };
-function chipKey(el){ return `${el.dataset.ftype}|${el.dataset.fval}`; }
-function chipUnderPoint(x, y){
-  const el = document.elementFromPoint(x, y);
-  return el && el.dataset && el.dataset.ftype ? el : null;
-}
-function applyChipDrag(el){
-  if (!el || !el.dataset.ftype) return;
-  const k = chipKey(el);
-  if (DRAG.touched.has(k)) return;
-  DRAG.touched.add(k);
-  if (setFilterState(el.dataset.ftype, el.dataset.fval, DRAG.mode)) {
-    el.classList.toggle('active', DRAG.mode);
-  }
-}
-document.addEventListener('mousedown', (e) => {
-  if (e.button !== 0) return;
-  const el = e.target.closest('[data-ftype]');
-  if (!el) return;
-  const type = el.dataset.ftype;
-  let val = el.dataset.fval;
-  if (type === 'years' || type === 'months') val = +val;
-  const f = getCurFilters(); if (!f) return;
-  DRAG.active = true;
-  DRAG.mode = !f[type].has(val);
-  DRAG.touched = new Set();
-  DRAG.moved = false;
-  applyChipDrag(el);
-  e.preventDefault();
-});
-document.addEventListener('mousemove', (e) => {
-  if (!DRAG.active) return;
-  DRAG.moved = true;
-  const el = chipUnderPoint(e.clientX, e.clientY);
-  if (el) applyChipDrag(el);
-});
-document.addEventListener('mouseup', () => {
-  if (!DRAG.active) return;
-  const moved = DRAG.moved;
-  DRAG.active = false;
-  DRAG.touched.clear();
-  renderFilters();
-  renderBody();
-  // 클릭(이동 없음)도 mousedown에서 처리됐으므로 onclick 기본 토글은 막아야 함
-  if (!moved) {
-    // mousedown에서 이미 토글했으므로 onclick의 추가 toggle 방지
-    DRAG.suppressClick = true;
-    setTimeout(()=>{ DRAG.suppressClick = false; }, 0);
-  }
-});
-
-function toggleFilter(type, val) {
-  if (DRAG.suppressClick) { DRAG.suppressClick = false; return; }
-  const f = getCurFilters();
-  if (!f) return;
-  // val을 정수로 (연도/월)
-  if (type === 'years' || type === 'months') val = +val;
-  const set = f[type];
-  if (set.has(val)) set.delete(val);
-  else set.add(val);
-  // 카테고리 변경 시 품목 필터 영향 — 카테고리에서 빠진 품목은 자동 해제
-  if (type === 'categories') {
-    const data = getCurrentData();
-    const validModels = new Set(data.items.filter(it => f.categories.has(it.category)).map(it => it.model));
-    f.items = new Set([...f.items].filter(m => validModels.has(m)));
-  }
-  renderFilters();
-  renderBody();
-}
-
-function toggleAllFilter(type) {
-  const f = getCurFilters();
-  const data = getCurrentData();
-  let all = [];
-  if (type === 'years') all = YEAR_OPTIONS;
-  else if (type === 'months') all = MONTH_OPTIONS;
-  else if (type === 'categories') all = [...new Set(data.items.map(it => it.category))];
-  else if (type === 'items') {
-    // 품목은 토글이 의미 다름 — 모두 해제(=전체) 또는 모두 선택
-    const valid = data.items.filter(it => f.categories.has(it.category)).map(it => it.model);
-    if (f.items.size === valid.length) f.items.clear();
-    else f.items = new Set(valid);
-    renderFilters(); renderBody(); return;
-  }
-  const set = f[type];
-  if (set.size === all.length) set.clear();
-  else { set.clear(); all.forEach(v => set.add(v)); }
-  if (type === 'categories') {
-    const validModels = new Set(data.items.filter(it => f.categories.has(it.category)).map(it => it.model));
-    f.items = new Set([...f.items].filter(m => validModels.has(m)));
-  }
-  renderFilters();
-  renderBody();
-}
-
-function resetFilters() {
-  const data = getCurrentData(); if (!data) return;
-  APP.filters[APP.currentDept] = makeDefaultFilter(data.items);
-  renderFilters();
-  renderBody();
-}
-
-function renderBody() {
-  renderKPI();
-  renderYoY();
-  renderTrendChart();
-  renderCatTable();
-  renderStockAlerts();
-  renderTopMovers();
-  renderExecSummary();
-}
-
-function renderAll() {
-  renderHeader();
-  renderFilters();
-  renderBody();
-  setTimeout(syncHeaderHeight, 50);
-}
-window.addEventListener('resize', syncHeaderHeight);
+function renderBody() { renderKPI(); renderChart(); renderTable(); }
 
 function switchDept(dept) {
-  if (dept === APP.currentDept) return;
-  if (!APP.data[dept]) {
-    alert(`${dept} 데이터를 불러올 수 없습니다.`);
-    return;
-  }
-  APP.currentDept = dept;
-  document.querySelectorAll('.toggle-btn[data-dept]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.dept === dept);
-  });
-  renderAll();
+  if (dept === APP.dept) return;
+  if (!APP.data[dept]) { alert(`${dept} 데이터 없음`); return; }
+  APP.dept = dept;
+  document.getElementById('deptTitle').textContent = dept;
+  document.querySelectorAll('.btn[data-dept]').forEach(b => b.classList.toggle('active', b.dataset.dept === dept));
+  // 최근 3개월 자동 선택
+  selectRecentMonths();
 }
 
-function toggleTrendYoY() {
-  const data = getCurrentData();
-  if (!data?.has2025) { alert('25년 실측 데이터가 없습니다.'); return; }
-  APP.trendYoY = !APP.trendYoY;
-  renderTrendChart();
-}
+window.addEventListener('resize', () => APP.chart && APP.chart.resize());
 
-window.addEventListener('resize', () => {
-  Object.values(APP.charts).forEach(c => c && c.resize());
-});
-
-// 초기화
-function init() {
-  APP.data['1반'] = parse1Bu();
-  APP.data['2반'] = parse2Ban();
-
-  if (!APP.data['1반'] && !APP.data['2반']) {
-    document.getElementById('loadingOverlay').innerHTML = `
-      <div style="text-align:center;padding:40px;">
-        <div style="font-size:22px;color:#E63946;font-weight:700;">데이터를 불러올 수 없습니다</div>
-        <div style="font-size:13px;color:#6B7693;margin-top:16px;line-height:2;">
-          스프레드시트 접근 권한을 확인하거나<br>관리자에게 문의하세요.
-        </div>
-      </div>`;
-    document.getElementById('loadingOverlay').style.display = 'flex';
-    return;
-  }
-
-  // 부서별 필터 초기화
-  if (APP.data['1반']) APP.filters['1반'] = makeDefaultFilter(APP.data['1반'].items);
-  if (APP.data['2반']) APP.filters['2반'] = makeDefaultFilter(APP.data['2반'].items);
-
-  // 기본 부서 선택 (둘 다 있으면 1반, 없으면 가능한 것)
-  if (!APP.data['1반'] && APP.data['2반']) APP.currentDept = '2반';
-
-  document.querySelectorAll('.toggle-btn[data-dept]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.dept === APP.currentDept);
-    if (!APP.data[btn.dataset.dept]) {
-      btn.style.opacity = '0.4';
-      btn.title = '데이터 없음';
-    }
-  });
-
-  renderAll();
-}
-
-function showLoadingOverlay(show) {
-  const el = document.getElementById('loadingOverlay');
-  if (el) el.style.display = show ? 'flex' : 'none';
-}
-
-/* ── 2025년 데이터 파서 (2반) ─────────────────────────────── */
-function parse2025_2ban(csvText) {
-  const rows = parseCSV(csvText);
-  const MS = {1:77,2:85,3:93,4:101,5:109,6:117,7:125,8:133,9:141,10:149,11:157,12:165};
-  const MO = {'수주':1,'생산':2,'출고':3,'불량':4,'성능':5,'외관':6,'기타':7};
-  const YC = {'수주':58,'생산':59,'출고':60,'불량':61,'성능':62,'외관':63,'기타':64};
-  const SKIP = new Set(['item','model','품목','품명','spec','규격']);
-  const items = [];
-  for (let i=0; i<rows.length; i++) {
-    const r = rows[i];
-    const model = (r[0]||'').trim();
-    const spec  = (r[1]||'').trim();
-    if (!model || SKIP.has(model.toLowerCase())) continue;
-    if (model.includes('생산업무보고') || model.includes('생산 및 출고')) continue;
-    const monthData = {};
-    for (const [m,c] of Object.entries(MS)) { monthData[+m]={}; for (const [met,off] of Object.entries(MO)) monthData[+m][met]=parseNum(r[c+off]); }
-    const yearData = {};
-    for (const [met,c] of Object.entries(YC)) yearData[met]=parseNum(r[c]);
-    items.push({row:i+1, model, spec, monthData, yearData});
-  }
-  return {items, meta:{source:'25년 2반', count:items.length}};
-}
-
-/* ── 2025년 데이터 파서 (1반) ─────────────────────────────── */
-function parse2025_1ban(csvText) {
-  const rows = parseCSV(csvText);
-  const MS = {1:64,2:71,3:78,4:85,5:92,6:99,7:106,8:113,9:120,10:127,11:134,12:141};
-  const MO = {'생산':1,'출고':2,'불량':4,'수주':6};
-  const YC = {'생산':56,'출고':57,'불량':59,'수주':61};
-  const SKIP = new Set(['total','spec','item','품명','sepia','sepia & oem']);
-  const items = [];
-  for (let i=0; i<rows.length; i++) {
-    if (i>=29) break;
-    const r = rows[i];
-    const model = (r[2]||'').trim();
-    const spec  = (r[3]||'').trim();
-    if (!model || SKIP.has(model.toLowerCase())) continue;
-    const monthData = {};
-    for (const [m,c] of Object.entries(MS)) { monthData[+m]={}; for (const [met,off] of Object.entries(MO)) monthData[+m][met]=parseNum(r[c+off]); }
-    const yearData = {};
-    for (const [met,c] of Object.entries(YC)) yearData[met]=parseNum(r[c]);
-    items.push({row:i+1, model, spec, monthData, yearData});
-  }
-  return {items, meta:{source:'25년 1반', count:items.length}};
-}
-
-document.addEventListener('DOMContentLoaded', async function() {
-  showLoadingOverlay(true);
-
-  const SHEET_ID      = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
-  const SHEET_ID_2025 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
-  const GIDS = { '1BAN': '2145094968', '2BAN': '680125344' };
-
-  async function fetchGviz(sheetId, gid) {
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+async function init() {
+  async function fetchGviz(gid) {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.text();
   }
-
   try {
-    const [csv1ban, csv2ban, csv1ban25, csv2ban25] = await Promise.all([
-      fetchGviz(SHEET_ID,      GIDS['1BAN']).catch(() => null),
-      fetchGviz(SHEET_ID,      GIDS['2BAN']).catch(() => null),
-      fetchGviz(SHEET_ID_2025, GIDS['1BAN']).catch(() => null),
-      fetchGviz(SHEET_ID_2025, GIDS['2BAN']).catch(() => null),
+    const [csv1, csv2] = await Promise.all([
+      fetchGviz(GIDS['1반']).catch(() => null),
+      fetchGviz(GIDS['2반']).catch(() => null),
     ]);
+    if (csv1) APP.data['1반'] = parseSheet(csv1, '1반');
+    if (csv2) APP.data['2반'] = parseSheet(csv2, '2반');
 
-    const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    if (csv1ban)  { window._CSV_1BAN  = { '2145094968': csv1ban  }; window._CSV_1BAN_DATE  = now; }
-    if (csv2ban)  { window._CSV_2BAN  = { '680125344':  csv2ban  }; window._CSV_2BAN_DATE  = now; }
-    if (csv1ban25) window.DATA_1BAN_2025 = parse2025_1ban(csv1ban25);
-    if (csv2ban25) window.DATA_2BAN_2025 = parse2025_2ban(csv2ban25);
+    if (!APP.data['1반'] && !APP.data['2반']) throw new Error('데이터 없음');
+    if (!APP.data['1반']) { APP.dept = '2반'; document.getElementById('deptTitle').textContent = '2반'; }
 
-    showLoadingOverlay(false);
-    init();
-    // 차트 컨테이너가 보인 후 크기 재계산
-    setTimeout(() => { Object.values(APP.charts).forEach(c => c && c.resize()); renderTrendChart(); }, 100);
-  } catch(err) {
+    const now = new Date();
+    document.getElementById('syncDate').textContent =
+      `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+    document.querySelectorAll('.btn[data-dept]').forEach(b => {
+      b.classList.toggle('active', b.dataset.dept === APP.dept);
+      if (!APP.data[b.dataset.dept]) { b.style.opacity = '0.4'; b.title = '데이터 없음'; }
+    });
+
+    document.getElementById('loadingOverlay').style.display = 'none';
+    selectRecentMonths();
+  } catch (err) {
     document.getElementById('loadingOverlay').innerHTML = `
       <div style="text-align:center;padding:40px;">
-        <div style="font-size:20px;color:#E63946;font-weight:700;">데이터 로딩 실패</div>
-        <div style="font-size:13px;color:#6B7693;margin-top:16px;line-height:1.8;">
-          스프레드시트 공유 설정을 확인하세요.<br>
-          <span style="color:#4FC3F7;">링크가 있는 모든 사용자 → 뷰어</span> 로 설정 필요
-        </div>
+        <div style="font-size:18px;color:#E63946;font-weight:700;">데이터 로딩 실패</div>
+        <div style="font-size:12px;color:#6B7693;margin-top:14px;">${err.message}</div>
+        <div style="font-size:11px;color:#6B7693;margin-top:8px;">시트 공유 설정(링크가 있는 모든 사용자 → 뷰어) 확인 필요</div>
       </div>`;
   }
-});
-</script>
+}
 
+document.addEventListener('DOMContentLoaded', init);
+</script>
 </body>
 </html>
