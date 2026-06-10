@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -50,10 +50,10 @@
     background: rgba(10,14,24,0.92);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
-    padding: 16px 32px;
+    padding: 14px 32px;
   }
   .btn {
-    padding: 8px 16px; border-radius: 8px; font-weight: 700; font-size: 12px;
+    padding: 7px 14px; border-radius: 8px; font-weight: 700; font-size: 12px;
     cursor: pointer; border: 1px solid var(--border);
     background: rgba(255,255,255,0.03); color: var(--text-secondary);
     transition: all .2s;
@@ -71,13 +71,16 @@
     display: inline-flex; align-items: center;
     padding: 4px 11px; border-radius: 999px;
     font-size: 11px; font-weight: 600;
-    cursor: pointer; border: 1px solid; transition: all .15s;
-    user-select: none;
+    cursor: pointer; border: 1px solid; transition: all .12s;
+    user-select: none; -webkit-user-select: none;
+    line-height: 1.4;
   }
   .chip-month        { color: var(--cyan); border-color: rgba(79,195,247,0.35); background: rgba(79,195,247,0.05); }
-  .chip-month.active { background: rgba(79,195,247,0.22); border-color: var(--cyan); }
+  .chip-month.active { background: rgba(79,195,247,0.25); border-color: var(--cyan); box-shadow:0 0 6px rgba(79,195,247,0.3); }
+  .chip-item         { color: var(--text-secondary); border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); font-size: 10px; padding:3px 9px;}
+  .chip-item.active  { color: var(--gold); border-color: var(--gold); background: rgba(201,169,97,0.18); box-shadow:0 0 5px rgba(201,169,97,0.25);}
   .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
-  .kpi-val { font-size: 30px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .kpi-val { font-size: 28px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
   .up   { color: var(--mint); }
   .down { color: var(--red); }
@@ -89,6 +92,18 @@
   }
   table.exec tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
   table.exec tbody tr:hover { background: rgba(255,255,255,0.02); }
+  .filter-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:3px 0; }
+  .filter-label { font-size:11px; font-weight:700; color:var(--text-muted); min-width:50px; }
+  .filter-grid { display:flex; flex-wrap:wrap; gap:4px; flex:1; user-select:none; -webkit-user-select:none; }
+  .comment-box {
+    background: linear-gradient(135deg, rgba(201,169,97,0.08), rgba(79,195,247,0.04));
+    border: 1px solid rgba(201,169,97,0.25);
+    border-left: 3px solid var(--gold);
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 12px;
+    line-height: 1.85;
+  }
 </style>
 </head>
 <body>
@@ -110,27 +125,38 @@
         생산<span id="deptTitle" style="color:var(--gold);">1반</span> <span style="color:var(--text-muted);font-size:14px;font-weight:600;">주간 변동 현황</span>
       </h1>
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
-        <span id="syncDate">—</span> 기준 · 주간 단위 집계
+        <span id="syncDate">—</span> 기준 · 드래그로 다중 선택
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <span style="font-size:10px;color:var(--text-muted);">부서</span>
-      <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반</button>
-      <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반</button>
+      <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반 (액상)</button>
+      <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반 (카테터)</button>
     </div>
   </div>
 
   <!-- 월 필터 -->
-  <div style="margin-top:12px;padding-top:10px;border-top:1px dashed rgba(255,255,255,0.08);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-    <span style="font-size:11px;font-weight:700;color:var(--text-muted);">월 선택</span>
-    <div id="monthChips" style="display:flex;flex-wrap:wrap;gap:4px;flex:1;"></div>
-    <button class="btn" onclick="selectAllMonths()" style="font-size:10px;padding:5px 12px;">전체</button>
-    <button class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:5px 12px;">최근 3개월</button>
+  <div class="filter-row" style="margin-top:10px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.08);">
+    <span class="filter-label">월</span>
+    <div class="filter-grid" id="monthChips"></div>
+    <button class="btn" onclick="selectAllMonths()" style="font-size:10px;padding:4px 10px;">전체</button>
+    <button class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:4px 10px;">최근 3개월</button>
+  </div>
+
+  <!-- 품목 필터 -->
+  <div class="filter-row">
+    <span class="filter-label">품목 <span id="itemCount" style="font-weight:400;color:var(--text-muted);font-size:10px;">—</span></span>
+    <div class="filter-grid" id="itemChips" style="max-height:80px;overflow-y:auto;"></div>
+    <input id="itemSearch" placeholder="🔍 검색" oninput="renderItemChips()"
+      style="background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text-primary);
+             border-radius:8px;padding:5px 10px;font-size:11px;width:160px;outline:none;">
+    <button class="btn" onclick="selectAllItems()" style="font-size:10px;padding:4px 10px;">전체</button>
+    <button class="btn" onclick="clearItems()" style="font-size:10px;padding:4px 10px;">해제</button>
   </div>
 </header>
 
-<!-- KPI 카드 -->
-<section style="padding:18px 32px 0;">
+<!-- KPI -->
+<section style="padding:16px 32px 0;">
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
     <div class="card">
       <div class="kpi-label">최근주 수주</div>
@@ -155,8 +181,13 @@
   </div>
 </section>
 
-<!-- 주간 추이 차트 -->
-<section style="padding:18px 32px 0;">
+<!-- 자동 코멘트 -->
+<section style="padding:14px 32px 0;">
+  <div class="comment-box" id="commentBox">분석 중…</div>
+</section>
+
+<!-- 차트 -->
+<section style="padding:14px 32px 0;">
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
       <div>
@@ -175,8 +206,8 @@
   </div>
 </section>
 
-<!-- 주차별 상세표 -->
-<section style="padding:18px 32px 30px;">
+<!-- 상세표 -->
+<section style="padding:14px 32px 30px;">
   <div class="card">
     <div class="kpi-label">주차별 상세 (전주 대비)</div>
     <div id="weekTable" style="margin-top:10px;"></div>
@@ -192,6 +223,7 @@ const APP = {
   dept: '1반',
   data: { '1반': null, '2반': null },
   selectedMonths: new Set(),
+  selectedItems: { '1반': new Set(), '2반': new Set() },
   activeMetrics: new Set(METRICS),
   chart: null,
 };
@@ -217,45 +249,31 @@ const parseNum = v => {
 const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
 
 /* ============================================================
-   주간 컬럼 파싱
-   시트 패턴: "M월 계획" 헤더 다음으로 각 주차마다
-     "M-W 수주", "계획", "M월W주 생산", "출고", "불량", "성능", "외관", "기타"
+   2반 파서 — 명시적 "M-W 수주" 헤더 기반
    ============================================================ */
-function buildWeeklyColumnMap(headers) {
-  // 결과: weeklyMap[month][week] = { 수주, 생산, 출고, 불량 } 컬럼 인덱스
-  const map = {};
-  for (let i = 0; i < headers.length; i++) {
-    const h = (headers[i]||'').trim();
-    // "M-W 수주" 패턴
-    const m1 = h.match(/^(\d{1,2})-(\d)\s*수주$/);
-    if (m1) {
-      const mo = +m1[1], wk = +m1[2];
-      map[mo] = map[mo] || {};
-      // 수주: i, 계획: i+1, 생산: i+2, 출고: i+3, 불량: i+4
-      map[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4 };
-    }
-  }
-  return map;
-}
-
-function parseSheet(csvText, dept) {
+function parse2Ban(csvText) {
   const rows = parseCSV(csvText);
   const headers = rows[0] || [];
-  const wmap = buildWeeklyColumnMap(headers);
-
-  // 1반은 model 컬럼이 [2], 2반은 [0]
-  const modelCol = dept === '1반' ? 2 : 0;
-  const specCol = dept === '1반' ? 3 : 1;
-
+  // weekly columns map
+  const wmap = {};
+  for (let i = 0; i < headers.length; i++) {
+    const h = (headers[i]||'').trim();
+    const m = h.match(/^(\d{1,2})-(\d)\s*수주$/);
+    if (m) {
+      const mo = +m[1], wk = +m[2];
+      wmap[mo] = wmap[mo] || {};
+      wmap[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4 };
+    }
+  }
   const items = [];
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r]; if (!row) continue;
-    const model = (row[modelCol]||'').trim();
+    const model = (row[0]||'').trim();
+    const spec = (row[1]||'').trim();
     if (!model) continue;
     if (/^(total|item|품명|품목|spec|규격|전품목)$/i.test(model)) continue;
-    // 1반: 카테고리 헤더 행 (Black Eye, Blue Eye 등) 일부 스킵 — 모델명에 매출 정보 없는 경우만 포함
-    const weekData = {}; // weekData[mo][wk] = {수주,생산,출고,불량}
-    let hasAny = false;
+    if (/^(EP|ENBD|Cable\s*total|Cable|EPO\s*Probe)$/i.test(model)) continue; // 카테고리 헤더
+    const weekData = {}; let hasAny = false;
     for (const mo of Object.keys(wmap)) {
       weekData[mo] = {};
       for (const wk of Object.keys(wmap[mo])) {
@@ -267,36 +285,100 @@ function parseSheet(csvText, dept) {
       }
     }
     if (!hasAny) continue;
-    items.push({ model, spec: (row[specCol]||'').trim(), weekData });
+    items.push({ model, spec, weekData });
+  }
+  return { items, weeksByMonth: getWeeksByMonth(wmap) };
+}
+
+/* ============================================================
+   1반 파서 — 위치 기반 (행1의 "1"~"12" 마커 스캔)
+   각 주: 7개 컬럼 = [수주, 계획, 생산, 출고, 불량, 성능, 외관]
+   ============================================================ */
+function parse1Ban(csvText) {
+  const rows = parseCSV(csvText);
+  if (rows.length < 6) return null;
+
+  // 행1에서 월 마커 찾기 — 단, monthly section (1~12)의 두번째 반복 (col 155+ 정도)
+  const row1 = rows[0] || [];
+  const markers = [];
+  for (let i = 155; i < row1.length; i++) {
+    const v = (row1[i]||'').trim();
+    if (/^([1-9]|1[0-2])$/.test(v)) markers.push({ mo: +v, col: i });
+  }
+  if (markers.length === 0) return null;
+
+  // 각 월의 주차별 컬럼 매핑 — 다음 월의 시작점까지 7씩 stride
+  const wmap = {};
+  for (let i = 0; i < markers.length; i++) {
+    const cur = markers[i];
+    const next = markers[i+1];
+    const endCol = next ? next.col : Math.min(cur.col + 40, row1.length);
+    wmap[cur.mo] = {};
+    let wk = 1;
+    // 마커 col 다음부터 7씩 증가
+    for (let c = cur.col + 1; c + 4 < endCol; c += 7) {
+      wmap[cur.mo][wk] = { 수주: c, 생산: c+2, 출고: c+3, 불량: c+4 };
+      wk++;
+      if (wk > 5) break;
+    }
+  }
+
+  // 데이터 행 파싱
+  const modelCol = 2, specCol = 3;
+  const items = [];
+  for (let r = 5; r < rows.length; r++) {  // 데이터는 row 6+ 부터 (0-indexed = 5)
+    const row = rows[r]; if (!row) continue;
+    const model = (row[modelCol]||'').trim();
+    const spec = (row[specCol]||'').trim();
+    if (!model) continue;
+    if (/^(total|item|품명|품목|spec|규격|전품목)$/i.test(model)) continue;
+
+    const weekData = {}; let hasAny = false;
+    for (const mo of Object.keys(wmap)) {
+      weekData[mo] = {};
+      for (const wk of Object.keys(wmap[mo])) {
+        const c = wmap[mo][wk];
+        const w = {};
+        for (const me of METRICS) w[me] = parseNum(row[c[me]]);
+        weekData[mo][wk] = w;
+        if (w.수주 + w.생산 + w.출고 + w.불량 > 0) hasAny = true;
+      }
+    }
+    if (!hasAny) continue;
+    items.push({ model, spec, weekData });
   }
   return { items, weeksByMonth: getWeeksByMonth(wmap) };
 }
 
 function getWeeksByMonth(wmap) {
-  // 각 월별로 존재하는 주차 번호 목록
   const r = {};
-  for (const mo of Object.keys(wmap)) {
-    r[+mo] = Object.keys(wmap[mo]).map(Number).sort((a,b)=>a-b);
-  }
+  for (const mo of Object.keys(wmap)) r[+mo] = Object.keys(wmap[mo]).map(Number).sort((a,b)=>a-b);
   return r;
 }
 
 /* ============================================================
    집계
    ============================================================ */
+function getData() { return APP.data[APP.dept]; }
+function getSelectedItems() { return APP.selectedItems[APP.dept]; }
+
+function filterItems(items) {
+  const sel = getSelectedItems();
+  if (sel.size === 0) return items;  // 전체
+  return items.filter(it => sel.has(it.model));
+}
+
 function aggregateByWeek(items, months) {
-  // months: 정렬된 월 배열 → 결과: [{label:"5월1주", 수주, 생산, 출고, 불량, mo, wk}, ...]
   const out = [];
   for (const mo of months) {
-    const weeks = items[0]?.weekData?.[mo] ? Object.keys(items[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
-    for (const wk of weeks) {
+    const wks = items[0]?.weekData?.[mo] ? Object.keys(items[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
+    for (const wk of wks) {
       const sums = { 수주:0, 생산:0, 출고:0, 불량:0 };
       for (const it of items) {
         const w = it.weekData?.[mo]?.[wk];
         if (!w) continue;
         for (const me of METRICS) sums[me] += w[me] || 0;
       }
-      // 전부 0이면 미진행 주차 — 표시 제외
       if (sums.수주 + sums.생산 + sums.출고 + sums.불량 > 0) {
         out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums });
       }
@@ -308,23 +390,32 @@ function aggregateByWeek(items, months) {
 /* ============================================================
    렌더링
    ============================================================ */
-function getData() { return APP.data[APP.dept]; }
-
 function renderMonthChips() {
   const data = getData(); if (!data) return;
   const months = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
   const box = document.getElementById('monthChips');
   box.innerHTML = months.map(m =>
-    `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" onclick="toggleMonth(${m})">${m}월</span>`
+    `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" data-ftype="month" data-fval="${m}">${m}월</span>`
   ).join('');
 }
 
-function toggleMonth(m) {
-  if (APP.selectedMonths.has(m)) APP.selectedMonths.delete(m);
-  else APP.selectedMonths.add(m);
-  if (APP.selectedMonths.size === 0) APP.selectedMonths.add(m); // 최소 1개
-  renderMonthChips(); renderBody();
+function renderItemChips() {
+  const data = getData(); if (!data) return;
+  const sel = getSelectedItems();
+  const search = (document.getElementById('itemSearch')?.value || '').toLowerCase().trim();
+  const allItems = data.items;
+  const visible = search
+    ? allItems.filter(it => it.model.toLowerCase().includes(search) || (it.spec||'').toLowerCase().includes(search))
+    : allItems;
+  const box = document.getElementById('itemChips');
+  box.innerHTML = visible.map(it =>
+    `<span class="chip chip-item ${sel.has(it.model)?'active':''}" data-ftype="item" data-fval="${escapeAttr(it.model)}" title="${escapeAttr(it.spec||'')}">${it.model}</span>`
+  ).join('');
+  document.getElementById('itemCount').textContent =
+    sel.size === 0 ? `(전체 ${allItems.length}개)` : `(${sel.size}/${allItems.length}개 선택)`;
 }
+
+function escapeAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
 function selectAllMonths() {
   const data = getData(); if (!data) return;
@@ -335,12 +426,14 @@ function selectAllMonths() {
 function selectRecentMonths() {
   const data = getData(); if (!data) return;
   const months = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>b-a);
-  // 실제 데이터가 있는 월만 → 최근 3개
   const aggAll = aggregateByWeek(data.items, months);
   const monthsWithData = [...new Set(aggAll.map(r => r.mo))].sort((a,b)=>b-a).slice(0, 3);
-  APP.selectedMonths = new Set(monthsWithData);
+  APP.selectedMonths = new Set(monthsWithData.length ? monthsWithData : months.slice(0, 3));
   renderMonthChips(); renderBody();
 }
+
+function selectAllItems() { APP.selectedItems[APP.dept] = new Set(); renderItemChips(); renderBody(); }
+function clearItems() { APP.selectedItems[APP.dept] = new Set(); renderItemChips(); renderBody(); }
 
 function toggleMetric(m) {
   if (APP.activeMetrics.has(m)) {
@@ -361,50 +454,219 @@ function toggleMetric(m) {
   renderChart();
 }
 
+/* ============================================================
+   드래그 선택 — 칩 위에서 마우스 드래그 시 일괄 토글
+   ============================================================ */
+const DRAG = { active:false, mode:null, touched:new Set(), moved:false, suppressClick:false };
+
+function setFilterState(type, val, on) {
+  if (type === 'month') {
+    val = +val;
+    if (on) APP.selectedMonths.add(val);
+    else APP.selectedMonths.delete(val);
+  } else if (type === 'item') {
+    const set = getSelectedItems();
+    if (on) set.add(val);
+    else set.delete(val);
+  }
+}
+
+function isFilterOn(type, val) {
+  if (type === 'month') return APP.selectedMonths.has(+val);
+  if (type === 'item') return getSelectedItems().has(val);
+  return false;
+}
+
+function applyChipDrag(el) {
+  if (!el || !el.dataset.ftype) return;
+  const k = `${el.dataset.ftype}|${el.dataset.fval}`;
+  if (DRAG.touched.has(k)) return;
+  DRAG.touched.add(k);
+  setFilterState(el.dataset.ftype, el.dataset.fval, DRAG.mode);
+  el.classList.toggle('active', DRAG.mode);
+}
+
+function chipUnderPoint(x, y) {
+  const el = document.elementFromPoint(x, y);
+  if (el && el.dataset && el.dataset.ftype) return el;
+  return null;
+}
+
+document.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  const el = e.target.closest('[data-ftype]');
+  if (!el) return;
+  DRAG.active = true;
+  DRAG.mode = !isFilterOn(el.dataset.ftype, el.dataset.fval);
+  DRAG.touched = new Set();
+  DRAG.moved = false;
+  applyChipDrag(el);
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!DRAG.active) return;
+  DRAG.moved = true;
+  const el = chipUnderPoint(e.clientX, e.clientY);
+  if (el) applyChipDrag(el);
+});
+
+document.addEventListener('mouseup', () => {
+  if (!DRAG.active) return;
+  DRAG.active = false;
+  DRAG.touched.clear();
+  DRAG.suppressClick = true;
+  setTimeout(() => { DRAG.suppressClick = false; }, 50);
+  // 월 최소 1개 보장
+  if (APP.selectedMonths.size === 0) {
+    const data = getData();
+    if (data) {
+      const months = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>b-a);
+      if (months.length) APP.selectedMonths.add(months[0]);
+    }
+  }
+  renderMonthChips();
+  renderItemChips();
+  renderBody();
+});
+
+/* ============================================================
+   KPI / 코멘트 / 차트 / 표
+   ============================================================ */
 function renderKPI() {
   const data = getData(); if (!data) return;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
-  const agg = aggregateByWeek(data.items, months);
+  const agg = aggregateByWeek(filterItems(data.items), months);
+  const ids = {수주:['kpiOrder','kpiOrderSub'], 생산:['kpiProd','kpiProdSub'], 출고:['kpiShip','kpiShipSub'], 불량:['kpiDef','kpiDefSub']};
   if (agg.length === 0) {
-    ['kpiOrder','kpiProd','kpiShip','kpiDef'].forEach(id => document.getElementById(id).textContent = '—');
-    ['kpiOrderSub','kpiProdSub','kpiShipSub','kpiDefSub'].forEach(id => document.getElementById(id).textContent = '데이터 없음');
+    for (const m of METRICS) {
+      document.getElementById(ids[m][0]).textContent = '—';
+      document.getElementById(ids[m][1]).textContent = '데이터 없음';
+    }
     return;
   }
   const cur = agg[agg.length-1];
   const prev = agg[agg.length-2];
-  const fmtDelta = (cur, prev) => {
-    if (!prev || prev === 0) return `<span style="color:var(--text-muted);">기준 ${cur.label} · 전주 데이터 없음</span>`;
-    const diff = cur - prev;
-    const rate = diff/prev*100;
-    const sign = diff >= 0 ? '▲' : '▼';
-    const cls = diff >= 0 ? 'up' : 'down';
-    return `<span class="${cls}">${sign} ${Math.abs(rate).toFixed(1)}%</span> · 전주 ${fmtN(prev)}`;
+  const fmtDelta = (c, p) => {
+    if (p == null || p === 0) return `<span style="color:var(--text-muted);">전주 비교 없음</span>`;
+    const d = c - p;
+    const rate = d/p*100;
+    const sign = d >= 0 ? '▲' : '▼';
+    const cls = d >= 0 ? 'up' : 'down';
+    return `<span class="${cls}">${sign} ${Math.abs(rate).toFixed(1)}%</span> · 전주 ${fmtN(p)}`;
   };
-  const def = ['kpiOrder','kpiProd','kpiShip','kpiDef'];
-  const subs = ['kpiOrderSub','kpiProdSub','kpiShipSub','kpiDefSub'];
-  METRICS.forEach((me, i) => {
-    document.getElementById(def[i]).textContent = fmtN(cur[me]);
-    document.getElementById(subs[i]).innerHTML = `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;">${cur.label}</div>${fmtDelta(cur[me], prev?.[me])}`;
+  METRICS.forEach(me => {
+    document.getElementById(ids[me][0]).textContent = fmtN(cur[me]);
+    document.getElementById(ids[me][1]).innerHTML =
+      `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;">${cur.label}</div>${fmtDelta(cur[me], prev?.[me])}`;
   });
+}
+
+function renderComment() {
+  const box = document.getElementById('commentBox');
+  const data = getData(); if (!data) { box.textContent = '데이터 없음'; return; }
+  const months = [...APP.selectedMonths].sort((a,b)=>a-b);
+  const items = filterItems(data.items);
+  const agg = aggregateByWeek(items, months);
+  if (agg.length < 2) {
+    box.innerHTML = '<span style="color:var(--text-muted);">전주 비교를 위해 최소 2개 주차 데이터가 필요합니다. 월 범위를 늘려보세요.</span>';
+    return;
+  }
+  const cur = agg[agg.length-1];
+  const prev = agg[agg.length-2];
+  const lines = [];
+  const itemCnt = getSelectedItems().size === 0 ? `전체 ${items.length}품목` : `${getSelectedItems().size}품목 선택`;
+  lines.push(`<b style="color:var(--gold);">${cur.label}</b> 실적 — ${itemCnt} 기준`);
+
+  // 주요 지표 변동
+  const deltas = METRICS.map(me => {
+    const c = cur[me], p = prev[me];
+    const d = c - p;
+    const rate = p > 0 ? d/p*100 : null;
+    return { me, c, p, d, rate };
+  });
+
+  // 수주/생산/출고
+  const orderD = deltas.find(d => d.me==='수주');
+  const prodD = deltas.find(d => d.me==='생산');
+  const shipD = deltas.find(d => d.me==='출고');
+  const defD = deltas.find(d => d.me==='불량');
+
+  const tone = (d) => {
+    if (d.rate == null) return `<span style="color:var(--text-muted);">전주 미실적</span>`;
+    if (d.rate >= 0) return `<span class="up">${fmtN(d.c)}개 (전주比 ▲${d.rate.toFixed(1)}%, +${fmtN(d.d)})</span>`;
+    return `<span class="down">${fmtN(d.c)}개 (전주比 ▼${Math.abs(d.rate).toFixed(1)}%, ${fmtN(d.d)})</span>`;
+  };
+
+  lines.push(`▶ 수주 ${tone(orderD)}, 생산 ${tone(prodD)}, 출고 ${tone(shipD)}.`);
+
+  // 불량
+  const defRateCur = cur.생산 > 0 ? cur.불량/cur.생산*100 : null;
+  const defRatePrev = prev.생산 > 0 ? prev.불량/prev.생산*100 : null;
+  if (defRateCur != null) {
+    let qual = '양호';
+    if (defRateCur > 2) qual = '<span class="down">심각</span>';
+    else if (defRateCur > 1) qual = '<span style="color:var(--amber);">주의</span>';
+    else if (defRateCur > 0.5) qual = '<span style="color:var(--gold);">관리</span>';
+    else qual = '<span class="up">우수</span>';
+    let cmp = '';
+    if (defRatePrev != null) {
+      const dr = defRateCur - defRatePrev;
+      cmp = dr >= 0
+        ? ` (전주 ${defRatePrev.toFixed(2)}% → <span class="down">+${dr.toFixed(2)}%p</span>)`
+        : ` (전주 ${defRatePrev.toFixed(2)}% → <span class="up">${dr.toFixed(2)}%p</span>)`;
+    }
+    lines.push(`▶ 품질 ${qual} — 불량율 <b>${defRateCur.toFixed(2)}%</b>${cmp}, 불량 ${fmtN(cur.불량)}개 / 생산 ${fmtN(cur.생산)}개.`);
+  }
+
+  // 종합 톤
+  const upCnt = deltas.filter(d => d.me !== '불량' && d.rate != null && d.rate > 0).length;
+  const downCnt = deltas.filter(d => d.me !== '불량' && d.rate != null && d.rate < 0).length;
+  let verdict;
+  if (upCnt >= 2 && (defD.rate == null || defD.rate <= 0))
+    verdict = `<span class="up">📈 전반적 상승세 — 추세 유지 시 다음주 호조 예상.</span>`;
+  else if (downCnt >= 2)
+    verdict = `<span class="down">📉 전반적 하락 — 수주 파이프라인 점검 필요.</span>`;
+  else if (defRateCur != null && defRateCur > 2)
+    verdict = `<span style="color:var(--amber);">⚠ 불량율 상승 — 공정 점검 권고.</span>`;
+  else
+    verdict = `<span style="color:var(--gold);">⚡ 보합 유지 — 특이사항 없음.</span>`;
+  lines.push(`▶ ${verdict}`);
+
+  // 품목별 TOP 변동 (선택된 품목만, 생산 기준)
+  if (items.length > 1) {
+    const moves = items.map(it => {
+      const c = it.weekData?.[cur.mo]?.[cur.wk]?.생산 || 0;
+      const p = it.weekData?.[prev.mo]?.[prev.wk]?.생산 || 0;
+      return { model: it.model, c, p, d: c - p };
+    }).filter(m => m.c + m.p >= 5);
+    const topUp = [...moves].filter(m => m.d > 0).sort((a,b) => b.d - a.d)[0];
+    const topDn = [...moves].filter(m => m.d < 0).sort((a,b) => a.d - b.d)[0];
+    const parts = [];
+    if (topUp) parts.push(`<span class="up">▲ ${topUp.model} +${fmtN(topUp.d)}</span>`);
+    if (topDn) parts.push(`<span class="down">▼ ${topDn.model} ${fmtN(topDn.d)}</span>`);
+    if (parts.length) lines.push(`▶ 품목별 주목: ${parts.join(' · ')}.`);
+  }
+
+  box.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
 }
 
 function renderChart() {
   const data = getData(); if (!data) return;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
-  const agg = aggregateByWeek(data.items, months);
+  const items = filterItems(data.items);
+  const agg = aggregateByWeek(items, months);
   const xData = agg.map(r => r.label);
   const series = METRICS.filter(m => APP.activeMetrics.has(m)).map(m => ({
     name: m,
     type: m === '불량' ? 'bar' : 'line',
-    smooth: true,
-    symbol: 'circle', symbolSize: 7,
+    smooth: true, symbol: 'circle', symbolSize: 7,
     data: agg.map(r => r[m]),
     yAxisIndex: m === '불량' ? 1 : 0,
     lineStyle: { color: METRIC_COLORS[m], width: 2.5 },
     itemStyle: { color: METRIC_COLORS[m] },
     barWidth: '30%',
   }));
-
   if (!APP.chart) APP.chart = echarts.init(document.getElementById('chartTrend'));
   APP.chart.setOption({
     backgroundColor: 'transparent',
@@ -431,15 +693,14 @@ function renderChart() {
     ],
     series
   }, true);
-
-  document.getElementById('trendSub').textContent =
-    `${months.join('월·')}월 · 주차별 합계 (${agg.length}개 주차)`;
+  const itemLabel = getSelectedItems().size === 0 ? `전체 ${items.length}품목` : `${getSelectedItems().size}품목 선택`;
+  document.getElementById('trendSub').textContent = `${months.join('월·')}월 · ${itemLabel} · ${agg.length}개 주차`;
 }
 
 function renderTable() {
   const data = getData(); if (!data) return;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
-  const agg = aggregateByWeek(data.items, months);
+  const agg = aggregateByWeek(filterItems(data.items), months);
   let html = `<table class="exec" style="width:100%;border-collapse:collapse;">
     <thead><tr>
       <th>주차</th>
@@ -450,16 +711,16 @@ function renderTable() {
     </tr></thead><tbody>`;
   agg.forEach((r, i) => {
     const prev = i > 0 ? agg[i-1] : null;
-    const delta = (cur, prev) => {
-      if (!prev || prev === 0) return '<span style="color:var(--text-muted);">—</span>';
-      const d = cur - prev;
+    const delta = (c, p) => {
+      if (p == null || p === 0) return '<span style="color:var(--text-muted);">—</span>';
+      const d = c - p;
       const cls = d >= 0 ? 'up' : 'down';
       const sign = d >= 0 ? '▲' : '▼';
       return `<span class="${cls}" style="font-weight:700;">${sign} ${fmtN(Math.abs(d))}</span>`;
     };
     const defRate = r.생산 > 0 ? (r.불량/r.생산*100).toFixed(2)+'%' : '—';
     html += `<tr>
-      <td style="font-weight:700;color:var(--text-primary);">${r.label}</td>
+      <td style="font-weight:700;">${r.label}</td>
       <td style="text-align:right;color:var(--gold);font-weight:600;" class="num">${fmtN(r.수주)}</td>
       <td style="text-align:right;" class="num">${delta(r.수주, prev?.수주)}</td>
       <td style="text-align:right;color:var(--cyan);font-weight:600;" class="num">${fmtN(r.생산)}</td>
@@ -471,11 +732,11 @@ function renderTable() {
     </tr>`;
   });
   html += '</tbody></table>';
-  if (agg.length === 0) html = '<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 월에 주간 데이터가 없습니다.</div>';
+  if (agg.length === 0) html = '<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 조건에 주간 데이터가 없습니다.</div>';
   document.getElementById('weekTable').innerHTML = html;
 }
 
-function renderBody() { renderKPI(); renderChart(); renderTable(); }
+function renderBody() { renderKPI(); renderComment(); renderChart(); renderTable(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
@@ -483,7 +744,8 @@ function switchDept(dept) {
   APP.dept = dept;
   document.getElementById('deptTitle').textContent = dept;
   document.querySelectorAll('.btn[data-dept]').forEach(b => b.classList.toggle('active', b.dataset.dept === dept));
-  // 최근 3개월 자동 선택
+  document.getElementById('itemSearch').value = '';
+  renderItemChips();
   selectRecentMonths();
 }
 
@@ -501,11 +763,14 @@ async function init() {
       fetchGviz(GIDS['1반']).catch(() => null),
       fetchGviz(GIDS['2반']).catch(() => null),
     ]);
-    if (csv1) APP.data['1반'] = parseSheet(csv1, '1반');
-    if (csv2) APP.data['2반'] = parseSheet(csv2, '2반');
+    if (csv1) APP.data['1반'] = parse1Ban(csv1);
+    if (csv2) APP.data['2반'] = parse2Ban(csv2);
 
     if (!APP.data['1반'] && !APP.data['2반']) throw new Error('데이터 없음');
-    if (!APP.data['1반']) { APP.dept = '2반'; document.getElementById('deptTitle').textContent = '2반'; }
+    if (!APP.data['1반']?.items?.length && APP.data['2반']?.items?.length) {
+      APP.dept = '2반';
+      document.getElementById('deptTitle').textContent = '2반';
+    }
 
     const now = new Date();
     document.getElementById('syncDate').textContent =
@@ -513,10 +778,11 @@ async function init() {
 
     document.querySelectorAll('.btn[data-dept]').forEach(b => {
       b.classList.toggle('active', b.dataset.dept === APP.dept);
-      if (!APP.data[b.dataset.dept]) { b.style.opacity = '0.4'; b.title = '데이터 없음'; }
+      if (!APP.data[b.dataset.dept]?.items?.length) { b.style.opacity = '0.4'; b.title = '데이터 없음'; }
     });
 
     document.getElementById('loadingOverlay').style.display = 'none';
+    renderItemChips();
     selectRecentMonths();
   } catch (err) {
     document.getElementById('loadingOverlay').innerHTML = `
