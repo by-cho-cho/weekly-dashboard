@@ -142,7 +142,7 @@
     <span class="filter-label">월</span>
     <div class="filter-grid" id="monthChips"></div>
     <button id="btnAllMonths" class="btn" onclick="selectAllMonths()" style="font-size:10px;padding:4px 10px;">전체</button>
-    <button class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:4px 10px;">최근 3개월</button>
+    <button id="btnRecentMonths" class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:4px 10px;">최근 3개월</button>
   </div>
 
   <div class="filter-row">
@@ -161,6 +161,7 @@
   <div class="filter-row" id="subRow" style="display:none;">
     <span class="filter-label" style="padding-left:14px;font-size:10px;">└ 세부</span>
     <div class="filter-grid" id="subChips"></div>
+    <button id="btnAllSubs" class="btn" onclick="selectAllSubs()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="clearSubs()" style="font-size:10px;padding:4px 10px;">해제</button>
   </div>
 
@@ -491,6 +492,12 @@ function renderMonthChips() {
     `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" data-ftype="month" data-fval="${m}">${m}월</span>`
   ).join('');
   document.getElementById('btnAllMonths')?.classList.toggle('active', APP.selectedMonths.size === months.length && months.length > 0);
+  // 최근 3개월 하이라이트: 선택된 월이 데이터 있는 최근 3개월과 정확히 일치
+  const aggAll = aggregateByWeek(data.items, months);
+  const monthsWithData = [...new Set(aggAll.map(r => r.mo))].sort((a,b)=>b-a).slice(0, 3);
+  const recentSet = new Set(monthsWithData);
+  const isRecent = APP.selectedMonths.size === recentSet.size && [...recentSet].every(m => APP.selectedMonths.has(m));
+  document.getElementById('btnRecentMonths')?.classList.toggle('active', isRecent && recentSet.size > 0);
 }
 
 function renderWeekChips() {
@@ -535,8 +542,16 @@ function renderSubChips() {
   document.getElementById('subChips').innerHTML = subs.map(s =>
     `<span class="chip chip-sub ${sel.has(s)?'active':''}" data-ftype="sub" data-fval="${escapeAttr(s)}">${s}</span>`
   ).join('');
+  document.getElementById('btnAllSubs')?.classList.toggle('active', sel.size === subs.length && subs.length > 0);
 }
 function clearSubs() { APP.selectedSubs[APP.dept] = new Set(); renderSubChips(); renderItemChips(); renderBody(); }
+function selectAllSubs() {
+  const data = getData(); if (!data) return;
+  const items = data.items.filter(it => it.category === '커플링플로이드');
+  const subs = [...new Set(items.map(it => it.subcategory).filter(Boolean))];
+  APP.selectedSubs[APP.dept] = new Set(subs);
+  renderSubChips(); renderItemChips(); renderBody();
+}
 
 function renderItemChips() {
   const data = getData(); if (!data) return;
