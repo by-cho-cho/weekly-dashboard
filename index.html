@@ -359,11 +359,13 @@ function extractItems(rows, wmap, dept) {
     getCategory = (rIdx, model) => rowToCat[rIdx+1] || byName(model) || '기타';
   } else {
     // 2반: 카테고리 헤더 행이 카테고리 합계를 보유 — 헤더만 집계 단위로 사용
+    // 헤더는 정확한 이름으로만 매칭 ("TS-ENBD-7F" 같은 개별 품목 오매칭 방지)
     getCategory = (rIdx, model) => {
-      if (/cable/i.test(model))  return 'Cable';
-      if (/epo/i.test(model))    return 'EPO Probe';
-      if (/enbd/i.test(model))   return 'ENBD';
-      if (/^ep$/i.test(model))   return 'EP';
+      const m = (model||'').trim();
+      if (/^cable\s*total$/i.test(m)) return 'Cable';
+      if (/^epo\s*probe$/i.test(m))   return 'EPO Probe';
+      if (/^enbd$/i.test(m))          return 'ENBD';
+      if (/^ep$/i.test(m))            return 'EP';
       return null; // 헤더 아닌 행 (개별 품목)
     };
   }
