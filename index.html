@@ -141,20 +141,20 @@
   <div class="filter-row">
     <span class="filter-label">월</span>
     <div class="filter-grid" id="monthChips"></div>
-    <button class="btn" onclick="selectAllMonths()" style="font-size:10px;padding:4px 10px;">전체</button>
+    <button id="btnAllMonths" class="btn" onclick="selectAllMonths()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:4px 10px;">최근 3개월</button>
   </div>
 
   <div class="filter-row">
     <span class="filter-label">주차</span>
     <div class="filter-grid" id="weekChips"></div>
-    <button class="btn" onclick="selectAllWeeks()" style="font-size:10px;padding:4px 10px;">전체</button>
+    <button id="btnAllWeeks" class="btn" onclick="selectAllWeeks()" style="font-size:10px;padding:4px 10px;">전체</button>
   </div>
 
   <div class="filter-row">
     <span class="filter-label">품목군</span>
     <div class="filter-grid" id="catChips"></div>
-    <button class="btn" onclick="selectAllCats()" style="font-size:10px;padding:4px 10px;">전체</button>
+    <button id="btnAllCats" class="btn" onclick="selectAllCats()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="clearCats()" style="font-size:10px;padding:4px 10px;">해제</button>
   </div>
 
@@ -170,7 +170,7 @@
     <input id="itemSearch" placeholder="🔍 검색" oninput="renderItemChips()"
       style="background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text-primary);
              border-radius:8px;padding:5px 10px;font-size:11px;width:160px;outline:none;">
-    <button class="btn" onclick="selectAllItems()" style="font-size:10px;padding:4px 10px;">전체</button>
+    <button id="btnAllItems" class="btn" onclick="selectAllItems()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="clearItems()" style="font-size:10px;padding:4px 10px;">해제</button>
   </div>
 </header>
@@ -490,6 +490,7 @@ function renderMonthChips() {
   document.getElementById('monthChips').innerHTML = months.map(m =>
     `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" data-ftype="month" data-fval="${m}">${m}월</span>`
   ).join('');
+  document.getElementById('btnAllMonths')?.classList.toggle('active', APP.selectedMonths.size === months.length && months.length > 0);
 }
 
 function renderWeekChips() {
@@ -497,6 +498,7 @@ function renderWeekChips() {
   document.getElementById('weekChips').innerHTML = weeks.map(w =>
     `<span class="chip chip-week ${APP.selectedWeeks.has(w)?'active':''}" data-ftype="week" data-fval="${w}">${w}주</span>`
   ).join('');
+  document.getElementById('btnAllWeeks')?.classList.toggle('active', APP.selectedWeeks.size === 5);
 }
 function selectAllWeeks() {
   APP.selectedWeeks = new Set([1,2,3,4,5]);
@@ -510,6 +512,7 @@ function renderCatChips() {
   document.getElementById('catChips').innerHTML = cats.map(c =>
     `<span class="chip chip-cat ${sel.has(c)?'active':''}" data-ftype="cat" data-fval="${escapeAttr(c)}">${c}</span>`
   ).join('');
+  document.getElementById('btnAllCats')?.classList.toggle('active', sel.size === cats.length && cats.length > 0);
   renderSubChips();
 }
 
@@ -558,6 +561,9 @@ function renderItemChips() {
   ).join('');
   document.getElementById('itemCount').textContent =
     sel.size === 0 ? `(필터 ${visible.length}개 / 전체 ${data.items.length}개)` : `(${sel.size}개 선택)`;
+  // 품목 "전체" = sel.size === 0 (필터 해제 = 전체 포함) OR 모든 가시 품목 선택
+  const allItems = sel.size === 0 || (visible.length > 0 && visible.every(it => sel.has(it.model)));
+  document.getElementById('btnAllItems')?.classList.toggle('active', allItems);
 }
 
 function escapeAttr(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
