@@ -338,7 +338,17 @@ function extractItems(rows, wmap, dept) {
       if (m.includes('syringe') || m.includes('시린지') || m.includes('ml syringe')) return '시린지';
       return null;
     };
-    getCategory = (rIdx, model) => rowToCat[rIdx+1] || byName(model) || '기타';
+    // 브랜드 세분화 (최우선) — 커플링플로이드 등에서 브랜드별로 분리
+    const brandOverride = (model) => {
+      const m = (model||'').toLowerCase();
+      if (m.includes('텐텍')) return '텐텍';
+      if (m.includes('j/s') || m.includes('제이시스')) return '제이시스';
+      if (m.includes('비올')) return '비올';
+      if (m.includes('원텍')) return '원텍';
+      if (m.includes('청우')) return '청우';
+      return null;
+    };
+    getCategory = (rIdx, model) => brandOverride(model) || rowToCat[rIdx+1] || byName(model) || '기타';
   } else {
     // 2반: 현재 카테고리는 헤더 행을 만나면 갱신
     let curCat = '기타';
