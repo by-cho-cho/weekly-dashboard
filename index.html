@@ -164,7 +164,7 @@
     <button class="btn" onclick="clearSubs()" style="font-size:10px;padding:4px 10px;">해제</button>
   </div>
 
-  <div class="filter-row">
+  <div class="filter-row" id="itemRow" style="display:none;">
     <span class="filter-label">품목 <span id="itemCount" style="font-weight:400;color:var(--text-muted);font-size:10px;">—</span></span>
     <div class="filter-grid" id="itemChips" style="max-height:80px;overflow-y:auto;"></div>
     <input id="itemSearch" placeholder="🔍 검색" oninput="renderItemChips()"
@@ -537,11 +537,20 @@ function clearSubs() { APP.selectedSubs[APP.dept] = new Set(); renderSubChips();
 
 function renderItemChips() {
   const data = getData(); if (!data) return;
-  const sel = getItems();
+  const row = document.getElementById('itemRow');
   const cats = getCats();
+  // 품목군이 선택된 경우에만 품목 목록 노출
+  if (cats.size === 0) {
+    row.style.display = 'none';
+    if (getItems().size > 0) APP.selectedItems[APP.dept] = new Set();
+    return;
+  }
+  row.style.display = 'flex';
+  const sel = getItems();
   const search = (document.getElementById('itemSearch')?.value || '').toLowerCase().trim();
-  let visible = data.items;
-  if (cats.size > 0) visible = visible.filter(it => cats.has(it.category));
+  let visible = data.items.filter(it => cats.has(it.category));
+  const subs = getSubs();
+  if (subs.size > 0) visible = visible.filter(it => !it.subcategory || subs.has(it.subcategory));
   if (search) visible = visible.filter(it =>
     it.model.toLowerCase().includes(search) || (it.spec||'').toLowerCase().includes(search));
   document.getElementById('itemChips').innerHTML = visible.map(it =>
