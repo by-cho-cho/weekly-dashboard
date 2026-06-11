@@ -276,24 +276,32 @@ const parseNum = v => {
 const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
 
 // 행1 마커 스캔 (위치 기반) — 1반·2반·2025 공통
-// 1반 주간 컬럼 배열: 수주(+0) 계획(+1) 생산(+2) 출고(+3) 누계/재공(+4) 불량(+5) 성능(+6)
-// 2반 주간 컬럼 배열: 수주(+0) 계획(+1) 생산(+2) 출고(+3) 불량(+4) 성능(+5) 외관(+6) 기타(+7)
+// 실제 시트 레이아웃 (월 마커 cur.col 기준):
+//   cur.col+0: 월 마커 ("1"~"12")
+//   cur.col+1: 월간 계획 spacer (월 단위 합계 셀)
+//   cur.col+2: 주1 시작
+// 주 시작 컬럼(c) 기준 컬럼 순서:
+//   1반 (stride=7): 계획(+0) 생산(+1) 출고(+2) 충진(+3) 불량(+4) 샘플(+5) 수주(+6)
+//   2반 (stride=8): 수주(+0) 계획(+1) 생산(+2) 출고(+3) 불량(+4) 성능(+5) 외관(+6) 기타(+7)
 function detectWeeklyColumns(headers, startCol, dept) {
   const markers = [];
   for (let i = startCol; i < headers.length; i++) {
     const v = (headers[i]||'').trim();
     if (/^([1-9]|1[0-2])$/.test(v)) markers.push({ mo: +v, col: i });
   }
-  const defOffset = dept === '1반' ? 5 : 4;  // 1반: +5, 2반: +4
-  const stride    = dept === '1반' ? 7 : 8;
+  const stride = dept === '1반' ? 7 : 8;
   const wmap = {};
   for (let i = 0; i < markers.length; i++) {
     const cur = markers[i], next = markers[i+1];
     const endCol = next ? next.col : Math.min(cur.col + 60, headers.length);
     wmap[cur.mo] = {};
     let wk = 1;
-    for (let c = cur.col + 1; c + defOffset < endCol; c += stride) {
-      wmap[cur.mo][wk] = { 수주: c, 생산: c+2, 출고: c+3, 불량: c+defOffset };
+    for (let c = cur.col + 2; c + (stride - 1) <= endCol; c += stride) {
+      if (dept === '1반') {
+        wmap[cur.mo][wk] = { 수주: c + 6, 생산: c + 1, 출고: c + 2, 불량: c + 4 };
+      } else {
+        wmap[cur.mo][wk] = { 수주: c,     생산: c + 2, 출고: c + 3, 불량: c + 4 };
+      }
       wk++; if (wk > 5) break;
     }
   }
