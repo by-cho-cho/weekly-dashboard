@@ -379,11 +379,20 @@ function extractItems(rows, wmap, dept) {
     const row = rows[r]; if (!row) continue;
     const model = (row[modelCol]||'').trim();
     if (!model) continue;
-    if (/^(total|item|품명|품목|spec|규격|전품목)$/i.test(model)) continue;
 
-    const cat = dept === '1반' ? getCategory(r, model) : getCategory(r, model);
+    // 1반: 카테고리 'Total' 행만 집계 단위로 사용 (사용자 요구)
+    //      개별 품목 행은 시트 입력 불일치 가능성으로 제외
+    if (dept === '1반') {
+      if (!/^total$/i.test(model)) continue;
+      if (/^전품목$/i.test((row[1]||'').trim())) continue; // grand total 'Total' 행 보호
+    } else {
+      if (/^(total|item|품명|품목|spec|규격|전품목)$/i.test(model)) continue;
+    }
+
+    const cat = getCategory(r, model);
     if (cat === null) continue; // 2반 카테고리 헤더는 건너뜀
     if (cat === 'Cable') continue; // Cable 품목군 분석 제외
+    if (cat === '기타' && dept === '1반') continue; // 매핑 안 된 Total 행 제외
 
     const weekData = {}; let hasAny = false;
     for (const mo of Object.keys(wmap)) {
@@ -397,7 +406,8 @@ function extractItems(rows, wmap, dept) {
       }
     }
     if (!hasAny) continue;
-    items.push({ model, spec: (row[specCol]||'').trim(), category: cat, subcategory: detectSubcategory(cat, model), weekData });
+    const displayModel = dept === '1반' ? `${cat} 합계` : model;
+    items.push({ model: displayModel, spec: (row[specCol]||'').trim(), category: cat, subcategory: detectSubcategory(cat, model), weekData });
   }
   return { items, weeksByMonth: getWeeksByMonth(wmap) };
 }
