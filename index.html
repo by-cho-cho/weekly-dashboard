@@ -516,10 +516,16 @@ function renderCatChips() {
 function renderSubChips() {
   const data = getData(); if (!data) return;
   const cats = getCats();
-  // 어떤 카테고리에 sub가 있는지: 현재 카테고리 필터 적용 후 sub 추출
-  const items = cats.size === 0 ? data.items : data.items.filter(it => cats.has(it.category));
-  const subs = [...new Set(items.map(it => it.subcategory).filter(Boolean))];
   const row = document.getElementById('subRow');
+  // 커플링플로이드가 명시적으로 활성화된 경우에만 세부 노출
+  if (!cats.has('커플링플로이드')) {
+    row.style.display = 'none';
+    // 세부 선택도 초기화 (혼란 방지)
+    if (getSubs().size > 0) APP.selectedSubs[APP.dept] = new Set();
+    return;
+  }
+  const items = data.items.filter(it => it.category === '커플링플로이드');
+  const subs = [...new Set(items.map(it => it.subcategory).filter(Boolean))];
   if (subs.length === 0) { row.style.display = 'none'; return; }
   row.style.display = 'flex';
   const sel = getSubs();
