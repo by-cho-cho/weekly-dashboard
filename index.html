@@ -77,6 +77,8 @@
   .chip-week.active  { background: rgba(0,229,160,0.25); border-color: var(--mint); box-shadow:0 0 6px rgba(0,229,160,0.3); }
   .chip-cat          { color: var(--amber); border-color: rgba(255,181,71,0.35); background: rgba(255,181,71,0.05); }
   .chip-cat.active   { background: rgba(255,181,71,0.25); border-color: var(--amber); box-shadow:0 0 6px rgba(255,181,71,0.3); }
+  .chip-sub          { color: var(--gold); border-color: rgba(201,169,97,0.35); background: rgba(201,169,97,0.05); font-size:10px; padding:3px 9px;}
+  .chip-sub.active   { background: rgba(201,169,97,0.25); border-color: var(--gold); box-shadow:0 0 6px rgba(201,169,97,0.3); }
   .chip-item         { color: var(--text-secondary); border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); font-size: 10px; padding:3px 9px;}
   .chip-item.active  { color: var(--gold); border-color: var(--gold); background: rgba(201,169,97,0.18); box-shadow:0 0 5px rgba(201,169,97,0.25);}
   .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
@@ -154,6 +156,12 @@
     <div class="filter-grid" id="catChips"></div>
     <button class="btn" onclick="selectAllCats()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="clearCats()" style="font-size:10px;padding:4px 10px;">해제</button>
+  </div>
+
+  <div class="filter-row" id="subRow" style="display:none;">
+    <span class="filter-label" style="padding-left:14px;font-size:10px;">└ 세부</span>
+    <div class="filter-grid" id="subChips"></div>
+    <button class="btn" onclick="clearSubs()" style="font-size:10px;padding:4px 10px;">해제</button>
   </div>
 
   <div class="filter-row">
@@ -240,6 +248,7 @@ const APP = {
   selectedMonths: new Set(),
   selectedWeeks: new Set([1,2,3,4,5]),
   selectedCats:  { '1반': new Set(), '2반': new Set() },
+  selectedSubs:  { '1반': new Set(), '2반': new Set() },
   selectedItems: { '1반': new Set(), '2반': new Set() },
   activeMetrics: new Set(METRICS),
   chart: null,
@@ -338,17 +347,7 @@ function extractItems(rows, wmap, dept) {
       if (m.includes('syringe') || m.includes('시린지') || m.includes('ml syringe')) return '시린지';
       return null;
     };
-    // 브랜드 세분화 (최우선) — 커플링플로이드 등에서 브랜드별로 분리
-    const brandOverride = (model) => {
-      const m = (model||'').toLowerCase();
-      if (m.includes('텐텍')) return '텐텍';
-      if (m.includes('j/s') || m.includes('제이시스')) return '제이시스';
-      if (m.includes('비올')) return '비올';
-      if (m.includes('원텍')) return '원텍';
-      if (m.includes('청우')) return '청우';
-      return null;
-    };
-    getCategory = (rIdx, model) => brandOverride(model) || rowToCat[rIdx+1] || byName(model) || '기타';
+    getCategory = (rIdx, model) => rowToCat[rIdx+1] || byName(model) || '기타';
   } else {
     // 2반: 현재 카테고리는 헤더 행을 만나면 갱신
     let curCat = '기타';
@@ -389,9 +388,21 @@ function extractItems(rows, wmap, dept) {
       }
     }
     if (!hasAny) continue;
-    items.push({ model, spec: (row[specCol]||'').trim(), category: cat, weekData });
+    items.push({ model, spec: (row[specCol]||'').trim(), category: cat, subcategory: detectSubcategory(cat, model), weekData });
   }
   return { items, weeksByMonth: getWeeksByMonth(wmap) };
+}
+
+// 세부 품목군 (브랜드) — 커플링플로이드 하위에 텐텍/제이시스/비올/원텍/청우
+function detectSubcategory(cat, model) {
+  if (cat !== '커플링플로이드') return null;
+  const m = (model||'').toLowerCase();
+  if (m.includes('텐텍')) return '텐텍';
+  if (m.includes('j/s') || m.includes('제이시스')) return '제이시스';
+  if (m.includes('비올')) return '비올';
+  if (m.includes('원텍')) return '원텍';
+  if (m.includes('청우')) return '청우';
+  return null;
 }
 
 function getWeeksByMonth(wmap) {
@@ -405,13 +416,19 @@ function getWeeksByMonth(wmap) {
    ============================================================ */
 function getData(year) { return APP.data[year || APP.year]?.[APP.dept]; }
 function getCats() { return APP.selectedCats[APP.dept]; }
+function getSubs() { return APP.selectedSubs[APP.dept]; }
 function getItems() { return APP.selectedItems[APP.dept]; }
 
 function filterItems(items) {
   const cats = getCats();
+  const subs = getSubs();
   const sel = getItems();
   return items.filter(it => {
     if (cats.size > 0 && !cats.has(it.category)) return false;
+    if (subs.size > 0) {
+      // 세부 필터가 활성: subcategory가 있는 품목은 필터 매치, 없는 품목(다른 품목군)은 통과
+      if (it.subcategory && !subs.has(it.subcategory)) return false;
+    }
     if (sel.size > 0 && !sel.has(it.model)) return false;
     return true;
   });
@@ -493,7 +510,24 @@ function renderCatChips() {
   document.getElementById('catChips').innerHTML = cats.map(c =>
     `<span class="chip chip-cat ${sel.has(c)?'active':''}" data-ftype="cat" data-fval="${escapeAttr(c)}">${c}</span>`
   ).join('');
+  renderSubChips();
 }
+
+function renderSubChips() {
+  const data = getData(); if (!data) return;
+  const cats = getCats();
+  // 어떤 카테고리에 sub가 있는지: 현재 카테고리 필터 적용 후 sub 추출
+  const items = cats.size === 0 ? data.items : data.items.filter(it => cats.has(it.category));
+  const subs = [...new Set(items.map(it => it.subcategory).filter(Boolean))];
+  const row = document.getElementById('subRow');
+  if (subs.length === 0) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  const sel = getSubs();
+  document.getElementById('subChips').innerHTML = subs.map(s =>
+    `<span class="chip chip-sub ${sel.has(s)?'active':''}" data-ftype="sub" data-fval="${escapeAttr(s)}">${s}</span>`
+  ).join('');
+}
+function clearSubs() { APP.selectedSubs[APP.dept] = new Set(); renderSubChips(); renderItemChips(); renderBody(); }
 
 function renderItemChips() {
   const data = getData(); if (!data) return;
@@ -640,6 +674,7 @@ function isFilterOn(type, val) {
   if (type === 'month') return APP.selectedMonths.has(+val);
   if (type === 'week')  return APP.selectedWeeks.has(+val);
   if (type === 'cat')   return getCats().has(val);
+  if (type === 'sub')   return getSubs().has(val);
   if (type === 'item')  return getItems().has(val);
   return false;
 }
@@ -652,6 +687,9 @@ function setFilterState(type, val, on) {
     if (on) APP.selectedWeeks.add(val); else APP.selectedWeeks.delete(val);
   } else if (type === 'cat') {
     const set = getCats();
+    if (on) set.add(val); else set.delete(val);
+  } else if (type === 'sub') {
+    const set = getSubs();
     if (on) set.add(val); else set.delete(val);
   } else if (type === 'item') {
     const set = getItems();
@@ -698,7 +736,7 @@ document.addEventListener('mouseup', () => {
       if (months.length) APP.selectedMonths.add(months[0]);
     }
   }
-  renderMonthChips(); renderWeekChips(); renderCatChips(); renderItemChips();
+  renderMonthChips(); renderWeekChips(); renderCatChips(); renderSubChips(); renderItemChips();
   renderBody();
 });
 
