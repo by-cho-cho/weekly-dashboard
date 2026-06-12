@@ -425,25 +425,33 @@ function extractItems(rows, wmap, dept) {
     const displayModel = `${cat} 합계`;
     items.push({ model: displayModel, spec: (row[specCol]||'').trim(), category: cat, subcategory: detectSubcategory(cat, model), weekData });
   }
-  // 주별 불량 메모 수집 — 시트 전체에서 해당 주의 불량 컬럼에 달린 메모를 모음
-  // (개별 품목 행에 메모가 달리지만 집계는 카테고리 Total 행 기준이라 행 매칭 안 됨)
+  // 주별 메모 수집 — 시트 전체에서 해당 주의 컬럼 블록(수주~기타)에 달린 메모 모음
+  // 메모는 보통 불량 수량 셀이 아닌 개별 품목의 다른 셀에 달리므로 범위 매칭이 필요
   const weekNotes = {};
   const notesMap = APP.notes?.[dept];
   if (notesMap && notesMap.size) {
-    // 불량 컬럼 → (mo, wk) 역매핑
-    const colToWeek = {};
+    // 각 주의 컬럼 범위 산출
+    //   1반(stride 7): c+0(계획)~c+6(수주), 수주가 마지막 → start = 수주-6
+    //   2반(stride 8): c+0(수주)~c+7(기타), 수주가 첫 칸 → start = 수주
+    const ranges = [];
     for (const mo of Object.keys(wmap)) {
       for (const wk of Object.keys(wmap[mo])) {
-        colToWeek[wmap[mo][wk].불량] = { mo: +mo, wk: +wk };
+        const w = wmap[mo][wk];
+        const start = dept === '1반' ? w.수주 - 6 : w.수주;
+        const end   = dept === '1반' ? w.수주     : w.수주 + 7;
+        ranges.push({ mo: +mo, wk: +wk, start, end, defCol: w.불량 });
       }
     }
+    ranges.sort((a, b) => a.start - b.start);
     for (const [key, note] of notesMap) {
       const [r, c] = key.split('|').map(Number);
-      const w = colToWeek[c]; if (!w) continue;
+      const wr = ranges.find(x => c >= x.start && c <= x.end);
+      if (!wr) continue;
       const model = (rows[r]?.[modelCol] || '').trim() || `행${r+1}`;
-      weekNotes[w.mo] = weekNotes[w.mo] || {};
-      weekNotes[w.mo][w.wk] = weekNotes[w.mo][w.wk] || [];
-      weekNotes[w.mo][w.wk].push(`[${model}] ${note}`);
+      const flag = c === wr.defCol ? '🔴' : '';
+      weekNotes[wr.mo] = weekNotes[wr.mo] || {};
+      weekNotes[wr.mo][wr.wk] = weekNotes[wr.mo][wr.wk] || [];
+      weekNotes[wr.mo][wr.wk].push(`${flag}[${model}] ${note}`);
     }
   }
   return { items, weeksByMonth: getWeeksByMonth(wmap), weekNotes };
