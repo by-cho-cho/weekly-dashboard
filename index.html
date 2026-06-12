@@ -462,11 +462,13 @@ function extractItems(rows, wmap, dept) {
       const [r, c] = key.split('|').map(Number);
       const wr = ranges.find(x => c >= x.start && c <= x.end);
       if (!wr) continue;
+      // 같은 행·같은 주의 불량 값이 0보다 클 때만 포함 (불량 발생 품목의 메모만)
+      const defVal = parseNum(rows[r]?.[wr.defCol]);
+      if (defVal <= 0) continue;
       const model = (rows[r]?.[modelCol] || '').trim() || `행${r+1}`;
-      const flag = c === wr.defCol ? '🔴' : '';
       weekNotes[wr.mo] = weekNotes[wr.mo] || {};
       weekNotes[wr.mo][wr.wk] = weekNotes[wr.mo][wr.wk] || [];
-      weekNotes[wr.mo][wr.wk].push(`${flag}[${model}] ${note}`);
+      weekNotes[wr.mo][wr.wk].push(`[${model}] (불량 ${defVal}) ${note}`);
     }
   }
   return { items, weeksByMonth: getWeeksByMonth(wmap), weekNotes };
