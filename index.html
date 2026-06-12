@@ -411,18 +411,12 @@ function extractItems(rows, wmap, dept) {
     if (cat === '기타' && dept === '1반') continue; // 매핑 안 된 Total 행 제외
 
     const weekData = {}; let hasAny = false;
-    const notesMap = APP.notes?.[dept];
     for (const mo of Object.keys(wmap)) {
       weekData[mo] = {};
       for (const wk of Object.keys(wmap[mo])) {
         const c = wmap[mo][wk];
         const w = {};
         for (const me of METRICS) w[me] = parseNum(row[c[me]]);
-        // 불량 셀의 메모를 가져와서 w._note에 부착 (2026 source 시트만)
-        if (notesMap && notesMap.size) {
-          const n = notesMap.get(`${r}|${c.불량}`);
-          if (n) w._note = n;
-        }
         weekData[mo][wk] = w;
         if (w.수주 + w.생산 + w.출고 + w.불량 > 0) hasAny = true;
       }
@@ -431,7 +425,28 @@ function extractItems(rows, wmap, dept) {
     const displayModel = `${cat} 합계`;
     items.push({ model: displayModel, spec: (row[specCol]||'').trim(), category: cat, subcategory: detectSubcategory(cat, model), weekData });
   }
-  return { items, weeksByMonth: getWeeksByMonth(wmap) };
+  // 주별 불량 메모 수집 — 시트 전체에서 해당 주의 불량 컬럼에 달린 메모를 모음
+  // (개별 품목 행에 메모가 달리지만 집계는 카테고리 Total 행 기준이라 행 매칭 안 됨)
+  const weekNotes = {};
+  const notesMap = APP.notes?.[dept];
+  if (notesMap && notesMap.size) {
+    // 불량 컬럼 → (mo, wk) 역매핑
+    const colToWeek = {};
+    for (const mo of Object.keys(wmap)) {
+      for (const wk of Object.keys(wmap[mo])) {
+        colToWeek[wmap[mo][wk].불량] = { mo: +mo, wk: +wk };
+      }
+    }
+    for (const [key, note] of notesMap) {
+      const [r, c] = key.split('|').map(Number);
+      const w = colToWeek[c]; if (!w) continue;
+      const model = (rows[r]?.[modelCol] || '').trim() || `행${r+1}`;
+      weekNotes[w.mo] = weekNotes[w.mo] || {};
+      weekNotes[w.mo][w.wk] = weekNotes[w.mo][w.wk] || [];
+      weekNotes[w.mo][w.wk].push(`[${model}] ${note}`);
+    }
+  }
+  return { items, weeksByMonth: getWeeksByMonth(wmap), weekNotes };
 }
 
 // 세부 품목군 (브랜드) — 커플링플로이드 하위에 텐텍/제이시스/비올/원텍/청우
@@ -478,17 +493,17 @@ function filterItems(items) {
 function aggregateByWeek(items, months) {
   const out = [];
   const weekFilter = APP.selectedWeeks;
+  const weekNotes = getData()?.weekNotes || {};
   for (const mo of months) {
     const wks = items[0]?.weekData?.[mo] ? Object.keys(items[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
     for (const wk of wks) {
       if (weekFilter.size > 0 && !weekFilter.has(wk)) continue;
       const sums = { 수주:0, 생산:0, 출고:0, 불량:0 };
-      const notes = [];
       for (const it of items) {
         const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
         for (const me of METRICS) sums[me] += w[me] || 0;
-        if (w._note) notes.push(`[${it.model}] ${w._note}`);
       }
+      const notes = weekNotes[mo]?.[wk] ? [...weekNotes[mo][wk]] : [];
       if (sums.수주 + sums.생산 + sums.출고 + sums.불량 > 0) {
         out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums, notes });
       }
