@@ -104,21 +104,6 @@
     border-radius: 10px;
     padding: 14px 18px; font-size: 12px; line-height: 1.85;
   }
-  /* 메모 호버 툴팁 — 불량 셀의 📝 옆에 즉시 표시 */
-  .note-wrap { position: relative; display: inline-block; cursor: pointer; font-size: 12px; opacity: 0.9; margin-left: 4px; }
-  .note-pop {
-    display: none; position: absolute; right: 0; top: 100%; margin-top: 6px;
-    z-index: 1000; min-width: 260px; max-width: 420px;
-    background: #0F1424; color: #E8ECF5; border: 1px solid rgba(230,57,70,0.45);
-    border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.65;
-    text-align: left; white-space: pre-wrap; font-weight: 400;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-    pointer-events: none;
-  }
-  .note-wrap:hover .note-pop { display: block; }
-  .note-pop .hd { color: #E63946; font-weight: 700; margin-bottom: 6px; font-size: 10px; letter-spacing: 0.05em; }
-  .note-pop .item { padding: 3px 0; border-top: 1px dashed rgba(255,255,255,0.08); }
-  .note-pop .item:first-of-type { border-top: 0; }
 </style>
 </head>
 <body>
@@ -240,7 +225,6 @@
 const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
 const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
 const GIDS = { '1반': '2145094968', '2반': '680125344' };
-const NOTES_GID = '213119272'; // 메모 미러링 탭 (AppScript trigger 5분 주기)
 const METRICS = ['수주','생산','출고','불량'];
 const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946' };
 
@@ -285,23 +269,6 @@ function parseCSV(text){
   if(cell||row.length){row.push(cell);rows.push(row);}
   return rows;
 }
-// 메모 탭 CSV 파싱 — 헤더: ban, row, col, note, updatedAt
-function parseNotesCSV(csvText) {
-  const rows = parseCSV(csvText);
-  const out = { '1반': new Map(), '2반': new Map() };
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i]; if (!row || row.length < 4) continue;
-    const ban = (row[0]||'').trim();
-    const r = parseInt(row[1], 10), c = parseInt(row[2], 10);
-    const n = (row[3]||'').trim();
-    if (!n || isNaN(r) || isNaN(c)) continue;
-    const key = ban === '1BAN' ? '1반' : ban === '2BAN' ? '2반' : null;
-    if (!key) continue;
-    out[key].set(`${r}|${c}`, n);
-  }
-  return out;
-}
-
 const parseNum = v => {
   if (v == null || v === '') return 0;
   const n = Number(String(v).replace(/,/g, '').trim());
@@ -440,38 +407,7 @@ function extractItems(rows, wmap, dept) {
     const displayModel = `${cat} 합계`;
     items.push({ model: displayModel, spec: (row[specCol]||'').trim(), category: cat, subcategory: detectSubcategory(cat, model), weekData });
   }
-  // 주별 메모 수집 — 시트 전체에서 해당 주의 컬럼 블록(수주~기타)에 달린 메모 모음
-  // 메모는 보통 불량 수량 셀이 아닌 개별 품목의 다른 셀에 달리므로 범위 매칭이 필요
-  const weekNotes = {};
-  const notesMap = APP.notes?.[dept];
-  if (notesMap && notesMap.size) {
-    // 각 주의 컬럼 범위 산출
-    //   1반(stride 7): c+0(계획)~c+6(수주), 수주가 마지막 → start = 수주-6
-    //   2반(stride 8): c+0(수주)~c+7(기타), 수주가 첫 칸 → start = 수주
-    const ranges = [];
-    for (const mo of Object.keys(wmap)) {
-      for (const wk of Object.keys(wmap[mo])) {
-        const w = wmap[mo][wk];
-        const start = dept === '1반' ? w.수주 - 6 : w.수주;
-        const end   = dept === '1반' ? w.수주     : w.수주 + 7;
-        ranges.push({ mo: +mo, wk: +wk, start, end, defCol: w.불량 });
-      }
-    }
-    ranges.sort((a, b) => a.start - b.start);
-    for (const [key, note] of notesMap) {
-      const [r, c] = key.split('|').map(Number);
-      const wr = ranges.find(x => c >= x.start && c <= x.end);
-      if (!wr) continue;
-      // 같은 행·같은 주의 불량 값이 0보다 클 때만 포함 (불량 발생 품목의 메모만)
-      const defVal = parseNum(rows[r]?.[wr.defCol]);
-      if (defVal <= 0) continue;
-      const model = (rows[r]?.[modelCol] || '').trim() || `행${r+1}`;
-      weekNotes[wr.mo] = weekNotes[wr.mo] || {};
-      weekNotes[wr.mo][wr.wk] = weekNotes[wr.mo][wr.wk] || [];
-      weekNotes[wr.mo][wr.wk].push(`[${model}] (불량 ${defVal}) ${note}`);
-    }
-  }
-  return { items, weeksByMonth: getWeeksByMonth(wmap), weekNotes };
+  return { items, weeksByMonth: getWeeksByMonth(wmap) };
 }
 
 // 세부 품목군 (브랜드) — 커플링플로이드 하위에 텐텍/제이시스/비올/원텍/청우
@@ -518,7 +454,6 @@ function filterItems(items) {
 function aggregateByWeek(items, months) {
   const out = [];
   const weekFilter = APP.selectedWeeks;
-  const weekNotes = getData()?.weekNotes || {};
   for (const mo of months) {
     const wks = items[0]?.weekData?.[mo] ? Object.keys(items[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
     for (const wk of wks) {
@@ -528,9 +463,8 @@ function aggregateByWeek(items, months) {
         const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
         for (const me of METRICS) sums[me] += w[me] || 0;
       }
-      const notes = weekNotes[mo]?.[wk] ? [...weekNotes[mo][wk]] : [];
       if (sums.수주 + sums.생산 + sums.출고 + sums.불량 > 0) {
-        out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums, notes });
+        out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums });
       }
     }
   }
@@ -1150,8 +1084,7 @@ function renderTable() {
   let cols = `<th>주차</th>
     <th style="text-align:right">수주</th><th style="text-align:right">Δ주</th>
     <th style="text-align:right">생산</th><th style="text-align:right">Δ주</th>
-    <th style="text-align:right">출고</th><th style="text-align:right">Δ주</th>
-    <th style="text-align:right">불량</th><th style="text-align:right">불량율</th>`;
+    <th style="text-align:right">출고</th><th style="text-align:right">Δ주</th>`;
   if (yoyMap) cols += `<th style="text-align:right;color:var(--purple);">동기간 생산</th><th style="text-align:right;color:var(--purple);">YoY</th>`;
 
   let html = `<table class="exec" style="width:100%;border-collapse:collapse;"><thead><tr>${cols}</tr></thead><tbody>`;
@@ -1162,7 +1095,6 @@ function renderTable() {
       const d = c - p, cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
       return `<span class="${cls}" style="font-weight:700;">${sign} ${fmtN(Math.abs(d))}</span>`;
     };
-    const defRate = r.생산 > 0 ? (r.불량/r.생산*100).toFixed(2)+'%' : '—';
     let yoyCells = '';
     if (yoyMap) {
       const y = yoyMap.get(`${r.mo}-${r.wk}`);
@@ -1183,8 +1115,6 @@ function renderTable() {
       <td style="text-align:right;" class="num">${delta(r.생산, prev?.생산)}</td>
       <td style="text-align:right;color:var(--mint);font-weight:600;" class="num">${fmtN(r.출고)}</td>
       <td style="text-align:right;" class="num">${delta(r.출고, prev?.출고)}</td>
-      <td style="text-align:right;color:var(--red);font-weight:600;" class="num">${fmtN(r.불량)}${r.notes?.length ? `<span class="note-wrap" aria-label="${r.notes.length}건 메모">📝<span class="note-pop"><div class="hd">불량 원인 (${r.notes.length}건)</div>${r.notes.map(n => `<div class="item">${n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`).join('')}</span></span>` : ''}</td>
-      <td style="text-align:right;color:var(--text-secondary);" class="num">${defRate}</td>
       ${yoyCells}
     </tr>`;
   });
@@ -1217,15 +1147,12 @@ async function init() {
     return resp.text();
   }
   try {
-    const [c26_1, c26_2, c25_1, c25_2, cNotes] = await Promise.all([
+    const [c26_1, c26_2, c25_1, c25_2] = await Promise.all([
       fetchGviz(SHEET_ID_26, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_26, GIDS['2반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['2반']).catch(() => null),
-      fetchGviz(SHEET_ID_26, NOTES_GID).catch(() => null),
     ]);
-    // 메모는 데이터 파싱 전에 적재 (extractItems가 APP.notes를 참조)
-    if (cNotes) APP.notes = parseNotesCSV(cNotes);
     // 2026: 1반은 위치기반 (행0이 markers), 2반은 헤더 기반
     if (c26_1) APP.data[2026]['1반'] = parseGeneric(c26_1, '1반', 0);
     if (c26_2) APP.data[2026]['2반'] = parse2Ban26(c26_2);
