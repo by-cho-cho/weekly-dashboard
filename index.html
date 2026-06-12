@@ -997,9 +997,11 @@ function renderChart() {
         const r = agg.find(x => x.label === value);
         return r ? `${r.mo}월` : '';
       },
-      color: '#C9A961', fontSize: 10, fontWeight: 700,
+      color: '#C9A961', fontSize: 15, fontWeight: 800,
+      padding: [4, 8], backgroundColor: 'rgba(201,169,97,0.12)',
+      borderRadius: 4,
     },
-    lineStyle: { color: 'rgba(201,169,97,0.4)', type: 'dashed', width: 1 },
+    lineStyle: { color: 'rgba(201,169,97,0.5)', type: 'dashed', width: 1.2 },
     data: monthBoundaries.map(label => ({ xAxis: label }))
   } : undefined;
 
@@ -1036,6 +1038,7 @@ function renderChart() {
       fc.forecasts.forEach(f => hiData.push(Math.round(f.hi)));
 
       const fcName = `${m}(예측)`;
+      const FC_COLOR = '#AB8FE0'; // 예측선 전용 색 — 실측 라인과 시각적으로 구분
       // 신뢰구간 (하단)
       series.push({
         name: `${m}_lo`, type: 'line', smooth: true,
@@ -1051,7 +1054,7 @@ function renderChart() {
         yAxisIndex: m === '불량' ? 1 : 0,
         lineStyle: { width: 0, opacity: 0 }, symbol:'none',
         stack: `band_${m}`, silent: true, tooltip: { show: false },
-        areaStyle: { color: METRIC_COLORS[m], opacity: 0.10 },
+        areaStyle: { color: FC_COLOR, opacity: 0.12 },
         z: 1,
       });
       // 예측선 (점선)
@@ -1059,8 +1062,8 @@ function renderChart() {
         name: fcName, type: 'line', smooth: true,
         symbol: 'diamond', symbolSize: 8,
         data: fcData, yAxisIndex: m === '불량' ? 1 : 0,
-        lineStyle: { color: METRIC_COLORS[m], width: 2, type: 'dashed' },
-        itemStyle: { color: METRIC_COLORS[m] },
+        lineStyle: { color: FC_COLOR, width: 2.2, type: 'dashed' },
+        itemStyle: { color: FC_COLOR },
         z: 5,
       });
       legend.push(fcName);
