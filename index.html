@@ -193,7 +193,7 @@
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px;">
       <div>
-        <div class="kpi-label">주간 추이 (수주 · 생산 · 출고 · 불량)</div>
+        <div class="kpi-label">주간 추이 (수주 · 생산 · 출고)</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="trendSub">—</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -202,7 +202,6 @@
           <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
           <span class="chip metric active" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
           <span class="chip metric active" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
-          <span class="chip metric active" data-metric="불량" onclick="toggleMetric('불량')" style="color:#E63946;border-color:rgba(230,57,70,0.4);background:rgba(230,57,70,0.15);">불량</span>
         </div>
         <button id="yoyBtn" onclick="toggleYoY()" class="btn"
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
@@ -252,7 +251,7 @@ const APP = {
   selectedCats:  { '1반': new Set(), '2반': new Set() },
   selectedSubs:  { '1반': new Set(), '2반': new Set() },
   selectedItems: { '1반': new Set(), '2반': new Set() },
-  activeMetrics: new Set(METRICS),
+  activeMetrics: new Set(['수주','생산','출고']),
   chart: null,
 };
 
@@ -373,24 +372,31 @@ function extractItems(rows, wmap, dept) {
 
   const items = [];
   const startRow = dept === '1반' ? 5 : 1;
+  let currentCat = null; // 2반 — 가장 최근 헤더 행이 정한 카테고리
   for (let r = startRow; r < rows.length; r++) {
     const row = rows[r]; if (!row) continue;
     const model = (row[modelCol]||'').trim();
     if (!model) continue;
 
-    // 1반: 카테고리 'Total' 행만 집계 단위로 사용 (사용자 요구)
-    //      개별 품목 행은 시트 입력 불일치 가능성으로 제외
+    let cat, isTotal;
     if (dept === '1반') {
-      if (!/^total$/i.test(model)) continue;
-      if (/^전품목$/i.test((row[1]||'').trim())) continue; // grand total 'Total' 행 보호
+      // grand total 보호
+      if (/^전품목$/i.test((row[1]||'').trim())) continue;
+      isTotal = /^total$/i.test(model);
+      cat = getCategory(r, model);
+      if (!cat || cat === '기타' || cat === 'Cable') continue;
     } else {
-      if (/^(total|item|품명|품목|spec|규격|전품목)$/i.test(model)) continue;
+      // 2반: 헤더(EP/ENBD/EPO Probe/Cable Total) 또는 개별 품목
+      if (/^(item|품명|품목|spec|규격|전품목|total)$/i.test(model) && !getCategory(r, model)) continue;
+      const headerCat = getCategory(r, model);
+      if (headerCat) {
+        currentCat = headerCat; isTotal = true; cat = headerCat;
+      } else {
+        if (!currentCat) continue;
+        isTotal = false; cat = currentCat;
+      }
+      if (cat === 'Cable') continue;
     }
-
-    const cat = getCategory(r, model);
-    if (cat === null) continue; // 2반: 개별품목, 1반: 매핑 실패 — 모두 제외
-    if (cat === 'Cable') continue; // Cable 품목군 분석 제외
-    if (cat === '기타' && dept === '1반') continue; // 매핑 안 된 Total 행 제외
 
     const weekData = {}; let hasAny = false;
     for (const mo of Object.keys(wmap)) {
@@ -404,8 +410,15 @@ function extractItems(rows, wmap, dept) {
       }
     }
     if (!hasAny) continue;
-    const displayModel = `${cat} 합계`;
-    items.push({ model: displayModel, spec: (row[specCol]||'').trim(), category: cat, subcategory: detectSubcategory(cat, model), weekData });
+    const displayModel = isTotal ? `${cat} 합계` : model;
+    items.push({
+      model: displayModel,
+      spec: (row[specCol]||'').trim(),
+      category: cat,
+      subcategory: detectSubcategory(cat, model),
+      weekData,
+      isTotal,
+    });
   }
   return { items, weeksByMonth: getWeeksByMonth(wmap) };
 }
@@ -446,7 +459,13 @@ function filterItems(items) {
       // 세부 필터가 활성: subcategory가 있는 품목은 필터 매치, 없는 품목(다른 품목군)은 통과
       if (it.subcategory && !subs.has(it.subcategory)) return false;
     }
-    if (sel.size > 0 && !sel.has(it.model)) return false;
+    // 개별 품목 미선택 → 카테고리 합계만 / 선택됨 → 선택된 개별 품목만
+    if (sel.size === 0) {
+      if (!it.isTotal) return false;
+    } else {
+      if (it.isTotal) return false;
+      if (!sel.has(it.model)) return false;
+    }
     return true;
   });
 }
@@ -582,7 +601,8 @@ function renderItemChips() {
   row.style.display = 'flex';
   const sel = getItems();
   const search = (document.getElementById('itemSearch')?.value || '').toLowerCase().trim();
-  let visible = data.items.filter(it => cats.has(it.category));
+  // 개별 품목만 선택 대상 (카테고리 합계 isTotal:true 는 미선택시 자동 표시되므로 제외)
+  let visible = data.items.filter(it => cats.has(it.category) && !it.isTotal);
   const subs = getSubs();
   if (subs.size > 0) visible = visible.filter(it => !it.subcategory || subs.has(it.subcategory));
   if (search) visible = visible.filter(it =>
@@ -591,8 +611,7 @@ function renderItemChips() {
     `<span class="chip chip-item ${sel.has(it.model)?'active':''}" data-ftype="item" data-fval="${escapeAttr(it.model)}" title="${escapeAttr(it.spec||'')} · ${escapeAttr(it.category)}">${it.model}</span>`
   ).join('');
   document.getElementById('itemCount').textContent =
-    sel.size === 0 ? `(필터 ${visible.length}개 / 전체 ${data.items.length}개)` : `(${sel.size}개 선택)`;
-  // 품목 "전체" = sel.size === 0 (필터 해제 = 전체 포함) OR 모든 가시 품목 선택
+    sel.size === 0 ? `(개별품목 ${visible.length}개 — 미선택시 합계)` : `(${sel.size}개 선택)`;
   const allItems = sel.size === 0 || (visible.length > 0 && visible.every(it => sel.has(it.model)));
   document.getElementById('btnAllItems')?.classList.toggle('active', allItems);
 }
@@ -1056,7 +1075,6 @@ function renderChart() {
     } },
     yAxis: [
       { type:'value', name:'수량', nameTextStyle:{color:'#6B7693',fontSize:10}, splitLine:{lineStyle:{color:'#1A2236'}}, axisLabel:{color:'#8A9BBF', formatter:v=>v>=1000?Math.round(v/1000)+'k':v} },
-      { type:'value', name:'불량', nameTextStyle:{color:'#E63946',fontSize:10}, splitLine:{show:false}, axisLabel:{color:'#E63946'} },
     ],
     series
   }, true);
