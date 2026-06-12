@@ -225,6 +225,7 @@
 const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
 const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
 const GIDS = { '1반': '2145094968', '2반': '680125344' };
+const NOTES_GID = '1480885469'; // 메모 미러링 탭 (AppScript trigger 5분 주기)
 const METRICS = ['수주','생산','출고','불량'];
 const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946' };
 
@@ -246,6 +247,7 @@ const APP = {
   forecastOn: false,
   forecastH: 4,
   data: { 2026: {'1반':null,'2반':null}, 2025: {'1반':null,'2반':null} },
+  notes: { '1반': new Map(), '2반': new Map() }, // key="r|c" → 메모 텍스트 (2026만)
   selectedMonths: new Set(),
   selectedWeeks: new Set([1,2,3,4,5]),
   selectedCats:  { '1반': new Set(), '2반': new Set() },
@@ -268,6 +270,23 @@ function parseCSV(text){
   if(cell||row.length){row.push(cell);rows.push(row);}
   return rows;
 }
+// 메모 탭 CSV 파싱 — 헤더: ban, row, col, note, updatedAt
+function parseNotesCSV(csvText) {
+  const rows = parseCSV(csvText);
+  const out = { '1반': new Map(), '2반': new Map() };
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]; if (!row || row.length < 4) continue;
+    const ban = (row[0]||'').trim();
+    const r = parseInt(row[1], 10), c = parseInt(row[2], 10);
+    const n = (row[3]||'').trim();
+    if (!n || isNaN(r) || isNaN(c)) continue;
+    const key = ban === '1BAN' ? '1반' : ban === '2BAN' ? '2반' : null;
+    if (!key) continue;
+    out[key].set(`${r}|${c}`, n);
+  }
+  return out;
+}
+
 const parseNum = v => {
   if (v == null || v === '') return 0;
   const n = Number(String(v).replace(/,/g, '').trim());
@@ -392,12 +411,18 @@ function extractItems(rows, wmap, dept) {
     if (cat === '기타' && dept === '1반') continue; // 매핑 안 된 Total 행 제외
 
     const weekData = {}; let hasAny = false;
+    const notesMap = APP.notes?.[dept];
     for (const mo of Object.keys(wmap)) {
       weekData[mo] = {};
       for (const wk of Object.keys(wmap[mo])) {
         const c = wmap[mo][wk];
         const w = {};
         for (const me of METRICS) w[me] = parseNum(row[c[me]]);
+        // 불량 셀의 메모를 가져와서 w._note에 부착 (2026 source 시트만)
+        if (notesMap && notesMap.size) {
+          const n = notesMap.get(`${r}|${c.불량}`);
+          if (n) w._note = n;
+        }
         weekData[mo][wk] = w;
         if (w.수주 + w.생산 + w.출고 + w.불량 > 0) hasAny = true;
       }
@@ -458,12 +483,14 @@ function aggregateByWeek(items, months) {
     for (const wk of wks) {
       if (weekFilter.size > 0 && !weekFilter.has(wk)) continue;
       const sums = { 수주:0, 생산:0, 출고:0, 불량:0 };
+      const notes = [];
       for (const it of items) {
         const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
         for (const me of METRICS) sums[me] += w[me] || 0;
+        if (w._note) notes.push(`[${it.model}] ${w._note}`);
       }
       if (sums.수주 + sums.생산 + sums.출고 + sums.불량 > 0) {
-        out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums });
+        out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums, notes });
       }
     }
   }
@@ -1116,7 +1143,7 @@ function renderTable() {
       <td style="text-align:right;" class="num">${delta(r.생산, prev?.생산)}</td>
       <td style="text-align:right;color:var(--mint);font-weight:600;" class="num">${fmtN(r.출고)}</td>
       <td style="text-align:right;" class="num">${delta(r.출고, prev?.출고)}</td>
-      <td style="text-align:right;color:var(--red);font-weight:600;" class="num">${fmtN(r.불량)}</td>
+      <td style="text-align:right;color:var(--red);font-weight:600;" class="num">${fmtN(r.불량)}${r.notes?.length ? ` <span title="${r.notes.join('\n\n').replace(/"/g,'&quot;')}" style="cursor:help;font-size:11px;opacity:0.9;" aria-label="${r.notes.length}건 메모">📝</span>` : ''}</td>
       <td style="text-align:right;color:var(--text-secondary);" class="num">${defRate}</td>
       ${yoyCells}
     </tr>`;
@@ -1150,12 +1177,15 @@ async function init() {
     return resp.text();
   }
   try {
-    const [c26_1, c26_2, c25_1, c25_2] = await Promise.all([
+    const [c26_1, c26_2, c25_1, c25_2, cNotes] = await Promise.all([
       fetchGviz(SHEET_ID_26, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_26, GIDS['2반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['2반']).catch(() => null),
+      fetchGviz(SHEET_ID_26, NOTES_GID).catch(() => null),
     ]);
+    // 메모는 데이터 파싱 전에 적재 (extractItems가 APP.notes를 참조)
+    if (cNotes) APP.notes = parseNotesCSV(cNotes);
     // 2026: 1반은 위치기반 (행0이 markers), 2반은 헤더 기반
     if (c26_1) APP.data[2026]['1반'] = parseGeneric(c26_1, '1반', 0);
     if (c26_2) APP.data[2026]['2반'] = parse2Ban26(c26_2);
