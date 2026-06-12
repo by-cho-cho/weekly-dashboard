@@ -113,7 +113,7 @@
   }
   /* KPI 가로 스트립 — 카드 하나 안에 4개 셀, 사이에 구분선 */
   .kpi-strip {
-    display: grid; grid-template-columns: repeat(4, 1fr);
+    display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 0; align-items: stretch;
   }
   .kpi-cell {
@@ -219,11 +219,6 @@
         <div class="kpi-label">최근주 출고</div>
         <div class="kpi-val" id="kpiShip">—</div>
         <div class="kpi-sub" id="kpiShipSub">—</div>
-      </div>
-      <div class="kpi-cell" style="--accent:var(--red);">
-        <div class="kpi-label">최근주 불량</div>
-        <div class="kpi-val" id="kpiDef">—</div>
-        <div class="kpi-sub" id="kpiDefSub">—</div>
       </div>
     </div>
 
@@ -852,9 +847,9 @@ function renderKPI() {
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const agg = aggregateByWeek(filterItems(data.items), months);
   const yoy = APP.yoyOn ? aggregateYoY(filterItems(data.items), months, APP.year === 2026 ? 2025 : 2026) : null;
-  const ids = {수주:['kpiOrder','kpiOrderSub'], 생산:['kpiProd','kpiProdSub'], 출고:['kpiShip','kpiShipSub'], 불량:['kpiDef','kpiDefSub']};
+  const ids = {수주:['kpiOrder','kpiOrderSub'], 생산:['kpiProd','kpiProdSub'], 출고:['kpiShip','kpiShipSub']};
   if (agg.length === 0) {
-    for (const m of METRICS) {
+    for (const m of Object.keys(ids)) {
       document.getElementById(ids[m][0]).textContent = '—';
       document.getElementById(ids[m][1]).textContent = '데이터 없음';
     }
@@ -862,11 +857,10 @@ function renderKPI() {
   }
   const cur = agg[agg.length-1];
   const prev = agg[agg.length-2];
-  // 동기간 매칭: cur.mo/cur.wk와 같은 yoy 데이터
   const yoyMatch = yoy?.find(r => r.mo === cur.mo && r.wk === cur.wk);
-  METRICS.forEach(me => {
+  Object.keys(ids).forEach(me => {
     document.getElementById(ids[me][0]).textContent = fmtN(cur[me]);
-    let html = `<div style="font-size:10px;color:var(--text-muted);margin-bottom:3px;">${cur.label}</div>`;
+    let html = `<div style="font-size:20px;font-weight:700;color:var(--text-secondary);margin-bottom:6px;">${cur.label}</div>`;
     if (prev?.[me] != null && prev[me] > 0) {
       const d = cur[me] - prev[me], r = d/prev[me]*100;
       const cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
