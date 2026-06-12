@@ -534,15 +534,8 @@ function aggregateByWeek(items, months) {
 function aggregateYoY(items, months, year) {
   const data = APP.data[year]?.[APP.dept];
   if (!data) return null;
-  const yearItems = data.items;
-  // 현재 선택된 카테고리·품목 필터 적용
-  const cats = getCats(), sel = getItems();
-  const filtered = yearItems.filter(it => {
-    if (cats.size > 0 && !cats.has(it.category)) return false;
-    if (sel.size > 0 && !sel.has(it.model)) return false;
-    return true;
-  });
-  return aggregateByWeek(filtered, months);
+  // filterItems 로직 동일 적용 (isTotal 처리 포함)
+  return aggregateByWeek(filterItems(data.items), months);
 }
 
 /* ============================================================
@@ -1084,6 +1077,7 @@ function renderChart() {
         lineStyle: { color: METRIC_COLORS[m], width: 1.5, type: 'dashed', opacity: 0.6 },
         itemStyle: { color: METRIC_COLORS[m], opacity: 0.6 },
         barWidth: '20%',
+        connectNulls: true,
       });
       legend.push(yoyName);
     }
