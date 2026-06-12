@@ -488,14 +488,21 @@ function filterItems(items) {
   const cats = getCats();
   const subs = getSubs();
   const sel = getItems();
+  // "전체 선택" 감지: 선택된 카테고리 안의 모든 개별 품목이 sel에 포함되면 = Total 모드
+  // 이유: 개별 합산 ≠ 시트 Total (시트 입력 불일치). 카테고리 클릭 후 자동 전체 선택일 때
+  //       시각적으로는 모든 칩이 선택되지만 집계는 Total로 가야 25년 비교가 정합 유지됨.
+  const curData = getData();
+  let useTotal = sel.size === 0;
+  if (!useTotal && cats.size > 0 && curData) {
+    const allInd = curData.items.filter(it => !it.isTotal && cats.has(it.category));
+    if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) useTotal = true;
+  }
   return items.filter(it => {
     if (cats.size > 0 && !cats.has(it.category)) return false;
     if (subs.size > 0) {
-      // 세부 필터가 활성: subcategory가 있는 품목은 필터 매치, 없는 품목(다른 품목군)은 통과
       if (it.subcategory && !subs.has(it.subcategory)) return false;
     }
-    // 개별 품목 미선택 → 카테고리 합계만 / 선택됨 → 선택된 개별 품목만
-    if (sel.size === 0) {
+    if (useTotal) {
       if (!it.isTotal) return false;
     } else {
       if (it.isTotal) return false;
@@ -742,7 +749,14 @@ function selectAllCats() {
   renderCatChips(); renderItemChips(); renderBody();
 }
 function clearCats() { APP.selectedCats[APP.dept] = new Set(); renderCatChips(); renderItemChips(); renderBody(); }
-function selectAllItems() { APP.selectedItems[APP.dept] = new Set(); renderItemChips(); renderBody(); }
+function selectAllItems() {
+  const data = getData(); if (!data) { APP.selectedItems[APP.dept] = new Set(); renderItemChips(); renderBody(); return; }
+  const cats = getCats();
+  const sel = new Set();
+  data.items.filter(it => !it.isTotal && (cats.size === 0 || cats.has(it.category))).forEach(it => sel.add(it.model));
+  APP.selectedItems[APP.dept] = sel;
+  renderItemChips(); renderBody();
+}
 function clearItems() { APP.selectedItems[APP.dept] = new Set(); renderItemChips(); renderBody(); }
 
 function toggleMetric(m) {
@@ -786,7 +800,16 @@ function setFilterState(type, val, on) {
     if (on) APP.selectedWeeks.add(val); else APP.selectedWeeks.delete(val);
   } else if (type === 'cat') {
     const set = getCats();
-    if (on) set.add(val); else set.delete(val);
+    const items = getItems();
+    const data = getData();
+    if (on) {
+      set.add(val);
+      // 카테고리 선택 시 해당 세부 품목 전체 자동 선택 (filterItems가 "전체"=Total로 처리)
+      if (data) data.items.filter(it => it.category === val && !it.isTotal).forEach(it => items.add(it.model));
+    } else {
+      set.delete(val);
+      if (data) data.items.filter(it => it.category === val).forEach(it => items.delete(it.model));
+    }
   } else if (type === 'sub') {
     const set = getSubs();
     if (on) set.add(val); else set.delete(val);
