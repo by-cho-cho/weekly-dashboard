@@ -104,6 +104,21 @@
     border-radius: 10px;
     padding: 14px 18px; font-size: 12px; line-height: 1.85;
   }
+  /* 메모 호버 툴팁 — 불량 셀의 📝 옆에 즉시 표시 */
+  .note-wrap { position: relative; display: inline-block; cursor: pointer; font-size: 12px; opacity: 0.9; margin-left: 4px; }
+  .note-pop {
+    display: none; position: absolute; right: 0; top: 100%; margin-top: 6px;
+    z-index: 1000; min-width: 260px; max-width: 420px;
+    background: #0F1424; color: #E8ECF5; border: 1px solid rgba(230,57,70,0.45);
+    border-radius: 8px; padding: 10px 12px; font-size: 11px; line-height: 1.65;
+    text-align: left; white-space: pre-wrap; font-weight: 400;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    pointer-events: none;
+  }
+  .note-wrap:hover .note-pop { display: block; }
+  .note-pop .hd { color: #E63946; font-weight: 700; margin-bottom: 6px; font-size: 10px; letter-spacing: 0.05em; }
+  .note-pop .item { padding: 3px 0; border-top: 1px dashed rgba(255,255,255,0.08); }
+  .note-pop .item:first-of-type { border-top: 0; }
 </style>
 </head>
 <body>
@@ -1166,7 +1181,7 @@ function renderTable() {
       <td style="text-align:right;" class="num">${delta(r.생산, prev?.생산)}</td>
       <td style="text-align:right;color:var(--mint);font-weight:600;" class="num">${fmtN(r.출고)}</td>
       <td style="text-align:right;" class="num">${delta(r.출고, prev?.출고)}</td>
-      <td style="text-align:right;color:var(--red);font-weight:600;" class="num">${fmtN(r.불량)}${r.notes?.length ? ` <span title="${r.notes.join('\n\n').replace(/"/g,'&quot;')}" style="cursor:help;font-size:11px;opacity:0.9;" aria-label="${r.notes.length}건 메모">📝</span>` : ''}</td>
+      <td style="text-align:right;color:var(--red);font-weight:600;" class="num">${fmtN(r.불량)}${r.notes?.length ? `<span class="note-wrap" aria-label="${r.notes.length}건 메모">📝<span class="note-pop"><div class="hd">불량 원인 (${r.notes.length}건)</div>${r.notes.map(n => `<div class="item">${n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`).join('')}</span></span>` : ''}</td>
       <td style="text-align:right;color:var(--text-secondary);" class="num">${defRate}</td>
       ${yoyCells}
     </tr>`;
