@@ -497,7 +497,7 @@ function filterItems(items) {
     const allInd = curData.items.filter(it => !it.isTotal && cats.has(it.category));
     if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) useTotal = true;
   }
-  return items.filter(it => {
+  const filtered = items.filter(it => {
     if (cats.size > 0 && !cats.has(it.category)) return false;
     if (subs.size > 0) {
       if (it.subcategory && !subs.has(it.subcategory)) return false;
@@ -510,6 +510,17 @@ function filterItems(items) {
     }
     return true;
   });
+  // 폴백: useTotal 모드인데 해당 데이터셋(예: 25년 1반)에 Total 행이 없으면
+  //       개별 품목 합산으로 대체 — 25년 비교가 빈 라인으로 끊기는 것 방지
+  if (useTotal && filtered.length === 0) {
+    return items.filter(it => {
+      if (it.isTotal) return false;
+      if (cats.size > 0 && !cats.has(it.category)) return false;
+      if (subs.size > 0 && it.subcategory && !subs.has(it.subcategory)) return false;
+      return true;
+    });
+  }
+  return filtered;
 }
 
 function aggregateByWeek(items, months) {
