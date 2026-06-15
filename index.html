@@ -369,9 +369,11 @@ function detectWeeklyColumns(headers, startCol, dept) {
   }
   const stride = dept === '1반' ? 7 : 8;
   const wmap = {};
+  const monthlyPlanCol = {};
   for (let i = 0; i < markers.length; i++) {
     const cur = markers[i], next = markers[i+1];
     const endCol = next ? next.col : Math.min(cur.col + 60, headers.length);
+    monthlyPlanCol[cur.mo] = cur.col + 1; // 월 마커 옆 칸이 월간 계획 합계
     wmap[cur.mo] = {};
     let wk = 1;
     for (let c = cur.col + 2; c + (stride - 1) <= endCol; c += stride) {
@@ -383,7 +385,7 @@ function detectWeeklyColumns(headers, startCol, dept) {
       wk++; if (wk > 5) break;
     }
   }
-  return wmap;
+  return { wmap, monthlyPlanCol };
 }
 
 // 2반 2026 — 명시적 헤더 "M-W 수주" 사용
@@ -391,6 +393,7 @@ function parse2Ban26(csvText) {
   const rows = parseCSV(csvText);
   const headers = rows[0] || [];
   const wmap = {};
+  const monthlyPlanCol = {};
   let safetyCol = -1, currentCol = -1;
   for (let i = 0; i < headers.length; i++) {
     const h = (headers[i]||'').trim();
@@ -400,10 +403,12 @@ function parse2Ban26(csvText) {
       wmap[mo] = wmap[mo] || {};
       wmap[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4, 계획: i+1 };
     }
+    const mp = h.match(/^(\d{1,2})\s*월\s*계획$/);
+    if (mp) monthlyPlanCol[+mp[1]] = i;
     if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
     if (currentCol < 0 && h.includes('현재고')) currentCol = i;
   }
-  return extractItems(rows, wmap, '2반', { safetyCol, currentCol });
+  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, monthlyPlanCol });
 }
 
 // 1반 2026 / 2반 2025 / 1반 2025 — 위치 기반
@@ -411,7 +416,7 @@ function parseGeneric(csvText, dept, headerRowIdx) {
   const rows = parseCSV(csvText);
   if (rows.length < 4) return null;
   const headers = rows[headerRowIdx] || [];
-  const wmap = detectWeeklyColumns(headers, 150, dept);
+  const { wmap, monthlyPlanCol } = detectWeeklyColumns(headers, 150, dept);
   if (Object.keys(wmap).length === 0) return null;
   // 안전재고/현재고 컬럼 탐지 — 헤더 행 + 직전/직후 행(병합 헤더 대응)
   let safetyCol = -1, currentCol = -1;
@@ -429,7 +434,7 @@ function parseGeneric(csvText, dept, headerRowIdx) {
     if (safetyCol < 0)  safetyCol = 4;
     if (currentCol < 0) currentCol = 9;
   }
-  return extractItems(rows, wmap, dept, { safetyCol, currentCol });
+  return extractItems(rows, wmap, dept, { safetyCol, currentCol, monthlyPlanCol });
 }
 
 function extractItems(rows, wmap, dept, opts) {
@@ -437,6 +442,7 @@ function extractItems(rows, wmap, dept, opts) {
   const specCol  = dept === '1반' ? 3 : 1;
   const safetyCol = opts?.safetyCol ?? -1;
   const currentCol = opts?.currentCol ?? -1;
+  const monthlyPlanCol = opts?.monthlyPlanCol || {};
 
   // 카테고리 매핑
   let getCategory;
@@ -510,6 +516,11 @@ function extractItems(rows, wmap, dept, opts) {
         if (w.수주 + w.생산 + w.출고 + w.불량 + w.계획 > 0) hasAny = true;
       }
     }
+    const monthlyPlan = {};
+    for (const mo of Object.keys(monthlyPlanCol)) {
+      const v = parseNum(row[monthlyPlanCol[mo]]);
+      if (v > 0) { monthlyPlan[mo] = v; hasAny = true; }
+    }
     if (!hasAny) continue;
     const displayModel = isTotal ? `${cat} 합계` : model;
     items.push({
@@ -518,6 +529,7 @@ function extractItems(rows, wmap, dept, opts) {
       category: cat,
       subcategory: detectSubcategory(cat, model),
       weekData,
+      monthlyPlan,
       isTotal,
       safetyStock: safetyCol >= 0 ? parseNum(row[safetyCol]) : 0,
       currentStock: currentCol >= 0 ? parseNum(row[currentCol]) : 0,
@@ -1312,7 +1324,11 @@ function aggregateMonthlyPlanVsActual() {
   const rows = [];
   for (const mo of monthsAll) {
     const wks = data.weeksByMonth[mo] || [];
-    let plan = 0, actual = 0, planUntilNow = 0, lastDoneWk = 0;
+    let actual = 0, lastDoneWk = 0;
+    let plan = 0;
+    // 월간 계획: 월 마커 옆 칸의 품목별 합. 없으면 주간 계획 합으로 폴백.
+    for (const it of items) plan += it.monthlyPlan?.[mo] || 0;
+    let weeklyPlanSum = 0;
     for (const wk of wks) {
       let wkPlan = 0, wkActual = 0;
       for (const it of items) {
@@ -1320,14 +1336,14 @@ function aggregateMonthlyPlanVsActual() {
         wkPlan += w.계획 || 0;
         wkActual += w.생산 || 0;
       }
-      plan += wkPlan;
+      weeklyPlanSum += wkPlan;
       actual += wkActual;
-      // 현재 시점까지 (latest 기준) 누적 계획
       if (!latest || mo < latest.mo || (mo === latest.mo && wk <= latest.wk)) {
-        planUntilNow += wkPlan;
         if (wkActual > 0 || wkPlan > 0) lastDoneWk = wk;
       }
     }
+    if (plan === 0) plan = weeklyPlanSum;
+    const planUntilNow = plan; // 분모는 항상 월 전체 계획
     let status;
     if (!latest) status = '예정';
     else if (mo < latest.mo) status = '마감';
