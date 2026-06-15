@@ -515,6 +515,8 @@ function filterItems(items) {
     const allInd = curData.items.filter(it => !it.isTotal && cats.has(it.category));
     if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) useTotal = true;
   }
+  // 세부품목(서브카테고리)이 선택되면 Total은 sub 필터를 표현할 수 없으므로 개별 품목 모드로 drill-down
+  if (subs.size > 0) useTotal = false;
   const filtered = items.filter(it => {
     if (cats.size > 0 && !cats.has(it.category)) return false;
     if (subs.size > 0) {
