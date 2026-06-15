@@ -1365,9 +1365,8 @@ function renderMonthlyProgress() {
         : { color:'rgba(79,195,247,0.15)', borderRadius:[6,6,0,0] }
   }));
   const rateData = rows.map(r => {
-    const base = r.status === '진행중' ? r.planUntilNow : r.plan;
-    if (!base || base <= 0) return null;
-    return +(r.actual / base * 100).toFixed(1);
+    if (!r.plan || r.plan <= 0) return null;
+    return +(r.actual / r.plan * 100).toFixed(1);
   });
 
   if (!APP.chartMonthly) APP.chartMonthly = echarts.init(sec);
@@ -1380,15 +1379,13 @@ function renderMonthlyProgress() {
       formatter: (params) => {
         const idx = params[0].dataIndex;
         const r = rows[idx];
-        const base = r.status === '진행중' ? r.planUntilNow : r.plan;
-        const rate = base > 0 ? (r.actual/base*100).toFixed(1) : '—';
+        const rate = r.plan > 0 ? (r.actual/r.plan*100).toFixed(1) : '—';
         const label = r.status === '진행중'
           ? `진행중 (${r.latestWk}주차까지)`
           : r.status === '마감' ? '마감' : '예정';
         return `<div style="font-weight:700;margin-bottom:4px;">${r.mo}월 · <span style="color:#8A9BBF;">${label}</span></div>
           <div>계획: <b style="color:#8A9BBF;">${fmtN(r.plan)}</b></div>
-          <div>실적: <b style="color:#4FC3F7;">${fmtN(r.actual)}</b></div>
-          ${r.status === '진행중' ? `<div>현재까지 계획: <b style="color:#C9A961;">${fmtN(r.planUntilNow)}</b></div>` : ''}
+          <div>실적(현재까지 생산): <b style="color:#4FC3F7;">${fmtN(r.actual)}</b></div>
           <div>${r.status === '진행중' ? '진척률' : '달성률'}: <b style="color:#00E5A0;">${rate}%</b></div>`;
       }
     },
@@ -1418,12 +1415,11 @@ function renderMonthlyProgress() {
       <th>월</th><th>상태</th>
       <th style="text-align:right;">계획</th>
       <th style="text-align:right;">실적</th>
-      <th style="text-align:right;">현재까지 계획</th>
+      <th style="text-align:right;">현재까지 생산</th>
       <th style="text-align:right;">진척률/달성률</th>
     </tr></thead><tbody>`;
   for (const r of rows) {
-    const base = r.status === '진행중' ? r.planUntilNow : r.plan;
-    const rate = base > 0 ? (r.actual/base*100) : null;
+    const rate = r.plan > 0 ? (r.actual/r.plan*100) : null;
     const rateColor = rate == null ? 'var(--text-muted)' : rate >= 100 ? 'var(--mint)' : rate >= 80 ? 'var(--gold)' : '#E63946';
     const statusBadge = r.status === '마감'
       ? '<span style="color:#4FC3F7;font-weight:700;">마감</span>'
@@ -1435,7 +1431,7 @@ function renderMonthlyProgress() {
       <td>${statusBadge}</td>
       <td style="text-align:right;color:#8A9BBF;font-weight:600;" class="num">${fmtN(r.plan)}</td>
       <td style="text-align:right;color:var(--cyan);font-weight:600;" class="num">${fmtN(r.actual)}</td>
-      <td style="text-align:right;color:var(--text-secondary);" class="num">${r.status === '진행중' ? fmtN(r.planUntilNow) : '—'}</td>
+      <td style="text-align:right;color:var(--text-secondary);" class="num">${fmtN(r.actual)}</td>
       <td style="text-align:right;font-weight:700;color:${rateColor};" class="num">${rate == null ? '—' : rate.toFixed(1) + '%'}</td>
     </tr>`;
   }
