@@ -541,21 +541,42 @@ function filterItems(items) {
   return filtered;
 }
 
-function aggregateByWeek(items, months) {
+// 데이터 전체에서 마지막 실적 주(mo,wk) 찾기 — 빈 주차 트레일링 보정용
+function findLatestWeek(allItems) {
+  let lm = -1, lw = -1;
+  for (const it of allItems || []) {
+    for (const mo of Object.keys(it.weekData || {})) {
+      for (const wk of Object.keys(it.weekData[mo] || {})) {
+        const w = it.weekData[mo][wk];
+        if ((w.수주 + w.생산 + w.출고 + w.불량) > 0) {
+          const moN = +mo, wkN = +wk;
+          if (moN > lm || (moN === lm && wkN > lw)) { lm = moN; lw = wkN; }
+        }
+      }
+    }
+  }
+  return lm < 0 ? null : { mo: lm, wk: lw };
+}
+
+function aggregateByWeek(items, months, globalItems) {
   const out = [];
   const weekFilter = APP.selectedWeeks;
+  // globalItems 가 있으면 빈 주차도 유지 (X축에 최근 날짜까지 노출). 없으면 합계 0 주차 드롭(기존 동작).
+  const keepEmpty = !!(globalItems && globalItems.length);
+  const ref = keepEmpty ? globalItems : items;
+  const latest = keepEmpty ? findLatestWeek(globalItems) : null;
   for (const mo of months) {
-    const wks = items[0]?.weekData?.[mo] ? Object.keys(items[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
+    const wks = ref[0]?.weekData?.[mo] ? Object.keys(ref[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
     for (const wk of wks) {
       if (weekFilter.size > 0 && !weekFilter.has(wk)) continue;
+      if (latest && (mo > latest.mo || (mo === latest.mo && wk > latest.wk))) continue;
       const sums = { 수주:0, 생산:0, 출고:0, 불량:0 };
       for (const it of items) {
         const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
         for (const me of METRICS) sums[me] += w[me] || 0;
       }
-      if (sums.수주 + sums.생산 + sums.출고 + sums.불량 > 0) {
-        out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums });
-      }
+      if (!keepEmpty && (sums.수주 + sums.생산 + sums.출고 + sums.불량) === 0) continue;
+      out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums });
     }
   }
   return out;
@@ -566,7 +587,7 @@ function aggregateYoY(items, months, year) {
   const data = APP.data[year]?.[APP.dept];
   if (!data) return null;
   // filterItems 로직 동일 적용 (isTotal 처리 포함)
-  return aggregateByWeek(filterItems(data.items), months);
+  return aggregateByWeek(filterItems(data.items), months, data.items);
 }
 
 /* ============================================================
@@ -1005,7 +1026,8 @@ function renderChart() {
   const data = getData(); if (!data) return;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
-  const agg = aggregateByWeek(items, months);
+  // 빈 주차도 X축에 노출 — data.items 전체를 기준으로 최신 주까지 유지
+  const agg = aggregateByWeek(items, months, data.items);
   const yoy = APP.yoyOn ? aggregateYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
   const xData = agg.map(r => r.label);
 
@@ -1178,7 +1200,7 @@ function renderTable() {
   const data = getData(); if (!data) return;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
-  const agg = aggregateByWeek(items, months);
+  const agg = aggregateByWeek(items, months, data.items);
   const yoy = APP.yoyOn ? aggregateYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
   const yoyMap = yoy ? new Map(yoy.map(r => [`${r.mo}-${r.wk}`, r])) : null;
 
