@@ -409,6 +409,12 @@ function parseGeneric(csvText, dept, headerRowIdx) {
       if (currentCol < 0 && h.includes('현재고')) currentCol = i;
     }
   }
+  // 1반 시트는 헤더가 병합 셀이라 gviz CSV에 텍스트가 빠짐 — 고정 위치 폴백
+  // 컬럼 매핑(0-indexed): C=2(model) D=3(SPEC) E=4(안전재고) F=5(판매가) G=6(재고금액) ... J=9(현재고)
+  if (dept === '1반') {
+    if (safetyCol < 0)  safetyCol = 4;
+    if (currentCol < 0) currentCol = 9;
+  }
   return extractItems(rows, wmap, dept, { safetyCol, currentCol });
 }
 
