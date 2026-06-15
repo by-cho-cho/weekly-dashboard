@@ -112,29 +112,36 @@
     padding: 12px 16px; font-size: 12px;
   }
   /* KPI 컴팩트 인라인 — 차트 헤더와 같은 줄, 셀당 라벨·값·델타 가로 배치 */
+  /* 차트 내부 오버레이 KPI */
+  .chart-wrap { position: relative; }
   .kpi-strip {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    position: absolute; top: 8px; right: 12px;
+    z-index: 5; display: flex; gap: 8px; pointer-events: none;
   }
   .kpi-cell {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 10px 14px 10px 12px; position: relative;
-    background: rgba(255,255,255,0.025);
+    pointer-events: auto;
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 12px 6px 10px; position: relative;
+    background: rgba(15,20,32,0.78);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     border: 1px solid var(--border);
     border-left: 3px solid var(--accent);
     border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }
   .kpi-cell .kpi-label {
-    font-size: 10px; letter-spacing: 0.06em; color: var(--text-muted);
-    text-transform: uppercase; font-weight: 700;
+    font-size: 9px; letter-spacing: 0.06em; color: var(--text-muted);
+    text-transform: uppercase; font-weight: 700; line-height: 1.1;
   }
   .kpi-cell .kpi-val {
-    color: var(--accent); font-size: 22px; font-weight: 800;
+    color: var(--accent); font-size: 20px; font-weight: 800;
     font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums;
     line-height: 1; letter-spacing: -0.01em;
   }
   .kpi-cell .kpi-sub {
-    font-size: 11px; color: var(--text-secondary); font-weight: 600;
-    margin: 0;
+    font-size: 10px; color: var(--text-secondary); font-weight: 600;
+    margin: 2px 0 0; line-height: 1.1;
   }
 </style>
 </head>
@@ -210,8 +217,25 @@
 
 <section style="padding:16px 32px 0;">
   <div class="card" style="padding:14px 18px;">
-    <!-- KPI 행 (전폭) -->
-    <div class="kpi-strip" style="margin-bottom:10px;">
+    <!-- 차트 컨트롤 + 캡션 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+      <div id="trendSub" style="font-size:11px;color:var(--text-muted);">—</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
+          <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
+          <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
+          <span class="chip metric active" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
+          <span class="chip metric active" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
+        </div>
+        <button id="yoyBtn" onclick="toggleYoY()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
+        <button id="forecastBtn" onclick="toggleForecast()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
+      </div>
+    </div>
+    <!-- 차트 + KPI 오버레이 -->
+    <div class="chart-wrap">
+      <div class="kpi-strip">
         <div class="kpi-cell" style="--accent:var(--gold);">
           <div>
             <div class="kpi-label">최근주 수주</div>
@@ -234,23 +258,8 @@
           <div class="kpi-val" id="kpiShip">—</div>
         </div>
       </div>
-    <!-- 차트 컨트롤 + 캡션 -->
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
-      <div id="trendSub" style="font-size:11px;color:var(--text-muted);">—</div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
-          <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
-          <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
-          <span class="chip metric active" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
-          <span class="chip metric active" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
-        </div>
-        <button id="yoyBtn" onclick="toggleYoY()" class="btn"
-          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
-        <button id="forecastBtn" onclick="toggleForecast()" class="btn"
-          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
-      </div>
+      <div id="chartTrend" style="height:380px;"></div>
     </div>
-    <div id="chartTrend" style="height:360px;"></div>
     <div class="comment-box embedded" id="commentBox" style="margin-top:10px;">분석 중…</div>
   </div>
 </section>
@@ -436,6 +445,8 @@ function extractItems(rows, wmap, dept) {
       } else {
         if (!currentCat) continue;
         isTotal = false; cat = currentCat;
+        // Duodeca: SM720SJD / SM720SOD 는 별도 품목군으로 분리 (대표이사 대시보드 규칙)
+        if (/SM720S[JO]D/i.test(model)) cat = 'Duodeca';
       }
       if (cat === 'Cable') continue;
     }
@@ -1139,8 +1150,8 @@ function renderChart() {
         return h;
       }
     },
-    legend: { data: legend.filter(n => !n.endsWith('_lo') && !n.endsWith('_band')), textStyle:{color:'#8A9BBF'}, top:6, type:'scroll' },
-    grid: { left:55, right:55, top:40, bottom:30 },
+    legend: { data: legend.filter(n => !n.endsWith('_lo') && !n.endsWith('_band')), textStyle:{color:'#8A9BBF'}, top:8, left:12, type:'scroll' },
+    grid: { left:55, right:55, top:72, bottom:30 },
     xAxis: { type:'category', data:xDataAll, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', rotate: xDataAll.length > 10 ? 30 : 0,
       formatter: (v) => futureLabels.includes(v) ? `{f|${v}}` : v,
       rich: { f: { color: '#AB8FE0', fontWeight: 700 } }
