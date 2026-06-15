@@ -399,7 +399,17 @@ function parseGeneric(csvText, dept, headerRowIdx) {
   const headers = rows[headerRowIdx] || [];
   const wmap = detectWeeklyColumns(headers, 150, dept);
   if (Object.keys(wmap).length === 0) return null;
-  return extractItems(rows, wmap, dept);
+  // 안전재고/현재고 컬럼 탐지 — 헤더 행 + 직전/직후 행(병합 헤더 대응)
+  let safetyCol = -1, currentCol = -1;
+  const scanRows = [headers, rows[headerRowIdx+1] || [], rows[headerRowIdx-1] || []];
+  for (const r of scanRows) {
+    for (let i = 0; i < r.length; i++) {
+      const h = (r[i]||'').trim();
+      if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
+      if (currentCol < 0 && h.includes('현재고')) currentCol = i;
+    }
+  }
+  return extractItems(rows, wmap, dept, { safetyCol, currentCol });
 }
 
 function extractItems(rows, wmap, dept, opts) {
@@ -1270,9 +1280,7 @@ function renderTable() {
 
 function renderSafety() {
   const sec = document.getElementById('safetySection');
-  // 2반에서만 안전재고 정보가 의미가 있음 (대표이사 보고 대시보드 규칙)
-  if (APP.dept !== '2반') { sec.style.display = 'none'; return; }
-  const data = APP.data[2026]?.['2반'];
+  const data = APP.data[2026]?.[APP.dept];
   const items = (data?.items || []).filter(it => !it.isTotal && it.category !== 'Cable');
   if (!items.length) { sec.style.display = 'none'; return; }
 
