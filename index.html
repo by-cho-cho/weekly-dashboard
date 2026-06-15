@@ -271,6 +271,19 @@
   </div>
 </section>
 
+<section id="safetySection" style="padding:0 32px 30px; display:none;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div>
+        <div class="kpi-label">안전재고 확보율(%)</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군별 현재고 vs 안전재고</div>
+      </div>
+    </div>
+    <div id="chartSafety" style="height:380px;"></div>
+    <div id="safetyComment" class="comment-box embedded" style="margin-top:10px;">분석 중…</div>
+  </div>
+</section>
+
 <script>
 const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
 const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
@@ -364,6 +377,7 @@ function parse2Ban26(csvText) {
   const rows = parseCSV(csvText);
   const headers = rows[0] || [];
   const wmap = {};
+  let safetyCol = -1, currentCol = -1;
   for (let i = 0; i < headers.length; i++) {
     const h = (headers[i]||'').trim();
     const m = h.match(/^(\d{1,2})-(\d)\s*수주$/);
@@ -372,8 +386,10 @@ function parse2Ban26(csvText) {
       wmap[mo] = wmap[mo] || {};
       wmap[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4 };
     }
+    if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
+    if (currentCol < 0 && h.includes('현재고')) currentCol = i;
   }
-  return extractItems(rows, wmap, '2반');
+  return extractItems(rows, wmap, '2반', { safetyCol, currentCol });
 }
 
 // 1반 2026 / 2반 2025 / 1반 2025 — 위치 기반
@@ -386,9 +402,11 @@ function parseGeneric(csvText, dept, headerRowIdx) {
   return extractItems(rows, wmap, dept);
 }
 
-function extractItems(rows, wmap, dept) {
+function extractItems(rows, wmap, dept, opts) {
   const modelCol = dept === '1반' ? 2 : 0;
   const specCol  = dept === '1반' ? 3 : 1;
+  const safetyCol = opts?.safetyCol ?? -1;
+  const currentCol = opts?.currentCol ?? -1;
 
   // 카테고리 매핑
   let getCategory;
@@ -471,6 +489,8 @@ function extractItems(rows, wmap, dept) {
       subcategory: detectSubcategory(cat, model),
       weekData,
       isTotal,
+      safetyStock: safetyCol >= 0 ? parseNum(row[safetyCol]) : 0,
+      currentStock: currentCol >= 0 ? parseNum(row[currentCol]) : 0,
     });
   }
   return { items, weeksByMonth: getWeeksByMonth(wmap) };
@@ -1248,7 +1268,81 @@ function renderTable() {
   document.getElementById('weekTable').innerHTML = html;
 }
 
-function renderBody() { renderKPI(); renderComment(); renderChart(); renderTable(); }
+function renderSafety() {
+  const sec = document.getElementById('safetySection');
+  // 2반에서만 안전재고 정보가 의미가 있음 (대표이사 보고 대시보드 규칙)
+  if (APP.dept !== '2반') { sec.style.display = 'none'; return; }
+  const data = APP.data[2026]?.['2반'];
+  const items = (data?.items || []).filter(it => !it.isTotal && it.category !== 'Cable');
+  if (!items.length) { sec.style.display = 'none'; return; }
+
+  // 카테고리별 집계
+  const groups = {};
+  for (const it of items) {
+    if (!groups[it.category]) groups[it.category] = { safety: 0, current: 0 };
+    groups[it.category].safety += it.safetyStock || 0;
+    groups[it.category].current += it.currentStock || 0;
+  }
+  // EPO Probe 는 대표이사 대시보드에서 제외 (안전재고 미관리)
+  const cats = Object.keys(groups).filter(c => c !== 'EPO Probe' && (groups[c].safety > 0 || groups[c].current > 0));
+  if (!cats.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+
+  const safetyArr  = cats.map(c => groups[c].safety);
+  const currentArr = cats.map(c => groups[c].current);
+  const rateArr    = cats.map(c => groups[c].safety > 0 ? +(groups[c].current / groups[c].safety * 100).toFixed(1) : 0);
+
+  // 부족 분석
+  const shortages = [];
+  let totalShortage = 0;
+  for (let i = 0; i < cats.length; i++) {
+    const need = groups[cats[i]].safety - groups[cats[i]].current;
+    if (need > 0) { shortages.push({ cat: cats[i], rate: rateArr[i], shortage: need }); totalShortage += need; }
+  }
+  shortages.sort((a,b) => a.rate - b.rate);
+
+  const cmt = document.getElementById('safetyComment');
+  if (shortages.length === 0) {
+    cmt.innerHTML = '<span style="color:var(--mint);font-weight:700;">✓ 전체 품목군 안전재고 확보 완료</span>';
+  } else {
+    let html = '<div style="font-weight:700;color:#E8EEF7;margin-bottom:4px;">⚠️ 안전재고 부족 분석</div>';
+    html += `<div style="color:#FFB547;font-weight:600;margin-bottom:6px;">부족 품목군: ${shortages.length}개 · 총 부족량: ${fmtN(totalShortage)}개</div>`;
+    for (const s of shortages) {
+      const sev = s.rate < 50 ? '🔴 심각' : s.rate < 80 ? '🟠 주의' : '🟡 경고';
+      const col = s.rate < 50 ? '#E63946' : s.rate < 80 ? '#FFB547' : '#C9A961';
+      html += `<div style="margin:4px 0;padding:6px 8px;background:rgba(255,255,255,0.025);border-radius:4px;">
+        <span style="font-weight:700;color:#E8EEF7;">${s.cat}</span> ·
+        <span style="color:${col};font-weight:700;">${s.rate.toFixed(1)}%</span> ${sev}
+        <span style="color:var(--text-muted);">(${fmtN(s.shortage)}개 부족)</span>
+      </div>`;
+    }
+    html += '<div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);font-size:10px;color:var(--text-muted);">💡 부족한 품목군을 우선으로 재고 확충 필요</div>';
+    cmt.innerHTML = html;
+  }
+
+  if (!APP.chartSafety) APP.chartSafety = echarts.init(document.getElementById('chartSafety'));
+  const ch = APP.chartSafety;
+  ch.setOption({
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', backgroundColor:'#1A2236', borderColor:'#243049', textStyle:{color:'#E8EEF7'}, axisPointer:{type:'shadow'} },
+    legend: { data:['안전재고','현재고','확보율'], textStyle:{color:'#8A9BBF'}, top: 6 },
+    grid: { left: 60, right: 60, top: 50, bottom: 30 },
+    xAxis: { type:'category', data: cats, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF'} },
+    yAxis: [
+      { type:'value', name:'수량(EA)', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:'#1A2236'}} },
+      { type:'value', name:'확보율 %', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter:'{value}%'}, splitLine:{show:false}, max: 150 },
+    ],
+    series: [
+      { name:'안전재고', type:'bar', data: safetyArr, itemStyle:{color:'#C9A961', borderRadius:[6,6,0,0]}, barWidth: 22 },
+      { name:'현재고',  type:'bar', data: currentArr, itemStyle:{color:'#E63946', borderRadius:[6,6,0,0]}, barWidth: 22 },
+      { name:'확보율',  type:'line', yAxisIndex:1, data: rateArr, smooth:true, symbol:'circle', symbolSize:9,
+        lineStyle:{color:'#4FC3F7', width:2.5}, itemStyle:{color:'#4FC3F7'},
+        label:{show:true, position:'top', color:'#4FC3F7', formatter:'{c}%', fontSize:10, fontWeight:700} },
+    ]
+  }, true);
+}
+
+function renderBody() { renderKPI(); renderComment(); renderChart(); renderTable(); renderSafety(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
