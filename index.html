@@ -264,6 +264,20 @@
   </div>
 </section>
 
+<section style="padding:14px 32px 0;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+      <div>
+        <div class="kpi-label">월별 생산계획 대비 실적 진척도</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">마감월은 달성률, 진행중월은 주차 누적 실적 기준 진척률</div>
+      </div>
+      <div id="monthlyProgressLegend" style="font-size:11px;color:var(--text-muted);"></div>
+    </div>
+    <div id="chartMonthlyProgress" style="height:300px;"></div>
+    <div id="monthlyProgressTable" style="margin-top:10px;"></div>
+  </div>
+</section>
+
 <section style="padding:14px 32px 30px;">
   <div class="card">
     <div class="kpi-label">주차별 상세 (전주 대비 · 동기간 비교)</div>
@@ -288,8 +302,8 @@
 const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
 const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
 const GIDS = { '1반': '2145094968', '2반': '680125344' };
-const METRICS = ['수주','생산','출고','불량'];
-const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946' };
+const METRICS = ['수주','생산','출고','불량','계획'];
+const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946', '계획':'#8A9BBF' };
 
 // 카테고리 정의 (1반은 행 범위, 2반은 헤더 키워드)
 const CAT_1BAN_ROWS = [
@@ -362,9 +376,9 @@ function detectWeeklyColumns(headers, startCol, dept) {
     let wk = 1;
     for (let c = cur.col + 2; c + (stride - 1) <= endCol; c += stride) {
       if (dept === '1반') {
-        wmap[cur.mo][wk] = { 수주: c + 6, 생산: c + 1, 출고: c + 2, 불량: c + 4 };
+        wmap[cur.mo][wk] = { 수주: c + 6, 생산: c + 1, 출고: c + 2, 불량: c + 4, 계획: c + 0 };
       } else {
-        wmap[cur.mo][wk] = { 수주: c,     생산: c + 2, 출고: c + 3, 불량: c + 4 };
+        wmap[cur.mo][wk] = { 수주: c,     생산: c + 2, 출고: c + 3, 불량: c + 4, 계획: c + 1 };
       }
       wk++; if (wk > 5) break;
     }
@@ -384,7 +398,7 @@ function parse2Ban26(csvText) {
     if (m) {
       const mo = +m[1], wk = +m[2];
       wmap[mo] = wmap[mo] || {};
-      wmap[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4 };
+      wmap[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4, 계획: i+1 };
     }
     if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
     if (currentCol < 0 && h.includes('현재고')) currentCol = i;
@@ -493,7 +507,7 @@ function extractItems(rows, wmap, dept, opts) {
         const w = {};
         for (const me of METRICS) w[me] = parseNum(row[c[me]]);
         weekData[mo][wk] = w;
-        if (w.수주 + w.생산 + w.출고 + w.불량 > 0) hasAny = true;
+        if (w.수주 + w.생산 + w.출고 + w.불량 + w.계획 > 0) hasAny = true;
       }
     }
     if (!hasAny) continue;
@@ -608,7 +622,8 @@ function aggregateByWeek(items, months, globalItems) {
     for (const wk of wks) {
       if (weekFilter.size > 0 && !weekFilter.has(wk)) continue;
       if (latest && (mo > latest.mo || (mo === latest.mo && wk > latest.wk))) continue;
-      const sums = { 수주:0, 생산:0, 출고:0, 불량:0 };
+      const sums = {};
+      for (const me of METRICS) sums[me] = 0;
       for (const it of items) {
         const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
         for (const me of METRICS) sums[me] += w[me] || 0;
@@ -1286,6 +1301,148 @@ function renderTable() {
   document.getElementById('weekTable').innerHTML = html;
 }
 
+/* ============================================================
+   월별 계획 대비 실적 진척도
+   ============================================================ */
+function aggregateMonthlyPlanVsActual() {
+  const data = getData(); if (!data) return null;
+  const items = filterItems(data.items);
+  const latest = findLatestWeek(data.items); // 데이터가 들어온 최신 주차 (마감/진행중 판정 기준)
+  const monthsAll = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  const rows = [];
+  for (const mo of monthsAll) {
+    const wks = data.weeksByMonth[mo] || [];
+    let plan = 0, actual = 0, planUntilNow = 0, lastDoneWk = 0;
+    for (const wk of wks) {
+      let wkPlan = 0, wkActual = 0;
+      for (const it of items) {
+        const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
+        wkPlan += w.계획 || 0;
+        wkActual += w.생산 || 0;
+      }
+      plan += wkPlan;
+      actual += wkActual;
+      // 현재 시점까지 (latest 기준) 누적 계획
+      if (!latest || mo < latest.mo || (mo === latest.mo && wk <= latest.wk)) {
+        planUntilNow += wkPlan;
+        if (wkActual > 0 || wkPlan > 0) lastDoneWk = wk;
+      }
+    }
+    let status;
+    if (!latest) status = '예정';
+    else if (mo < latest.mo) status = '마감';
+    else if (mo === latest.mo) status = '진행중';
+    else status = '예정';
+    rows.push({ mo, plan, actual, planUntilNow, lastDoneWk, status, latestWk: latest?.wk });
+  }
+  return rows;
+}
+
+function renderMonthlyProgress() {
+  const sec = document.getElementById('chartMonthlyProgress');
+  if (!sec) return;
+  const rows = aggregateMonthlyPlanVsActual();
+  const tableEl = document.getElementById('monthlyProgressTable');
+  const legendEl = document.getElementById('monthlyProgressLegend');
+  if (!rows || rows.length === 0) {
+    sec.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">데이터가 없습니다.</div>';
+    tableEl.innerHTML = ''; legendEl.innerHTML = ''; return;
+  }
+
+  legendEl.innerHTML = `
+    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#8A9BBF;border-radius:2px;"></span>계획</span>
+    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#4FC3F7;border-radius:2px;"></span>실적(마감)</span>
+    <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,#4FC3F7 0 4px,transparent 4px 7px);border-radius:2px;"></span>실적(진행중)</span>`;
+
+  const months = rows.map(r => `${r.mo}월`);
+  const planData = rows.map(r => r.plan);
+  const actualData = rows.map(r => ({
+    value: r.actual,
+    itemStyle: r.status === '진행중'
+      ? { color: { type:'pattern', image: (() => { const cv=document.createElement('canvas'); cv.width=cv.height=8; const ctx=cv.getContext('2d'); ctx.fillStyle='rgba(79,195,247,0.25)'; ctx.fillRect(0,0,8,8); ctx.strokeStyle='#4FC3F7'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-2,10); ctx.lineTo(10,-2); ctx.stroke(); return cv; })(), repeat:'repeat' }, borderRadius:[6,6,0,0] }
+      : r.status === '마감'
+        ? { color:'#4FC3F7', borderRadius:[6,6,0,0] }
+        : { color:'rgba(79,195,247,0.15)', borderRadius:[6,6,0,0] }
+  }));
+  const rateData = rows.map(r => {
+    const base = r.status === '진행중' ? r.planUntilNow : r.plan;
+    if (!base || base <= 0) return null;
+    return +(r.actual / base * 100).toFixed(1);
+  });
+
+  if (!APP.chartMonthly) APP.chartMonthly = echarts.init(sec);
+  APP.chartMonthly.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor:'#1A2236', borderColor:'#243049', textStyle:{color:'#E8EEF7'},
+      axisPointer:{ type:'shadow' },
+      formatter: (params) => {
+        const idx = params[0].dataIndex;
+        const r = rows[idx];
+        const base = r.status === '진행중' ? r.planUntilNow : r.plan;
+        const rate = base > 0 ? (r.actual/base*100).toFixed(1) : '—';
+        const label = r.status === '진행중'
+          ? `진행중 (${r.latestWk}주차까지)`
+          : r.status === '마감' ? '마감' : '예정';
+        return `<div style="font-weight:700;margin-bottom:4px;">${r.mo}월 · <span style="color:#8A9BBF;">${label}</span></div>
+          <div>계획: <b style="color:#8A9BBF;">${fmtN(r.plan)}</b></div>
+          <div>실적: <b style="color:#4FC3F7;">${fmtN(r.actual)}</b></div>
+          ${r.status === '진행중' ? `<div>현재까지 계획: <b style="color:#C9A961;">${fmtN(r.planUntilNow)}</b></div>` : ''}
+          <div>${r.status === '진행중' ? '진척률' : '달성률'}: <b style="color:#00E5A0;">${rate}%</b></div>`;
+      }
+    },
+    grid: { left: 60, right: 50, top: 30, bottom: 30 },
+    xAxis: { type:'category', data: months, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', fontWeight:600} },
+    yAxis: [
+      { type:'value', name:'수량(EA)', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:'#1A2236'}} },
+      { type:'value', name:'달성%', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter:'{value}%'}, splitLine:{show:false},
+        max: Math.max(120, Math.ceil(Math.max(...rateData.filter(v=>v!=null), 100) * 1.15 / 10) * 10) },
+    ],
+    series: [
+      { name:'계획', type:'bar', data: planData, itemStyle:{color:'#8A9BBF', borderRadius:[6,6,0,0], opacity:0.55}, barGap:'-100%', barWidth: 28 },
+      { name:'실적', type:'bar', data: actualData, barWidth: 28 },
+      { name:'달성률', type:'line', yAxisIndex:1,
+        data: rateData,
+        connectNulls:true, smooth:true, symbol:'circle', symbolSize:9,
+        lineStyle:{color:'#00E5A0', width:2.5}, itemStyle:{color:'#00E5A0'}, z:10,
+        label:{ show:true, color:'#00E5A0', fontSize:11, fontWeight:800,
+          formatter: p => p.value == null ? '' : p.value + '%',
+          backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4 } },
+    ],
+  }, true);
+
+  // 요약 표
+  let tableHtml = `<table class="exec" style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th>월</th><th>상태</th>
+      <th style="text-align:right;">계획</th>
+      <th style="text-align:right;">실적</th>
+      <th style="text-align:right;">현재까지 계획</th>
+      <th style="text-align:right;">진척률/달성률</th>
+    </tr></thead><tbody>`;
+  for (const r of rows) {
+    const base = r.status === '진행중' ? r.planUntilNow : r.plan;
+    const rate = base > 0 ? (r.actual/base*100) : null;
+    const rateColor = rate == null ? 'var(--text-muted)' : rate >= 100 ? 'var(--mint)' : rate >= 80 ? 'var(--gold)' : '#E63946';
+    const statusBadge = r.status === '마감'
+      ? '<span style="color:#4FC3F7;font-weight:700;">마감</span>'
+      : r.status === '진행중'
+        ? `<span style="color:#FFB547;font-weight:700;">진행중 (${r.latestWk}주차)</span>`
+        : '<span style="color:var(--text-muted);">예정</span>';
+    tableHtml += `<tr>
+      <td style="font-weight:700;">${r.mo}월</td>
+      <td>${statusBadge}</td>
+      <td style="text-align:right;color:#8A9BBF;font-weight:600;" class="num">${fmtN(r.plan)}</td>
+      <td style="text-align:right;color:var(--cyan);font-weight:600;" class="num">${fmtN(r.actual)}</td>
+      <td style="text-align:right;color:var(--text-secondary);" class="num">${r.status === '진행중' ? fmtN(r.planUntilNow) : '—'}</td>
+      <td style="text-align:right;font-weight:700;color:${rateColor};" class="num">${rate == null ? '—' : rate.toFixed(1) + '%'}</td>
+    </tr>`;
+  }
+  tableHtml += '</tbody></table>';
+  tableEl.innerHTML = tableHtml;
+}
+
 function renderSafety() {
   const sec = document.getElementById('safetySection');
   const data = APP.data[2026]?.[APP.dept];
@@ -1365,7 +1522,7 @@ function renderSafety() {
   }, true);
 }
 
-function renderBody() { renderKPI(); renderComment(); renderChart(); renderTable(); renderSafety(); }
+function renderBody() { renderKPI(); renderComment(); renderChart(); renderMonthlyProgress(); renderTable(); renderSafety(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
