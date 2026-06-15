@@ -392,8 +392,10 @@ function detectWeeklyColumns(headers, startCol, dept) {
 function parse2Ban26(csvText) {
   const rows = parseCSV(csvText);
   const headers = rows[0] || [];
+  const subHeaders = rows[1] || [];
   const wmap = {};
   const monthlyPlanCol = {};
+  const monthlyActualCol = {};
   let safetyCol = -1, currentCol = -1;
   for (let i = 0; i < headers.length; i++) {
     const h = (headers[i]||'').trim();
@@ -405,10 +407,18 @@ function parse2Ban26(csvText) {
     }
     const mp = h.match(/^(\d{1,2})\s*월\s*계획$/);
     if (mp) monthlyPlanCol[+mp[1]] = i;
+    // 월별 합계 블록: row0에 "6월" 같은 머지 헤더, row1에 수주/생산/출고/불량/성능/외관/기타
+    const monthOnly = h.match(/^(\d{1,2})\s*월$/);
+    if (monthOnly) {
+      const mo = +monthOnly[1];
+      for (let j = i; j < Math.min(i + 10, subHeaders.length); j++) {
+        if ((subHeaders[j]||'').trim() === '생산') { monthlyActualCol[mo] = j; break; }
+      }
+    }
     if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
     if (currentCol < 0 && h.includes('현재고')) currentCol = i;
   }
-  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, monthlyPlanCol });
+  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, monthlyPlanCol, monthlyActualCol });
 }
 
 // 1반 2026 / 2반 2025 / 1반 2025 — 위치 기반
@@ -443,6 +453,7 @@ function extractItems(rows, wmap, dept, opts) {
   const safetyCol = opts?.safetyCol ?? -1;
   const currentCol = opts?.currentCol ?? -1;
   const monthlyPlanCol = opts?.monthlyPlanCol || {};
+  const monthlyActualCol = opts?.monthlyActualCol || {};
 
   // 카테고리 매핑
   let getCategory;
@@ -521,6 +532,11 @@ function extractItems(rows, wmap, dept, opts) {
       const v = parseNum(row[monthlyPlanCol[mo]]);
       if (v > 0) { monthlyPlan[mo] = v; hasAny = true; }
     }
+    const monthlyActual = {};
+    for (const mo of Object.keys(monthlyActualCol)) {
+      const v = parseNum(row[monthlyActualCol[mo]]);
+      if (v > 0) { monthlyActual[mo] = v; hasAny = true; }
+    }
     if (!hasAny) continue;
     const displayModel = isTotal ? `${cat} 합계` : model;
     items.push({
@@ -530,6 +546,7 @@ function extractItems(rows, wmap, dept, opts) {
       subcategory: detectSubcategory(cat, model),
       weekData,
       monthlyPlan,
+      monthlyActual,
       isTotal,
       safetyStock: safetyCol >= 0 ? parseNum(row[safetyCol]) : 0,
       currentStock: currentCol >= 0 ? parseNum(row[currentCol]) : 0,
@@ -1324,11 +1341,13 @@ function aggregateMonthlyPlanVsActual() {
   const rows = [];
   for (const mo of monthsAll) {
     const wks = data.weeksByMonth[mo] || [];
-    let actual = 0, lastDoneWk = 0;
-    let plan = 0;
-    // 월간 계획: 월 마커 옆 칸의 품목별 합. 없으면 주간 계획 합으로 폴백.
-    for (const it of items) plan += it.monthlyPlan?.[mo] || 0;
-    let weeklyPlanSum = 0;
+    let lastDoneWk = 0;
+    let plan = 0, actualFromMonthlyCol = 0;
+    for (const it of items) {
+      plan += it.monthlyPlan?.[mo] || 0;
+      actualFromMonthlyCol += it.monthlyActual?.[mo] || 0;
+    }
+    let weeklyPlanSum = 0, weeklyActualSum = 0;
     for (const wk of wks) {
       let wkPlan = 0, wkActual = 0;
       for (const it of items) {
@@ -1337,13 +1356,15 @@ function aggregateMonthlyPlanVsActual() {
         wkActual += w.생산 || 0;
       }
       weeklyPlanSum += wkPlan;
-      actual += wkActual;
+      weeklyActualSum += wkActual;
       if (!latest || mo < latest.mo || (mo === latest.mo && wk <= latest.wk)) {
         if (wkActual > 0 || wkPlan > 0) lastDoneWk = wk;
       }
     }
     if (plan === 0) plan = weeklyPlanSum;
-    const planUntilNow = plan; // 분모는 항상 월 전체 계획
+    // 월별 합계 블록의 '생산' 컬럼을 우선 사용, 없으면 주간 합으로 폴백
+    const actual = actualFromMonthlyCol > 0 ? actualFromMonthlyCol : weeklyActualSum;
+    const planUntilNow = plan;
     let status;
     if (!latest) status = '예정';
     else if (mo < latest.mo) status = '마감';
