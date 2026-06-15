@@ -1344,14 +1344,21 @@ function renderSafety() {
     xAxis: { type:'category', data: cats, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF'} },
     yAxis: [
       { type:'value', name:'수량(EA)', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:'#1A2236'}} },
-      { type:'value', name:'확보율 %', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter:'{value}%'}, splitLine:{show:false}, max: 150 },
+      { type:'value', name:'확보율 %', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter:'{value}%'}, splitLine:{show:false},
+        max: Math.max(150, Math.ceil(Math.max(...rateArr, 100) * 1.15 / 10) * 10) },
     ],
     series: [
       { name:'안전재고', type:'bar', data: safetyArr, itemStyle:{color:'#C9A961', borderRadius:[6,6,0,0]}, barWidth: 22 },
       { name:'현재고',  type:'bar', data: currentArr, itemStyle:{color:'#E63946', borderRadius:[6,6,0,0]}, barWidth: 22 },
-      { name:'확보율',  type:'line', yAxisIndex:1, data: rateArr, smooth:true, symbol:'circle', symbolSize:9,
-        lineStyle:{color:'#4FC3F7', width:2.5}, itemStyle:{color:'#4FC3F7'},
-        label:{show:true, position:'top', color:'#4FC3F7', formatter:'{c}%', fontSize:10, fontWeight:700} },
+      { name:'확보율',  type:'line', yAxisIndex:1,
+        data: rateArr.map(v => ({ value: v, label: { position: v >= 5 ? 'top' : 'bottom' } })),
+        smooth:true, symbol:'circle', symbolSize:9,
+        lineStyle:{color:'#4FC3F7', width:2.5}, itemStyle:{color:'#4FC3F7'}, z: 10,
+        label:{
+          show: true, color:'#4FC3F7', fontSize:11, fontWeight:800,
+          formatter: '{c}%', distance: 6,
+          backgroundColor: 'rgba(10,14,24,0.72)', padding: [3, 6], borderRadius: 4,
+        } },
     ]
   }, true);
 }
