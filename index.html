@@ -224,8 +224,8 @@
         <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
           <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
           <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
-          <span class="chip metric active" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(79,195,247,0.4);background:rgba(79,195,247,0.15);">생산</span>
-          <span class="chip metric active" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(0,229,160,0.4);background:rgba(0,229,160,0.15);">출고</span>
+          <span class="chip metric" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(255,255,255,0.12);background:transparent;opacity:0.35;">생산</span>
+          <span class="chip metric" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(255,255,255,0.12);background:transparent;opacity:0.35;">출고</span>
         </div>
         <button id="yoyBtn" onclick="toggleYoY()" class="btn"
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
@@ -315,7 +315,7 @@ const APP = {
   selectedCats:  { '1반': new Set(), '2반': new Set() },
   selectedSubs:  { '1반': new Set(), '2반': new Set() },
   selectedItems: { '1반': new Set(), '2반': new Set() },
-  activeMetrics: new Set(['수주','생산','출고']),
+  activeMetrics: new Set(['수주']),
   chart: null,
 };
 
@@ -1249,6 +1249,7 @@ function renderTable() {
   if (yoyMap) cols += `<th style="text-align:right;color:var(--purple);">동기간 생산</th><th style="text-align:right;color:var(--purple);">YoY</th>`;
 
   let html = `<table class="exec" style="width:100%;border-collapse:collapse;"><thead><tr>${cols}</tr></thead><tbody>`;
+  const rowsHtml = [];
   agg.forEach((r, i) => {
     const prev = i > 0 ? agg[i-1] : null;
     const delta = (c, p) => {
@@ -1268,7 +1269,7 @@ function renderTable() {
         yoyCells = `<td style="text-align:right;color:var(--text-muted);">—</td><td style="text-align:right;color:var(--text-muted);">—</td>`;
       }
     }
-    html += `<tr>
+    rowsHtml.push(`<tr>
       <td style="font-weight:700;">${r.label}</td>
       <td style="text-align:right;color:var(--gold);font-weight:600;" class="num">${fmtN(r.수주)}</td>
       <td style="text-align:right;" class="num">${delta(r.수주, prev?.수주)}</td>
@@ -1277,8 +1278,9 @@ function renderTable() {
       <td style="text-align:right;color:var(--mint);font-weight:600;" class="num">${fmtN(r.출고)}</td>
       <td style="text-align:right;" class="num">${delta(r.출고, prev?.출고)}</td>
       ${yoyCells}
-    </tr>`;
+    </tr>`);
   });
+  html += rowsHtml.reverse().join('');
   html += '</tbody></table>';
   if (agg.length === 0) html = '<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 조건에 주간 데이터가 없습니다.</div>';
   document.getElementById('weekTable').innerHTML = html;
