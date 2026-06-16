@@ -231,6 +231,8 @@
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
         <button id="forecastBtn" onclick="toggleForecast()" class="btn"
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
+        <button id="perItemBtn" onclick="togglePerItem()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🧬 품목별 트렌드</button>
       </div>
     </div>
     <!-- 차트 + KPI 오버레이 -->
@@ -278,6 +280,18 @@
   </div>
 </section>
 
+<section id="laggardSection" style="padding:0 32px 0;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+      <div>
+        <div class="kpi-label" id="laggardTitle">계획 미진 품목</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">진척률 100% 미만 — 낮은 순 정렬</div>
+      </div>
+    </div>
+    <div id="laggardTable"></div>
+  </div>
+</section>
+
 <section style="padding:14px 32px 30px;">
   <div class="card">
     <div class="kpi-label">주차별 상세 (전주 대비 · 동기간 비교)</div>
@@ -321,6 +335,7 @@ const APP = {
   year: 2026,
   yoyOn: false,
   forecastOn: false,
+  perItemOn: false,
   forecastH: 4,
   data: { 2026: {'1반':null,'2반':null}, 2025: {'1반':null,'2반':null} },
   notes: { '1반': new Map(), '2반': new Map() }, // key="r|c" → 메모 텍스트 (2026만)
@@ -801,6 +816,11 @@ function toggleForecast() {
   document.getElementById('forecastBtn').classList.toggle('active', APP.forecastOn);
   renderChart();
 }
+function togglePerItem() {
+  APP.perItemOn = !APP.perItemOn;
+  document.getElementById('perItemBtn').classList.toggle('active', APP.perItemOn);
+  renderChart();
+}
 
 /* ============================================================
    예측 모델 — Holt's linear trend (이중 지수평활법) + 자동 α,β 탐색
@@ -1158,6 +1178,48 @@ function renderChart() {
   const series = [];
   const legend = [];
   const padFuture = (arr) => [...arr, ...futureLabels.map(_=>null)];
+
+  if (APP.perItemOn) {
+    // 품목별 분리 — 첫 활성 지표 기준, 개별 품목 라인 분리
+    const metric = METRICS.find(m => APP.activeMetrics.has(m)) || '수주';
+    const cats = getCats();
+    const subs = getSubs();
+    const sel = getItems();
+    const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A','#B8C5D6','#D4A5A5','#88B0BF','#A8C97F','#E0B973'];
+    const indivAll = data.items.filter(it => !it.isTotal && it.category !== 'Cable' && it.category !== '기타');
+    let pool = indivAll.filter(it => cats.size === 0 || cats.has(it.category));
+    if (subs.size > 0) pool = pool.filter(it => it.subcategory && subs.has(it.subcategory));
+    if (sel.size > 0) {
+      const selectedExplicit = pool.filter(it => sel.has(it.model));
+      if (selectedExplicit.length > 0) pool = selectedExplicit;
+    }
+    // 빈 시리즈 제거: 선택 구간에 데이터 0인 품목은 제외
+    pool = pool.filter(it => {
+      for (const mo of months) {
+        const wd = it.weekData?.[mo]; if (!wd) continue;
+        for (const wk of Object.keys(wd)) if ((wd[wk]?.[metric] || 0) > 0) return true;
+      }
+      return false;
+    });
+    pool.forEach((it, ci) => {
+      const itemAgg = aggregateByWeek([it], months, data.items);
+      const labelToVal = new Map(itemAgg.map(r => [r.label, r[metric]]));
+      const color = PALETTE[ci % PALETTE.length];
+      series.push({
+        name: it.model,
+        type: metric === '불량' ? 'bar' : 'line',
+        smooth: true, symbol:'circle', symbolSize:5,
+        data: padFuture(xData.map(lb => labelToVal.has(lb) ? labelToVal.get(lb) : null)),
+        yAxisIndex: metric === '불량' ? 1 : 0,
+        lineStyle: { color, width: 1.8 },
+        itemStyle: { color },
+        barWidth: '10%',
+        connectNulls: true,
+        markLine: (ci === 0 && markLineCfg) ? markLineCfg : undefined,
+      });
+      legend.push(it.model);
+    });
+  } else {
   METRICS.filter(m => APP.activeMetrics.has(m)).forEach((m, idx) => {
     series.push({
       name: m,
@@ -1235,6 +1297,7 @@ function renderChart() {
       legend.push(yoyName);
     }
   });
+  }
 
   if (!APP.chart) APP.chart = echarts.init(document.getElementById('chartTrend'));
   APP.chart.setOption({
@@ -1378,7 +1441,7 @@ function aggregateMonthlyPlanVsActual() {
 function renderMonthlyProgress() {
   const sec = document.getElementById('chartMonthlyProgress');
   if (!sec) return;
-  const rows = aggregateMonthlyPlanVsActual() || [];
+  const rows = (aggregateMonthlyPlanVsActual() || []).filter(r => r.status !== '예정');
   const tableEl = document.getElementById('monthlyProgressTable');
   const legendEl = document.getElementById('monthlyProgressLegend');
   if (!rows || rows.length === 0) {
@@ -1476,6 +1539,69 @@ function renderMonthlyProgress() {
   tableEl.innerHTML = tableHtml;
 }
 
+function renderLaggardItems() {
+  const tableEl = document.getElementById('laggardTable');
+  const titleEl = document.getElementById('laggardTitle');
+  if (!tableEl) return;
+  const data = getData(); if (!data) { tableEl.innerHTML = ''; return; }
+  const rows = (aggregateMonthlyPlanVsActual() || []).filter(r => r.status !== '예정');
+  const target = rows.find(r => r.status === '진행중') || [...rows].reverse().find(r => r.status === '마감');
+  if (!target) { titleEl.textContent = '계획 미진 품목'; tableEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">데이터 없음</div>'; return; }
+
+  const mo = target.mo;
+  const indiv = data.items.filter(it => !it.isTotal && it.category !== 'Cable');
+  const wks = data.weeksByMonth[mo] || [];
+  const lagItems = [];
+  for (const it of indiv) {
+    let plan = it.monthlyPlan?.[mo] || 0;
+    let actual = it.monthlyActual?.[mo] || 0;
+    if (!plan || !actual) {
+      let wp = 0, wa = 0;
+      for (const wk of wks) {
+        const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
+        wp += w.계획 || 0;
+        wa += w.생산 || 0;
+      }
+      if (!plan) plan = wp;
+      if (!actual) actual = wa;
+    }
+    if (plan <= 0) continue;
+    const rate = actual / plan * 100;
+    if (rate >= 100) continue;
+    lagItems.push({ model: it.model, category: it.category, plan, actual, shortage: plan - actual, rate });
+  }
+  lagItems.sort((a, b) => a.rate - b.rate);
+
+  const ctx = target.status === '진행중' ? `${target.latestWk}주차 시점` : '마감 기준';
+  titleEl.textContent = `📉 ${mo}월 계획 미진 품목 (${ctx}, ${lagItems.length}건)`;
+
+  if (lagItems.length === 0) {
+    tableEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--mint);font-weight:600;">✓ 미진 품목 없음</div>';
+    return;
+  }
+  let html = `<table class="exec" style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th>품목군</th><th>품목</th>
+      <th style="text-align:right;">계획</th>
+      <th style="text-align:right;">실적</th>
+      <th style="text-align:right;">부족량</th>
+      <th style="text-align:right;">진척률</th>
+    </tr></thead><tbody>`;
+  for (const l of lagItems) {
+    const sev = l.rate < 50 ? '#E63946' : l.rate < 80 ? '#FFB547' : '#C9A961';
+    html += `<tr>
+      <td style="color:var(--text-secondary);">${l.category}</td>
+      <td style="font-weight:600;">${l.model}</td>
+      <td style="text-align:right;color:#8A9BBF;" class="num">${fmtN(l.plan)}</td>
+      <td style="text-align:right;color:var(--cyan);" class="num">${fmtN(l.actual)}</td>
+      <td style="text-align:right;color:#E63946;font-weight:700;" class="num">${fmtN(l.shortage)}</td>
+      <td style="text-align:right;color:${sev};font-weight:700;" class="num">${l.rate.toFixed(1)}%</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  tableEl.innerHTML = html;
+}
+
 function renderSafety() {
   const sec = document.getElementById('safetySection');
   const data = APP.data[2026]?.[APP.dept];
@@ -1555,7 +1681,7 @@ function renderSafety() {
   }, true);
 }
 
-function renderBody() { renderKPI(); renderComment(); renderChart(); renderMonthlyProgress(); renderTable(); renderSafety(); }
+function renderBody() { renderKPI(); renderComment(); renderChart(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
