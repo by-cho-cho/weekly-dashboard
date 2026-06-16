@@ -271,11 +271,7 @@
         <div class="kpi-label">월별 생산계획 대비 실적 진척도</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">마감월은 달성률, 진행중월은 주차 누적 실적 기준 진척률</div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button id="futureMonthsBtn" onclick="toggleFutureMonths()" class="btn"
-          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📅 예정월 표시</button>
-        <div id="monthlyProgressLegend" style="font-size:11px;color:var(--text-muted);"></div>
-      </div>
+      <div id="monthlyProgressLegend" style="font-size:11px;color:var(--text-muted);"></div>
     </div>
     <div id="chartMonthlyProgress" style="height:300px;"></div>
     <div id="monthlyProgressTable" style="margin-top:10px;"></div>
@@ -326,7 +322,6 @@ const APP = {
   yoyOn: false,
   forecastOn: false,
   forecastH: 4,
-  showFutureMonths: false,
   data: { 2026: {'1반':null,'2반':null}, 2025: {'1반':null,'2반':null} },
   notes: { '1반': new Map(), '2반': new Map() }, // key="r|c" → 메모 텍스트 (2026만)
   selectedMonths: new Set(),
@@ -1380,23 +1375,12 @@ function aggregateMonthlyPlanVsActual() {
   return rows;
 }
 
-function toggleFutureMonths() {
-  APP.showFutureMonths = !APP.showFutureMonths;
-  renderMonthlyProgress();
-}
-
 function renderMonthlyProgress() {
   const sec = document.getElementById('chartMonthlyProgress');
   if (!sec) return;
-  const allRows = aggregateMonthlyPlanVsActual();
-  const rows = (allRows || []).filter(r => APP.showFutureMonths || r.status !== '예정');
+  const rows = aggregateMonthlyPlanVsActual() || [];
   const tableEl = document.getElementById('monthlyProgressTable');
   const legendEl = document.getElementById('monthlyProgressLegend');
-  const btn = document.getElementById('futureMonthsBtn');
-  if (btn) {
-    btn.classList.toggle('active', APP.showFutureMonths);
-    btn.textContent = APP.showFutureMonths ? '📅 예정월 숨김' : '📅 예정월 표시';
-  }
   if (!rows || rows.length === 0) {
     sec.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);">데이터가 없습니다.</div>';
     tableEl.innerHTML = ''; legendEl.innerHTML = ''; return;
