@@ -232,7 +232,7 @@
         <button id="forecastBtn" onclick="toggleForecast()" class="btn"
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
         <button id="perItemBtn" onclick="togglePerItem()" class="btn"
-          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🧬 품목별 트렌드</button>
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🧬 품목군별 트렌드</button>
       </div>
     </div>
     <!-- 차트 + KPI 오버레이 -->
@@ -1180,44 +1180,32 @@ function renderChart() {
   const padFuture = (arr) => [...arr, ...futureLabels.map(_=>null)];
 
   if (APP.perItemOn) {
-    // 품목별 분리 — 첫 활성 지표 기준, 개별 품목 라인 분리
+    // 품목군별 분리 — 첫 활성 지표 기준, 카테고리 라인 분리
     const metric = METRICS.find(m => APP.activeMetrics.has(m)) || '수주';
-    const cats = getCats();
-    const subs = getSubs();
-    const sel = getItems();
-    const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A','#B8C5D6','#D4A5A5','#88B0BF','#A8C97F','#E0B973'];
-    const indivAll = data.items.filter(it => !it.isTotal && it.category !== 'Cable' && it.category !== '기타');
-    let pool = indivAll.filter(it => cats.size === 0 || cats.has(it.category));
-    if (subs.size > 0) pool = pool.filter(it => it.subcategory && subs.has(it.subcategory));
-    if (sel.size > 0) {
-      const selectedExplicit = pool.filter(it => sel.has(it.model));
-      if (selectedExplicit.length > 0) pool = selectedExplicit;
-    }
-    // 빈 시리즈 제거: 선택 구간에 데이터 0인 품목은 제외
-    pool = pool.filter(it => {
-      for (const mo of months) {
-        const wd = it.weekData?.[mo]; if (!wd) continue;
-        for (const wk of Object.keys(wd)) if ((wd[wk]?.[metric] || 0) > 0) return true;
-      }
-      return false;
-    });
-    pool.forEach((it, ci) => {
-      const itemAgg = aggregateByWeek([it], months, data.items);
-      const labelToVal = new Map(itemAgg.map(r => [r.label, r[metric]]));
+    const catsSel = getCats();
+    const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A'];
+    const allCats = [...new Set(data.items.map(it => it.category).filter(c => c && c !== 'Cable' && c !== '기타'))];
+    const cats = (catsSel.size > 0 ? allCats.filter(c => catsSel.has(c)) : allCats);
+    cats.forEach((cat, ci) => {
+      const catItems = data.items.filter(it => it.category === cat);
+      const totals = catItems.filter(it => it.isTotal);
+      const useItems = totals.length > 0 ? totals : catItems;
+      const catAgg = aggregateByWeek(useItems, months, data.items);
+      const labelToVal = new Map(catAgg.map(r => [r.label, r[metric]]));
       const color = PALETTE[ci % PALETTE.length];
       series.push({
-        name: it.model,
+        name: cat,
         type: metric === '불량' ? 'bar' : 'line',
-        smooth: true, symbol:'circle', symbolSize:5,
+        smooth: true, symbol:'circle', symbolSize:6,
         data: padFuture(xData.map(lb => labelToVal.has(lb) ? labelToVal.get(lb) : null)),
         yAxisIndex: metric === '불량' ? 1 : 0,
-        lineStyle: { color, width: 1.8 },
+        lineStyle: { color, width: 2.2 },
         itemStyle: { color },
-        barWidth: '10%',
+        barWidth: '14%',
         connectNulls: true,
         markLine: (ci === 0 && markLineCfg) ? markLineCfg : undefined,
       });
-      legend.push(it.model);
+      legend.push(cat);
     });
   } else {
   METRICS.filter(m => APP.activeMetrics.has(m)).forEach((m, idx) => {
