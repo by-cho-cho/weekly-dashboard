@@ -1165,17 +1165,19 @@ function renderChart() {
   }
   const markLineCfg = monthBoundaries.length ? {
     symbol: ['none','none'], silent: true,
-    label: {
-      show: true, position: 'insideStartTop', distance: 4, formatter: ({value}) => {
-        const r = agg.find(x => x.label === value);
-        return r ? `${r.mo}월` : '';
-      },
-      color: '#C9A961', fontSize: 15, fontWeight: 800,
-      padding: [4, 8], backgroundColor: 'rgba(201,169,97,0.12)',
-      borderRadius: 4,
-    },
     lineStyle: { color: 'rgba(201,169,97,0.5)', type: 'dashed', width: 1.2 },
-    data: monthBoundaries.map(label => ({ xAxis: label }))
+    data: monthBoundaries.map(label => {
+      const monthText = (() => { const r = agg.find(x => x.label === label); return r ? `${r.mo}월` : ''; })();
+      return [
+        { coord: [label, 0], label: {
+            show: true, position: 'insideEndBottom', distance: 6,
+            formatter: monthText,
+            color: '#C9A961', fontSize: 15, fontWeight: 800,
+            padding: [4, 8], backgroundColor: 'rgba(201,169,97,0.12)', borderRadius: 4,
+          } },
+        { coord: [label, 'max'], label: { show: false } }
+      ];
+    })
   } : undefined;
 
   const series = [];
