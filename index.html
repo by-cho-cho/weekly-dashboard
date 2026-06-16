@@ -1473,65 +1473,6 @@ function renderMonthlyProgress() {
     </tr>`;
   }
   tableHtml += '</tbody></table>';
-
-  // 미진 품목 — 가장 최근 (진행중 우선, 없으면 마지막 마감) 월 기준 진척률 < 100%
-  const targetRow = rows.find(r => r.status === '진행중')
-    || [...rows].reverse().find(r => r.status === '마감');
-  if (targetRow) {
-    const mo = targetRow.mo;
-    const data = getData();
-    const indiv = (data?.items || []).filter(it => !it.isTotal && it.category !== 'Cable');
-    const wks = data.weeksByMonth[mo] || [];
-    const lagItems = [];
-    for (const it of indiv) {
-      let plan = it.monthlyPlan?.[mo] || 0;
-      let actual = it.monthlyActual?.[mo] || 0;
-      if (!plan || !actual) {
-        let wp = 0, wa = 0;
-        for (const wk of wks) {
-          const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
-          wp += w.계획 || 0;
-          wa += w.생산 || 0;
-        }
-        if (!plan) plan = wp;
-        if (!actual) actual = wa;
-      }
-      if (plan <= 0) continue;
-      const rate = actual / plan * 100;
-      if (rate >= 100) continue;
-      lagItems.push({ model: it.model, category: it.category, plan, actual, shortage: plan - actual, rate });
-    }
-    lagItems.sort((a, b) => a.rate - b.rate);
-
-    tableHtml += `<div style="margin-top:18px;padding-top:12px;border-top:1px dashed rgba(255,255,255,0.1);">
-      <div style="font-weight:700;color:#E8EEF7;font-size:13px;margin-bottom:4px;">📉 ${mo}월 계획 미진 품목 <span style="color:var(--text-muted);font-weight:500;font-size:11px;">(${targetRow.status === '진행중' ? `${targetRow.latestWk}주차 시점 진척률` : '달성률'} &lt; 100%, ${lagItems.length}건)</span></div>`;
-    if (lagItems.length === 0) {
-      tableHtml += `<div style="text-align:center;padding:16px;color:var(--mint);font-weight:600;">✓ 미진 품목 없음</div>`;
-    } else {
-      tableHtml += `<table class="exec" style="width:100%;border-collapse:collapse;margin-top:6px;">
-        <thead><tr>
-          <th>품목군</th><th>품목</th>
-          <th style="text-align:right;">계획</th>
-          <th style="text-align:right;">실적</th>
-          <th style="text-align:right;">부족량</th>
-          <th style="text-align:right;">진척률</th>
-        </tr></thead><tbody>`;
-      for (const l of lagItems) {
-        const sev = l.rate < 50 ? '#E63946' : l.rate < 80 ? '#FFB547' : '#C9A961';
-        tableHtml += `<tr>
-          <td style="color:var(--text-secondary);">${l.category}</td>
-          <td style="font-weight:600;">${l.model}</td>
-          <td style="text-align:right;color:#8A9BBF;" class="num">${fmtN(l.plan)}</td>
-          <td style="text-align:right;color:var(--cyan);" class="num">${fmtN(l.actual)}</td>
-          <td style="text-align:right;color:#E63946;font-weight:700;" class="num">${fmtN(l.shortage)}</td>
-          <td style="text-align:right;color:${sev};font-weight:700;" class="num">${l.rate.toFixed(1)}%</td>
-        </tr>`;
-      }
-      tableHtml += '</tbody></table>';
-    }
-    tableHtml += '</div>';
-  }
-
   tableEl.innerHTML = tableHtml;
 }
 
