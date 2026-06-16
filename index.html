@@ -131,17 +131,17 @@
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }
   .kpi-cell .kpi-label {
-    font-size: 9px; letter-spacing: 0.06em; color: var(--text-muted);
-    text-transform: uppercase; font-weight: 700; line-height: 1.1;
+    font-size: 20px; letter-spacing: 0.04em; color: var(--text-muted);
+    font-weight: 700; line-height: 1.15;
   }
   .kpi-cell .kpi-val {
     color: var(--accent); font-size: 20px; font-weight: 800;
     font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums;
-    line-height: 1; letter-spacing: -0.01em;
+    line-height: 1.15; letter-spacing: -0.01em;
   }
   .kpi-cell .kpi-sub {
-    font-size: 10px; color: var(--text-secondary); font-weight: 600;
-    margin: 2px 0 0; line-height: 1.1;
+    font-size: 20px; color: var(--text-secondary); font-weight: 600;
+    margin: 4px 0 0; line-height: 1.15;
   }
 </style>
 </head>
@@ -1048,7 +1048,7 @@ function renderKPI() {
       const otherYear = APP.year === 2026 ? '25' : '26';
       const d = cur[me] - yoyMatch[me], r = d/yoyMatch[me]*100;
       const cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
-      html += `<br><span style="font-size:10px;">${otherYear}동기 ${fmtN(yoyMatch[me])} <span class="${cls}">${sign} ${Math.abs(r).toFixed(1)}%</span></span>`;
+      html += `<br><span style="font-size:20px;">${otherYear}동기 ${fmtN(yoyMatch[me])} <span class="${cls}">${sign} ${Math.abs(r).toFixed(1)}%</span></span>`;
     }
     document.getElementById(ids[me][1]).innerHTML = html;
   });
