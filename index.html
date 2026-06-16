@@ -912,7 +912,10 @@ function selectAllItems() {
 function clearItems() { APP.selectedItems[APP.dept] = new Set(); renderItemChips(); renderBody(); }
 
 function toggleMetric(m) {
-  if (APP.activeMetrics.has(m)) {
+  if (APP.perItemOn) {
+    // 품목군별 트렌드 모드: 라디오 동작 — 클릭한 지표 하나만 활성화
+    APP.activeMetrics = new Set([m]);
+  } else if (APP.activeMetrics.has(m)) {
     if (APP.activeMetrics.size === 1) return;
     APP.activeMetrics.delete(m);
   } else APP.activeMetrics.add(m);
