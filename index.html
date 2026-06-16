@@ -1163,18 +1163,27 @@ function renderChart() {
   for (let i = 1; i < agg.length; i++) {
     if (agg[i].mo !== agg[i-1].mo) monthBoundaries.push(agg[i].label);
   }
+  const MONTH_COLORS = {
+    1:'#C9A961', 2:'#4FC3F7', 3:'#00E5A0', 4:'#E63946', 5:'#AB8FE0', 6:'#FFB547',
+    7:'#FF6B9D', 8:'#7BD389', 9:'#6FC3DF', 10:'#F2A65A', 11:'#B8C5D6', 12:'#D4A5A5',
+  };
+  const hexToRgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; };
   const markLineCfg = monthBoundaries.length ? {
     symbol: ['none','none'], silent: true,
-    lineStyle: { color: 'rgba(201,169,97,0.5)', type: 'dashed', width: 1.2 },
     data: monthBoundaries.map(label => {
-      const monthText = (() => { const r = agg.find(x => x.label === label); return r ? `${r.mo}월` : ''; })();
+      const r = agg.find(x => x.label === label);
+      const mo = r ? r.mo : 0;
+      const color = MONTH_COLORS[mo] || '#C9A961';
       return [
         { coord: [label, 0], label: {
             show: true, position: 'insideEndBottom', distance: 6,
-            formatter: monthText,
-            color: '#C9A961', fontSize: 15, fontWeight: 800,
-            padding: [4, 8], backgroundColor: 'rgba(201,169,97,0.12)', borderRadius: 4,
-          } },
+            formatter: r ? `${r.mo}월` : '',
+            color, fontSize: 15, fontWeight: 800,
+            padding: [4, 8],
+            backgroundColor: hexToRgba(color, 0.15),
+            borderRadius: 4,
+          },
+          lineStyle: { color: hexToRgba(color, 0.6), type: 'dashed', width: 1.4 } },
         { coord: [label, 'max'], label: { show: false } }
       ];
     })
