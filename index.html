@@ -1166,7 +1166,7 @@ function renderChart() {
   const markLineCfg = monthBoundaries.length ? {
     symbol: ['none','none'], silent: true,
     label: {
-      show: true, position: 'insideEndTop', formatter: ({value}) => {
+      show: true, position: 'insideEndBottom', distance: 4, formatter: ({value}) => {
         const r = agg.find(x => x.label === value);
         return r ? `${r.mo}월` : '';
       },
