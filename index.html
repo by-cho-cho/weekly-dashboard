@@ -231,8 +231,6 @@
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
         <button id="forecastBtn" onclick="toggleForecast()" class="btn"
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
-        <button id="splitBtn" onclick="toggleSplit()" class="btn"
-          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🧬 품목군별 분리</button>
       </div>
     </div>
     <!-- 차트 + KPI 오버레이 -->
@@ -323,7 +321,6 @@ const APP = {
   year: 2026,
   yoyOn: false,
   forecastOn: false,
-  splitByCat: false,
   forecastH: 4,
   data: { 2026: {'1반':null,'2반':null}, 2025: {'1반':null,'2반':null} },
   notes: { '1반': new Map(), '2반': new Map() }, // key="r|c" → 메모 텍스트 (2026만)
@@ -804,11 +801,6 @@ function toggleForecast() {
   document.getElementById('forecastBtn').classList.toggle('active', APP.forecastOn);
   renderChart();
 }
-function toggleSplit() {
-  APP.splitByCat = !APP.splitByCat;
-  document.getElementById('splitBtn').classList.toggle('active', APP.splitByCat);
-  renderChart();
-}
 
 /* ============================================================
    예측 모델 — Holt's linear trend (이중 지수평활법) + 자동 α,β 탐색
@@ -1166,37 +1158,6 @@ function renderChart() {
   const series = [];
   const legend = [];
   const padFuture = (arr) => [...arr, ...futureLabels.map(_=>null)];
-
-  if (APP.splitByCat) {
-    // 품목군별 분리 모드 — 활성 지표 1개를 카테고리별로 분리
-    const metric = METRICS.find(m => APP.activeMetrics.has(m)) || '수주';
-    const CAT_PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A'];
-    const catsSel = getCats();
-    const allCats = [...new Set(data.items.map(it => it.category).filter(c => c && c !== 'Cable' && c !== '기타'))];
-    const cats = (catsSel.size > 0 ? allCats.filter(c => catsSel.has(c)) : allCats);
-    cats.forEach((cat, ci) => {
-      const catItems = data.items.filter(it => it.category === cat);
-      const totals = catItems.filter(it => it.isTotal);
-      const useItems = totals.length > 0 ? totals : catItems;
-      const catAgg = aggregateByWeek(useItems, months, data.items);
-      // 동일 X축으로 정렬
-      const labelToVal = new Map(catAgg.map(r => [r.label, r[metric]]));
-      const color = CAT_PALETTE[ci % CAT_PALETTE.length];
-      series.push({
-        name: cat,
-        type: metric === '불량' ? 'bar' : 'line',
-        smooth: true, symbol:'circle', symbolSize:6,
-        data: padFuture(xData.map(lb => labelToVal.has(lb) ? labelToVal.get(lb) : null)),
-        yAxisIndex: metric === '불량' ? 1 : 0,
-        lineStyle: { color, width: 2.2 },
-        itemStyle: { color },
-        barWidth: '14%',
-        connectNulls: true,
-        markLine: (ci === 0 && markLineCfg) ? markLineCfg : undefined,
-      });
-      legend.push(cat);
-    });
-  } else {
   METRICS.filter(m => APP.activeMetrics.has(m)).forEach((m, idx) => {
     series.push({
       name: m,
@@ -1274,7 +1235,6 @@ function renderChart() {
       legend.push(yoyName);
     }
   });
-  }
 
   if (!APP.chart) APP.chart = echarts.init(document.getElementById('chartTrend'));
   APP.chart.setOption({
