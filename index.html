@@ -263,6 +263,13 @@
       <div id="chartTrend" style="height:380px;"></div>
     </div>
     <div class="comment-box embedded" id="commentBox" style="margin-top:10px;">분석 중…</div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,255,255,0.08);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div class="kpi-label" style="font-size:11px;">주차별 상세 — 전주 대비 · 동기간 비교</div>
+        <div style="font-size:10px;color:var(--text-muted);">최근 주차 상단</div>
+      </div>
+      <div id="weekTable"></div>
+    </div>
   </div>
 </section>
 
@@ -292,14 +299,7 @@
   </div>
 </section>
 
-<section style="padding:14px 32px 30px;">
-  <div class="card">
-    <div class="kpi-label">주차별 상세 (전주 대비 · 동기간 비교)</div>
-    <div id="weekTable" style="margin-top:10px;"></div>
-  </div>
-</section>
-
-<section id="safetySection" style="padding:0 32px 30px; display:none;">
+<section id="safetySection" style="padding:14px 32px 30px; display:none;">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
