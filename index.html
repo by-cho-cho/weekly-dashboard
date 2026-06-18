@@ -956,14 +956,29 @@ function setFilterState(type, val, on) {
   } else if (type === 'cat') {
     const set = getCats();
     const items = getItems();
+    const subs = getSubs();
     const data = getData();
     if (on) {
       set.add(val);
-      // 카테고리 선택 시 해당 세부 품목 전체 자동 선택 (filterItems가 "전체"=Total로 처리)
-      if (data) data.items.filter(it => it.category === val && !it.isTotal).forEach(it => items.add(it.model));
+      // 카테고리 선택 시 해당 세부 품목군·품목 전체 자동 선택
+      if (data) {
+        const catItems = data.items.filter(it => it.category === val);
+        catItems.filter(it => !it.isTotal).forEach(it => items.add(it.model));
+        for (const it of catItems) {
+          const sub = detectSubcategory(it.category, it.model);
+          if (sub) subs.add(sub);
+        }
+      }
     } else {
       set.delete(val);
-      if (data) data.items.filter(it => it.category === val).forEach(it => items.delete(it.model));
+      if (data) {
+        const catItems = data.items.filter(it => it.category === val);
+        catItems.forEach(it => items.delete(it.model));
+        for (const it of catItems) {
+          const sub = detectSubcategory(it.category, it.model);
+          if (sub) subs.delete(sub);
+        }
+      }
     }
   } else if (type === 'sub') {
     const set = getSubs();
