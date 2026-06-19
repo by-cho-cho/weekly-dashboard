@@ -1208,22 +1208,48 @@ function renderChart() {
   const monthLastLabel = {};
   agg.forEach(r => { monthLastLabel[r.mo] = r.label; });
   const yoyTag = APP.year === 2026 ? '25년' : '26년';
+  const lastMo = agg.length ? agg[agg.length - 1].mo : null;
   function makeMonthSumMP(metric, color) {
     const sums = {};
     agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
     const ySums = {};
     if (yoy) yoy.forEach(r => { ySums[r.mo] = (ySums[r.mo] || 0) + (Number(r[metric]) || 0); });
+    const ytdCur = Object.values(sums).reduce((a,b)=>a+b, 0);
+    const ytdYoy = Object.values(ySums).reduce((a,b)=>a+b, 0);
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
       label: {
         show: true, position: 'top', distance: 4,
         formatter: p => {
-          const cur = `{cur|∑ ${Number(p.value).toLocaleString()}}`;
+          const lines = [];
+          if (p.data.isSync) {
+            // 누계: 현재 동기화 시점까지의 총수량 + 전년 동기간 + 증감률
+            const cur = ytdCur, prv = ytdYoy;
+            const head = `{ytdLbl|누계} {ytdCur|${cur.toLocaleString()}}`;
+            lines.push(head);
+            if (prv > 0) {
+              const diff = cur - prv;
+              const rate = (diff / prv) * 100;
+              const up = diff >= 0;
+              const arrow = up ? '▲' : '▼';
+              const rateKey = up ? 'rateUp' : 'rateDn';
+              lines.push(`{ytdYoyLbl|${yoyTag}} {ytdYoy|${prv.toLocaleString()}} {${rateKey}|${arrow} ${Math.abs(rate).toFixed(1)}%}`);
+            }
+          }
+          lines.push(`{cur|∑ ${Number(p.value).toLocaleString()}}`);
           const y = p.data.yoy;
-          return y != null ? `${cur}\n{yoy|${yoyTag} ${y.toLocaleString()}}` : cur;
+          if (y != null) lines.push(`{yoy|${yoyTag} ${y.toLocaleString()}}`);
+          return lines.join('\n');
         },
         backgroundColor: 'transparent', padding: 0, borderWidth: 0,
+        lineHeight: 14,
         rich: {
+          ytdLbl: { color: '#8A9BBF', fontWeight: 600, fontSize: 10 },
+          ytdCur: { color: '#EDF2FB', fontWeight: 800, fontSize: 11 },
+          ytdYoyLbl: { color: '#8A9BBF', fontWeight: 600, fontSize: 10 },
+          ytdYoy: { color: '#B8C5D6', fontWeight: 700, fontSize: 10 },
+          rateUp: { color: '#00E5A0', fontWeight: 800, fontSize: 11, padding: [0,0,0,2] },
+          rateDn: { color: '#E63946', fontWeight: 800, fontSize: 11, padding: [0,0,0,2] },
           cur: {
             color: '#0F1520', fontWeight: 800, fontSize: 12,
             backgroundColor: color, padding: [3, 7], borderRadius: 5,
@@ -1239,7 +1265,7 @@ function renderChart() {
         const lb = monthLastLabel[mo];
         if (!lb || !sums[mo]) return null;
         // X축 바로 위에 라벨이 뜨도록 y=0 고정
-        return { coord: [lb, 0], value: sums[mo], yoy: ySums[mo] || null };
+        return { coord: [lb, 0], value: sums[mo], yoy: ySums[mo] || null, isSync: mo === lastMo };
       }).filter(Boolean),
     };
   }
