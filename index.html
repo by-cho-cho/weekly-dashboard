@@ -1207,23 +1207,39 @@ function renderChart() {
   // 월별 마지막 주 인덱스 (마감되지 않은 달은 동기화된 마지막 주 = 그 달 마지막 등장 위치)
   const monthLastLabel = {};
   agg.forEach(r => { monthLastLabel[r.mo] = r.label; });
+  const yoyTag = APP.year === 2026 ? '25년' : '26년';
   function makeMonthSumMP(metric, color) {
     const sums = {};
     agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
+    const ySums = {};
+    if (yoy) yoy.forEach(r => { ySums[r.mo] = (ySums[r.mo] || 0) + (Number(r[metric]) || 0); });
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
       label: {
         show: true, position: 'top', distance: 4,
-        formatter: p => `∑ ${Number(p.value).toLocaleString()}`,
-        color: '#0F1520', fontWeight: 800, fontSize: 12,
-        backgroundColor: color, padding: [3, 7], borderRadius: 5,
-        borderColor: '#0F1520', borderWidth: 1,
+        formatter: p => {
+          const cur = `{cur|∑ ${Number(p.value).toLocaleString()}}`;
+          const y = p.data.yoy;
+          return y != null ? `${cur}\n{yoy|${yoyTag} ${y.toLocaleString()}}` : cur;
+        },
+        backgroundColor: 'transparent', padding: 0, borderWidth: 0,
+        rich: {
+          cur: {
+            color: '#0F1520', fontWeight: 800, fontSize: 12,
+            backgroundColor: color, padding: [3, 7], borderRadius: 5,
+            borderColor: '#0F1520', borderWidth: 1,
+          },
+          yoy: {
+            color: color, fontWeight: 700, fontSize: 10, padding: [3, 0, 0, 0],
+            opacity: 0.85,
+          },
+        },
       },
       data: months.map(mo => {
         const lb = monthLastLabel[mo];
         if (!lb || !sums[mo]) return null;
         // X축 바로 위에 라벨이 뜨도록 y=0 고정
-        return { coord: [lb, 0], value: sums[mo] };
+        return { coord: [lb, 0], value: sums[mo], yoy: ySums[mo] || null };
       }).filter(Boolean),
     };
   }
