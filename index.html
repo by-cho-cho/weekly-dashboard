@@ -1204,6 +1204,28 @@ function renderChart() {
     })
   } : undefined;
 
+  // 월별 마지막 주 인덱스 (마감되지 않은 달은 동기화된 마지막 주 = 그 달 마지막 등장 위치)
+  const monthLastLabel = {};
+  agg.forEach(r => { monthLastLabel[r.mo] = r.label; });
+  function makeMonthSumMP(metric, color) {
+    const sums = {};
+    agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
+    return {
+      symbol: 'roundRect', symbolSize: [1,1], silent: true,
+      label: {
+        show: true, position: 'top', distance: 10,
+        formatter: p => Number(p.value).toLocaleString(),
+        color: '#0F1520', fontWeight: 800, fontSize: 12,
+        backgroundColor: color, padding: [3, 7], borderRadius: 4,
+      },
+      data: months.map(mo => {
+        const lb = monthLastLabel[mo];
+        if (!lb || !sums[mo]) return null;
+        return { coord: [lb, sums[mo]], value: sums[mo] };
+      }).filter(Boolean),
+    };
+  }
+
   const series = [];
   const legend = [];
   const padFuture = (arr) => [...arr, ...futureLabels.map(_=>null)];
@@ -1248,6 +1270,7 @@ function renderChart() {
       itemStyle: { color: METRIC_COLORS[m] },
       barWidth: '20%',
       markLine: (idx === 0 && markLineCfg) ? markLineCfg : undefined,
+      markPoint: makeMonthSumMP(m, METRIC_COLORS[m]),
     });
     legend.push(m);
 
