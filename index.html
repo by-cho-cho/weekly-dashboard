@@ -1211,17 +1211,20 @@ function renderChart() {
     const sums = {};
     agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
     return {
-      symbol: 'roundRect', symbolSize: [1,1], silent: true,
+      symbol: 'pin', symbolSize: 0, silent: true,
       label: {
-        show: true, position: 'top', distance: 10,
-        formatter: p => Number(p.value).toLocaleString(),
+        show: true, position: 'top', distance: 14,
+        formatter: p => `∑ ${Number(p.value).toLocaleString()}`,
         color: '#0F1520', fontWeight: 800, fontSize: 12,
-        backgroundColor: color, padding: [3, 7], borderRadius: 4,
+        backgroundColor: color, padding: [4, 8], borderRadius: 6,
+        borderColor: '#0F1520', borderWidth: 1,
       },
       data: months.map(mo => {
         const lb = monthLastLabel[mo];
         if (!lb || !sums[mo]) return null;
-        return { coord: [lb, sums[mo]], value: sums[mo] };
+        // anchor Y = 해당 월에서 가장 큰 주간값 (라벨이 막대 위에 안전하게 뜨도록)
+        const monthMax = Math.max(0, ...agg.filter(r => r.mo === mo).map(r => Number(r[metric]) || 0));
+        return { coord: [lb, monthMax], value: sums[mo] };
       }).filter(Boolean),
     };
   }
