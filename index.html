@@ -1213,18 +1213,17 @@ function renderChart() {
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
       label: {
-        show: true, position: 'top', distance: 14,
+        show: true, position: 'top', distance: 4,
         formatter: p => `∑ ${Number(p.value).toLocaleString()}`,
         color: '#0F1520', fontWeight: 800, fontSize: 12,
-        backgroundColor: color, padding: [4, 8], borderRadius: 6,
+        backgroundColor: color, padding: [3, 7], borderRadius: 5,
         borderColor: '#0F1520', borderWidth: 1,
       },
       data: months.map(mo => {
         const lb = monthLastLabel[mo];
         if (!lb || !sums[mo]) return null;
-        // anchor Y = 해당 월에서 가장 큰 주간값 (라벨이 막대 위에 안전하게 뜨도록)
-        const monthMax = Math.max(0, ...agg.filter(r => r.mo === mo).map(r => Number(r[metric]) || 0));
-        return { coord: [lb, monthMax], value: sums[mo] };
+        // X축 바로 위에 라벨이 뜨도록 y=0 고정
+        return { coord: [lb, 0], value: sums[mo] };
       }).filter(Boolean),
     };
   }
