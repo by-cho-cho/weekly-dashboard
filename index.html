@@ -1231,7 +1231,7 @@ function renderChart() {
           if (p.data.isSync) {
             // 누계: 현재 동기화 시점까지의 총수량 + 전년 동기간 + 증감률
             const cur = ytdCur, prv = ytdYoy;
-            const head = `{ytdLbl|누계} {ytdCur|${cur.toLocaleString()}}`;
+            const head = `{ytdLbl|동기간 누계} {ytdCur|${cur.toLocaleString()}}`;
             lines.push(head);
             if (prv > 0) {
               const diff = cur - prv;
