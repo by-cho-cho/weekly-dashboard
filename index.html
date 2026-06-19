@@ -1209,13 +1209,19 @@ function renderChart() {
   agg.forEach(r => { monthLastLabel[r.mo] = r.label; });
   const yoyTag = APP.year === 2026 ? '25년' : '26년';
   const lastMo = agg.length ? agg[agg.length - 1].mo : null;
+  // 누계: 월 필터와 무관하게 1월~동기화시점까지 합산
+  const ytdLatest = findLatestWeek(data.items);
+  const ytdLastMo = ytdLatest ? ytdLatest.mo : lastMo;
+  const ytdMonths = ytdLatest ? Array.from({length: ytdLatest.mo}, (_,i)=>i+1) : (months.length ? months : []);
+  const ytdAggCur = ytdMonths.length ? aggregateByWeek(items, ytdMonths, data.items) : [];
+  const ytdAggYoy = (APP.yoyOn && ytdMonths.length) ? aggregateYoY(items, ytdMonths, APP.year === 2026 ? 2025 : 2026) : null;
   function makeMonthSumMP(metric, color) {
     const sums = {};
     agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
     const ySums = {};
     if (yoy) yoy.forEach(r => { ySums[r.mo] = (ySums[r.mo] || 0) + (Number(r[metric]) || 0); });
-    const ytdCur = Object.values(sums).reduce((a,b)=>a+b, 0);
-    const ytdYoy = Object.values(ySums).reduce((a,b)=>a+b, 0);
+    const ytdCur = ytdAggCur.reduce((a,r) => a + (Number(r[metric]) || 0), 0);
+    const ytdYoy = ytdAggYoy ? ytdAggYoy.reduce((a,r) => a + (Number(r[metric]) || 0), 0) : 0;
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
       label: {
