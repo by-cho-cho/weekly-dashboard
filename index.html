@@ -1214,7 +1214,14 @@ function renderChart() {
   const ytdLastMo = ytdLatest ? ytdLatest.mo : lastMo;
   const ytdMonths = ytdLatest ? Array.from({length: ytdLatest.mo}, (_,i)=>i+1) : (months.length ? months : []);
   const ytdAggCur = ytdMonths.length ? aggregateByWeek(items, ytdMonths, data.items) : [];
-  const ytdAggYoy = (APP.yoyOn && ytdMonths.length) ? aggregateYoY(items, ytdMonths, APP.year === 2026 ? 2025 : 2026) : null;
+  const ytdAggYoy = (() => {
+    if (!APP.yoyOn || !ytdMonths.length) return null;
+    const prevYear = APP.year === 2026 ? 2025 : 2026;
+    const prev = APP.data[prevYear]?.[APP.dept];
+    if (!prev) return null;
+    // 전년 데이터를 합산하되, 컷오프는 현재 연도의 동기화 시점(data.items 기준)을 사용
+    return aggregateByWeek(filterItems(prev.items), ytdMonths, data.items);
+  })();
   function makeMonthSumMP(metric, color) {
     const sums = {};
     agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
