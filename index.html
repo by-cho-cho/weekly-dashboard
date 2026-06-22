@@ -1299,32 +1299,39 @@ function renderChart() {
     if (yoy) yoy.forEach(r => { ySums[r.mo] = (ySums[r.mo] || 0) + (Number(r[metric]) || 0); });
     const ytdCur = ytdAggCur.reduce((a,r) => a + (Number(r[metric]) || 0), 0);
     const ytdYoy = ytdAggYoy ? ytdAggYoy.reduce((a,r) => a + (Number(r[metric]) || 0), 0) : 0;
+    const ytdData = (lastMo != null && monthLastLabel[lastMo] && ytdCur > 0) ? [{
+      coord: [monthLastLabel[lastMo], 'max'],
+      value: ytdCur, ytdYoy: ytdYoy, isYtd: true,
+      label: { position: 'bottom', distance: 8, align: 'right' }
+    }] : [];
+    const monthlyData = months.map(mo => {
+      const lb = monthLastLabel[mo];
+      if (!lb || !sums[mo]) return null;
+      return { coord: [lb, 0], value: sums[mo], yoy: ySums[mo] || null };
+    }).filter(Boolean);
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
       label: {
         show: true, position: 'top', distance: 4,
         formatter: p => {
-          const lines = [];
-          if (p.data.isSync) {
-            // 누계: 현재 동기화 시점까지의 총수량 + 전년 동기간 + 증감률
-            const cur = ytdCur, prv = ytdYoy;
-            const head = `{ytdLbl|동기간 누계} {ytdCur|${cur.toLocaleString()}}`;
-            lines.push(head);
+          // 동기간 누계 블록 — 차트 상단에 별도 markPoint로 띄움 (∑와 겹침 방지)
+          if (p.data.isYtd) {
+            const lines = [`{ytdLbl|동기간 누계} {ytdCur|${Number(p.value).toLocaleString()}}`];
+            const prv = p.data.ytdYoy;
             if (prv > 0) {
-              const diff = cur - prv;
+              const diff = p.value - prv;
               const rate = (diff / prv) * 100;
               const up = diff >= 0;
               const arrow = up ? '▲' : '▼';
               const rateKey = up ? 'rateUp' : 'rateDn';
               lines.push(`{ytdYoyLbl|${yoyTag}} {ytdYoy|${prv.toLocaleString()}} {${rateKey}|${arrow} ${Math.abs(rate).toFixed(1)}%}`);
             }
+            return lines.join('\n');
           }
-          // 동기간 누계 블록과 월 합계 사이 시각적 간격 (lineHeight 1줄)
-          if (p.data.isSync && lines.length) lines.push('{gap| }');
-          lines.push(`{cur|∑ ${Number(p.value).toLocaleString()}}`);
+          // 월별 합계 ∑(현재년) + 25년 동기간
+          const lines = [`{cur|∑ ${Number(p.value).toLocaleString()}}`];
           const y = p.data.yoy;
           if (y != null) {
-            // ∑(현재년) 과 25년 사이 시각적 간격
             lines.push('{gap| }');
             lines.push(`{yoy|${yoyTag} ${y.toLocaleString()}}`);
           }
@@ -1356,12 +1363,7 @@ function renderChart() {
           gap: { fontSize: 6, lineHeight: 12, color: 'transparent' },
         },
       },
-      data: months.map(mo => {
-        const lb = monthLastLabel[mo];
-        if (!lb || !sums[mo]) return null;
-        // X축 바로 위에 라벨이 뜨도록 y=0 고정
-        return { coord: [lb, 0], value: sums[mo], yoy: ySums[mo] || null, isSync: mo === lastMo };
-      }).filter(Boolean),
+      data: [...monthlyData, ...ytdData],
     };
   }
 
@@ -1418,6 +1420,25 @@ function renderChart() {
           borderColor: '#0F1520', borderWidth: 1,
         }
       });
+    }
+    // 25년(전년) 평균선 — 동기간 비교용, 우상단 라벨로 표시
+    if (yoy) {
+      const vals25 = yoy.map(r => r[m]).filter(v => v != null && v !== 0);
+      const avg25 = vals25.length ? Math.round(vals25.reduce((a,b)=>a+b,0) / vals25.length) : null;
+      if (avg25 != null) {
+        const prevYear = APP.year === 2026 ? 2025 : 2026;
+        mlData.push({
+          yAxis: avg25,
+          lineStyle: { color: '#9B7BFF', type: 'dashed', width: 2.2, opacity: 0.9 },
+          label: {
+            show: true, position: 'insideEndTop', distance: 4,
+            formatter: `${prevYear} ${m} 평균 ${avg25.toLocaleString()}`,
+            color: '#FFFFFF', fontWeight: 800, fontSize: 11,
+            backgroundColor: '#9B7BFF', padding: [3, 7], borderRadius: 4,
+            borderColor: '#0F1520', borderWidth: 1,
+          }
+        });
+      }
     }
 
     series.push({
