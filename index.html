@@ -321,6 +321,8 @@ const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
 const GIDS = { '1반': '2145094968', '2반': '680125344' };
 const METRICS = ['수주','생산','출고','불량','계획'];
 const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946', '계획':'#8A9BBF' };
+// 평균선 색상 — 본선과 시각적으로 구분되는 보색/대비 팔레트
+const AVG_COLORS    = { '수주':'#FF6B9D', '생산':'#FFA94D', '출고':'#B57BFF', '불량':'#4FC3F7', '계획':'#FFB547' };
 
 // 카테고리 정의 (1반은 행 범위, 2반은 헤더 키워드)
 const CAT_1BAN_ROWS = [
@@ -1317,6 +1319,8 @@ function renderChart() {
               lines.push(`{ytdYoyLbl|${yoyTag}} {ytdYoy|${prv.toLocaleString()}} {${rateKey}|${arrow} ${Math.abs(rate).toFixed(1)}%}`);
             }
           }
+          // 동기간 누계 블록과 월 합계 사이 시각적 간격 (lineHeight 1줄)
+          if (p.data.isSync && lines.length) lines.push('{gap| }');
           lines.push(`{cur|∑ ${Number(p.value).toLocaleString()}}`);
           const y = p.data.yoy;
           if (y != null) lines.push(`{yoy|${yoyTag} ${y.toLocaleString()}}`);
@@ -1341,9 +1345,11 @@ function renderChart() {
             borderColor: '#0F1520', borderWidth: 1,
           },
           yoy: {
-            color: color, fontWeight: 700, fontSize: 10, padding: [3, 0, 0, 0],
-            opacity: 0.85,
+            color: '#FFFFFF', fontWeight: 800, fontSize: 11,
+            backgroundColor: 'rgba(155,123,255,0.32)', padding: [3, 7], borderRadius: 4,
+            borderColor: '#9B7BFF', borderWidth: 1,
           },
+          gap: { fontSize: 4, lineHeight: 8, color: 'transparent' },
         },
       },
       data: months.map(mo => {
@@ -1418,14 +1424,14 @@ function renderChart() {
         silent: true,
         smooth: false,
         showSymbol: false,
-        lineStyle: { color: METRIC_COLORS[m], type: 'dashed', width: 2.6, opacity: 1 },
-        itemStyle: { color: METRIC_COLORS[m] },
+        lineStyle: { color: AVG_COLORS[m] || METRIC_COLORS[m], type: 'dashed', width: 2.6, opacity: 1 },
+        itemStyle: { color: AVG_COLORS[m] || METRIC_COLORS[m] },
         z: 5,
         endLabel: {
           show: true,
           formatter: avgName,
           color: '#0F1520', fontWeight: 800, fontSize: 12,
-          backgroundColor: METRIC_COLORS[m], padding: [4, 8], borderRadius: 5,
+          backgroundColor: AVG_COLORS[m] || METRIC_COLORS[m], padding: [4, 8], borderRadius: 5,
           borderColor: '#0F1520', borderWidth: 1,
           distance: 6,
         },
