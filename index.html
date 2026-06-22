@@ -1320,7 +1320,7 @@ function renderChart() {
     const ytdData = (ytdAnchor && ytdCur > 0) ? [{
       coord: [ytdAnchor, 'max'],
       value: ytdCur, ytdYoy: ytdYoy, isYtd: true,
-      label: { position: 'bottom', distance: 60, align: 'right' }
+      label: { position: 'bottom', distance: 60, align: 'left' }
     }] : [];
     const monthlyData = months.map(mo => {
       const lb = monthLastLabel[mo];
