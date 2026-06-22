@@ -118,15 +118,9 @@
   /* 차트 내부 오버레이 KPI */
   .chart-wrap { position: relative; }
   .kpi-strip {
-    position: absolute !important;
-    top: 8px !important;
-    right: 12px !important;
-    left: auto !important;
-    z-index: 5;
     display: flex;
     flex-direction: row;
     gap: 8px;
-    pointer-events: none;
   }
   .kpi-cell {
     pointer-events: auto;
@@ -173,6 +167,29 @@
       </h1>
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
         <span id="syncDate">—</span> 기준 · 드래그로 다중 선택
+      </div>
+    </div>
+    <div class="kpi-strip" id="kpiStrip">
+      <div class="kpi-cell" style="--accent:var(--gold);">
+        <div>
+          <div class="kpi-label">최근주 수주</div>
+          <div class="kpi-sub" id="kpiOrderSub">—</div>
+        </div>
+        <div class="kpi-val" id="kpiOrder">—</div>
+      </div>
+      <div class="kpi-cell" style="--accent:var(--cyan);">
+        <div>
+          <div class="kpi-label">최근주 생산</div>
+          <div class="kpi-sub" id="kpiProdSub">—</div>
+        </div>
+        <div class="kpi-val" id="kpiProd">—</div>
+      </div>
+      <div class="kpi-cell" style="--accent:var(--mint);">
+        <div>
+          <div class="kpi-label">최근주 출고</div>
+          <div class="kpi-sub" id="kpiShipSub">—</div>
+        </div>
+        <div class="kpi-val" id="kpiShip">—</div>
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
@@ -245,31 +262,8 @@
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🧬 품목군별 트렌드</button>
       </div>
     </div>
-    <!-- 차트 + KPI 오버레이 -->
+    <!-- 차트 -->
     <div class="chart-wrap">
-      <div class="kpi-strip" id="kpiStrip" style="position:absolute;top:8px;right:12px;left:auto;display:flex;flex-direction:row;gap:8px;z-index:5;pointer-events:auto;cursor:move;user-select:none;" title="드래그해서 이동">
-        <div class="kpi-cell" style="--accent:var(--gold);">
-          <div>
-            <div class="kpi-label">최근주 수주</div>
-            <div class="kpi-sub" id="kpiOrderSub">—</div>
-          </div>
-          <div class="kpi-val" id="kpiOrder">—</div>
-        </div>
-        <div class="kpi-cell" style="--accent:var(--cyan);">
-          <div>
-            <div class="kpi-label">최근주 생산</div>
-            <div class="kpi-sub" id="kpiProdSub">—</div>
-          </div>
-          <div class="kpi-val" id="kpiProd">—</div>
-        </div>
-        <div class="kpi-cell" style="--accent:var(--mint);">
-          <div>
-            <div class="kpi-label">최근주 출고</div>
-            <div class="kpi-sub" id="kpiShipSub">—</div>
-          </div>
-          <div class="kpi-val" id="kpiShip">—</div>
-        </div>
-      </div>
       <div id="chartTrend" style="height:380px;"></div>
     </div>
     <div class="comment-box embedded" id="commentBox" style="margin-top:10px;">분석 중…</div>
@@ -1320,7 +1314,7 @@ function renderChart() {
     const ytdData = (ytdAnchor && ytdCur > 0) ? [{
       coord: [ytdAnchor, 'max'],
       value: ytdCur, ytdYoy: ytdYoy, isYtd: true,
-      label: { position: 'bottom', distance: 60, align: 'left' }
+      label: { position: 'bottom', distance: 12, align: 'right' }
     }] : [];
     const monthlyData = months.map(mo => {
       const lb = monthLastLabel[mo];
@@ -2031,67 +2025,8 @@ async function init() {
 }
 document.addEventListener('DOMContentLoaded', init);
 
-/* ── KPI 스트립 드래그 이동 + 위치 저장 ─────────────────────── */
-(function setupKpiDrag(){
-  const KEY = 'weeklyDashboard.kpiStripPos.v2';
-  try { localStorage.removeItem('weeklyDashboard.kpiStripPos'); } catch(e){}
-  function attach(){
-    const el = document.getElementById('kpiStrip');
-    if (!el) { setTimeout(attach, 200); return; }
-    // 저장된 위치 복원
-    try {
-      const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
-        el.style.left = saved.left + 'px';
-        el.style.top = saved.top + 'px';
-        el.style.right = 'auto';
-      }
-    } catch(e){}
-
-    let dragging = false, sx=0, sy=0, ox=0, oy=0;
-    el.addEventListener('mousedown', (e) => {
-      // 내부 텍스트/버튼 클릭과 구분: 셀(.kpi-cell) 바깥 또는 라벨 영역에서 드래그 시작
-      dragging = true;
-      const rect = el.getBoundingClientRect();
-      const parentRect = el.parentElement.getBoundingClientRect();
-      sx = e.clientX; sy = e.clientY;
-      ox = rect.left - parentRect.left;
-      oy = rect.top - parentRect.top;
-      el.style.opacity = '0.85';
-      e.preventDefault();
-    });
-    window.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      const parentRect = el.parentElement.getBoundingClientRect();
-      const dx = e.clientX - sx, dy = e.clientY - sy;
-      let nl = ox + dx, nt = oy + dy;
-      // 부모 영역 밖으로 너무 나가지 않게 클램프
-      const w = el.offsetWidth, h = el.offsetHeight;
-      nl = Math.max(-w*0.5, Math.min(parentRect.width - w*0.5, nl));
-      nt = Math.max(-h*0.5, Math.min(parentRect.height - h*0.3, nt));
-      el.style.left = nl + 'px';
-      el.style.top = nt + 'px';
-      el.style.right = 'auto';
-    });
-    window.addEventListener('mouseup', () => {
-      if (!dragging) return;
-      dragging = false;
-      el.style.opacity = '1';
-      const left = parseFloat(el.style.left) || 0;
-      const top = parseFloat(el.style.top) || 0;
-      try { localStorage.setItem(KEY, JSON.stringify({left, top})); } catch(e){}
-    });
-    // 더블클릭으로 기본 위치 복원
-    el.addEventListener('dblclick', () => {
-      el.style.left = 'auto';
-      el.style.right = '12px';
-      el.style.top = '8px';
-      try { localStorage.removeItem(KEY); } catch(e){}
-    });
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
-  else attach();
-})();
+/* KPI 스트립은 헤더 상단 고정 배치로 이동 — 드래그/위치저장 제거 */
+try { localStorage.removeItem('weeklyDashboard.kpiStripPos'); localStorage.removeItem('weeklyDashboard.kpiStripPos.v2'); } catch(e){}
 </script>
 </body>
 </html>
