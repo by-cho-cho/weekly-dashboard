@@ -1405,8 +1405,9 @@ function renderChart() {
     });
   } else {
   METRICS.filter(m => APP.activeMetrics.has(m)).forEach((m, idx) => {
-    const vals = agg.map(r => r[m]).filter(v => v != null && v !== 0);
-    const avg = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0) / vals.length) : null;
+    // 평균 = (1월1일~동기화 시점까지 누적합) / 해당 주차 수
+    const ytdVals = ytdAggCur.map(r => r[m]).filter(v => v != null && v !== 0);
+    const avg = ytdVals.length ? Math.round(ytdVals.reduce((a,b)=>a+b,0) / ytdVals.length) : null;
 
     // 평균선을 markLine으로 — 라벨이 좌상단에 떠서 우측 markPoint와 겹치지 않음
     const mlData = [];
@@ -1426,8 +1427,9 @@ function renderChart() {
       });
     }
     // 25년(전년) 평균선 — 동기간 비교용, 우상단 라벨로 표시
-    if (yoy) {
-      const vals25 = yoy.map(r => r[m]).filter(v => v != null && v !== 0);
+    // 평균 = (전년 1월1일~동기화 시점까지 누적합) / 해당 주차 수
+    if (ytdAggYoy) {
+      const vals25 = ytdAggYoy.map(r => r[m]).filter(v => v != null && v !== 0);
       const avg25 = vals25.length ? Math.round(vals25.reduce((a,b)=>a+b,0) / vals25.length) : null;
       if (avg25 != null) {
         const prevYear = APP.year === 2026 ? 2025 : 2026;
