@@ -1706,8 +1706,7 @@ function renderMonthlyProgress() {
   legendEl.innerHTML = `
     <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#8A9BBF;border-radius:2px;"></span>계획 <span style="color:var(--text-muted);">(평균 ${fmtN(avgPlan)})</span></span>
     <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#4FC3F7;border-radius:2px;"></span>실적(마감) <span style="color:var(--text-muted);">(평균 ${fmtN(avgActual)})</span></span>
-    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,#4FC3F7 0 4px,transparent 4px 7px);border-radius:2px;"></span>실적(진행중)</span>
-    <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #FFB547;"></span>년간 평균 달성률 <b style="color:#FFB547;">${avgRate == null ? '—' : avgRate + '%'}</b></span>`;
+    <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,#4FC3F7 0 4px,transparent 4px 7px);border-radius:2px;"></span>실적(진행중)</span>`;
 
   const months = rows.map(r => `${r.mo}월`);
   const planData = rows.map(r => r.plan);
@@ -1760,14 +1759,7 @@ function renderMonthlyProgress() {
         lineStyle:{color:'#00E5A0', width:2.5}, itemStyle:{color:'#00E5A0'}, z:10,
         label:{ show:true, color:'#00E5A0', fontSize:11, fontWeight:800,
           formatter: p => p.value == null ? '' : p.value + '%',
-          backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4 },
-        markLine: avgRate == null ? undefined : {
-          symbol: 'none', silent: true,
-          lineStyle: { color:'#FFB547', type:'dashed', width:2 },
-          label: { formatter: `년간 평균 ${avgRate}%`, color:'#FFB547', fontWeight:700, fontSize:11,
-            backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4, position:'insideEndTop' },
-          data: [{ yAxis: avgRate }]
-        } },
+          backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4 } },
     ],
   }, true);
 
