@@ -1313,14 +1313,14 @@ function renderChart() {
     if (yoy) yoy.forEach(r => { ySums[r.mo] = (ySums[r.mo] || 0) + (Number(r[metric]) || 0); });
     const ytdCur = ytdAggCur.reduce((a,r) => a + (Number(r[metric]) || 0), 0);
     const ytdYoy = ytdAggYoy ? ytdAggYoy.reduce((a,r) => a + (Number(r[metric]) || 0), 0) : 0;
-    // Why: YTD 누계 블록을 마지막 월(우측)에 두면 같은 위치의 Σ/25년/평균 라벨과 겹침.
-    //      첫 월 좌측 상단에 고정해 우측 라벨군과 분리.
-    const firstMo = agg.length ? agg[0].mo : null;
-    const ytdAnchor = (firstMo != null && monthLastLabel[firstMo]) ? agg[0].label : (lastMo != null ? monthLastLabel[lastMo] : null);
+    // 동기간 누계 블록 — 차트 우측 끝 상단에 배치 (평균 라벨군은 좌측으로 옮겨 분리).
+    //      KPI 스트립(우상단)과 겹치지 않도록 'max'에서 아래로 띄움(distance).
+    const ytdAnchor = (lastMo != null && monthLastLabel[lastMo]) ? monthLastLabel[lastMo]
+                      : (agg.length ? agg[agg.length - 1].label : null);
     const ytdData = (ytdAnchor && ytdCur > 0) ? [{
       coord: [ytdAnchor, 'max'],
       value: ytdCur, ytdYoy: ytdYoy, isYtd: true,
-      label: { position: 'bottom', distance: 8, align: 'left' }
+      label: { position: 'bottom', distance: 60, align: 'right' }
     }] : [];
     const monthlyData = months.map(mo => {
       const lb = monthLastLabel[mo];
@@ -1470,7 +1470,7 @@ function renderChart() {
           yAxis: avg25,
           lineStyle: { color: '#9B7BFF', type: 'dashed', width: 2.2, opacity: 0.9 },
           label: {
-            show: true, position: 'insideEndTop', distance: 4,
+            show: true, position: 'insideStartTop', distance: 4,
             formatter: `${prevYear} ${m} 평균 ${avg25.toLocaleString()}`,
             color: '#FFFFFF', fontWeight: 800, fontSize: 11,
             backgroundColor: '#9B7BFF', padding: [3, 7], borderRadius: 4,
@@ -1659,6 +1659,16 @@ function renderTable() {
 function aggregateMonthlyPlanVsActual() {
   const data = getData(); if (!data) return null;
   const items = filterItems(data.items);
+  // 개별(leaf) 품목 — Total 행 주간 계획칸이 비어 있는 달(예: 5월) 보정용.
+  // 계획은 품목 단위로만 입력되므로 Total 행에 누락되는 경우가 있음.
+  const cats = getCats(), subs = getSubs(), sel = getItems();
+  const leaves = data.items.filter(it => {
+    if (it.isTotal) return false;
+    if (cats.size > 0 && !cats.has(it.category)) return false;
+    if (subs.size > 0 && it.subcategory && !subs.has(it.subcategory)) return false;
+    if (sel.size > 0 && !sel.has(it.model)) return false;
+    return true;
+  });
   const latest = findLatestWeek(data.items); // 데이터가 들어온 최신 주차 (마감/진행중 판정 기준)
   const monthsAll = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
   const rows = [];
@@ -1670,13 +1680,17 @@ function aggregateMonthlyPlanVsActual() {
       plan += it.monthlyPlan?.[mo] || 0;
       actualFromMonthlyCol += it.monthlyActual?.[mo] || 0;
     }
-    let weeklyPlanSum = 0, weeklyActualSum = 0;
+    let weeklyPlanSum = 0, weeklyActualSum = 0, leafPlanSum = 0;
     for (const wk of wks) {
       let wkPlan = 0, wkActual = 0;
       for (const it of items) {
         const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
         wkPlan += w.계획 || 0;
         wkActual += w.생산 || 0;
+      }
+      for (const it of leaves) {
+        const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
+        leafPlanSum += w.계획 || 0;
       }
       weeklyPlanSum += wkPlan;
       weeklyActualSum += wkActual;
@@ -1687,6 +1701,9 @@ function aggregateMonthlyPlanVsActual() {
     if (plan === 0) plan = weeklyPlanSum;
     // 월별 합계 블록의 '생산' 컬럼을 우선 사용, 없으면 주간 합으로 폴백
     const actual = actualFromMonthlyCol > 0 ? actualFromMonthlyCol : weeklyActualSum;
+    // Total 행 계획 누락 보정: 계획이 실적의 40% 미만으로 비현실적이면(달성률 250%↑)
+    // 개별 품목 계획 합으로 대체. (예: 5월 Total 계획 500 → 개별합 65,744)
+    if (leafPlanSum > plan && actual > 0 && plan < actual * 0.4) plan = leafPlanSum;
     const planUntilNow = plan;
     let status;
     if (!latest) status = '예정';
