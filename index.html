@@ -1323,7 +1323,11 @@ function renderChart() {
           if (p.data.isSync && lines.length) lines.push('{gap| }');
           lines.push(`{cur|∑ ${Number(p.value).toLocaleString()}}`);
           const y = p.data.yoy;
-          if (y != null) lines.push(`{yoy|${yoyTag} ${y.toLocaleString()}}`);
+          if (y != null) {
+            // ∑(현재년) 과 25년 사이 시각적 간격
+            lines.push('{gap| }');
+            lines.push(`{yoy|${yoyTag} ${y.toLocaleString()}}`);
+          }
           return lines.join('\n');
         },
         backgroundColor: 'transparent', padding: 0, borderWidth: 0,
@@ -1349,7 +1353,7 @@ function renderChart() {
             backgroundColor: 'rgba(155,123,255,0.32)', padding: [3, 7], borderRadius: 4,
             borderColor: '#9B7BFF', borderWidth: 1,
           },
-          gap: { fontSize: 4, lineHeight: 8, color: 'transparent' },
+          gap: { fontSize: 6, lineHeight: 12, color: 'transparent' },
         },
       },
       data: months.map(mo => {
@@ -1408,7 +1412,7 @@ function renderChart() {
         lineStyle: { color: avgColor, type: 'dashed', width: 2.6, opacity: 1 },
         label: {
           show: true, position: 'insideStartTop', distance: 4,
-          formatter: `${m} 평균 ${avg.toLocaleString()}`,
+          formatter: `${APP.year} ${m} 평균 ${avg.toLocaleString()}`,
           color: '#0F1520', fontWeight: 800, fontSize: 12,
           backgroundColor: avgColor, padding: [4, 8], borderRadius: 5,
           borderColor: '#0F1520', borderWidth: 1,
