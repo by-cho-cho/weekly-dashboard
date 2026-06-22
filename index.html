@@ -377,11 +377,20 @@ const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
 //   1반 (stride=7): 계획(+0) 생산(+1) 출고(+2) 충진(+3) 불량(+4) 샘플(+5) 수주(+6)
 //   2반 (stride=8): 수주(+0) 계획(+1) 생산(+2) 출고(+3) 불량(+4) 성능(+5) 외관(+6) 기타(+7)
 function detectWeeklyColumns(headers, startCol, dept) {
-  const markers = [];
-  for (let i = startCol; i < headers.length; i++) {
+  // 월간 요약 섹션과 주간 상세 섹션 모두 동일한 "1"~"12" 마커를 사용하므로,
+  // 두 번째 "1" 마커를 주간 섹션 시작점으로 잡는다. (startCol은 폴백)
+  // Why: 시트별로 컬럼 위치가 달라 고정 startCol=150 으로 잘랐더니 25년 1반은
+  //      주간 "1" 마커가 col 148 에 있어 1월이 통째로 누락됐음(2026-06-22 확인).
+  const allMarks = [];
+  for (let i = 0; i < headers.length; i++) {
     const v = (headers[i]||'').trim();
-    if (/^([1-9]|1[0-2])$/.test(v)) markers.push({ mo: +v, col: i });
+    if (/^([1-9]|1[0-2])$/.test(v)) allMarks.push({ mo: +v, col: i });
   }
+  const ones = allMarks.filter(m => m.mo === 1);
+  const weeklyStart = ones.length >= 2 ? ones[1].col
+                    : ones.length === 1 ? ones[0].col
+                    : startCol;
+  const markers = allMarks.filter(m => m.col >= weeklyStart);
   const stride = dept === '1반' ? 7 : 8;
   const wmap = {};
   const monthlyPlanCol = {};
