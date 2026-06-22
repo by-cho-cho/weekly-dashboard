@@ -2061,11 +2061,11 @@ document.addEventListener('DOMContentLoaded', init);
       const top = parseFloat(el.style.top) || 0;
       try { localStorage.setItem(KEY, JSON.stringify({left, top})); } catch(e){}
     });
-    // 더블클릭으로 기본 위치(우측 상단) 복원
+    // 더블클릭으로 기본 위치 복원
     el.addEventListener('dblclick', () => {
-      el.style.left = 'auto';
+      el.style.left = '60px';
       el.style.top = '8px';
-      el.style.right = '12px';
+      el.style.right = 'auto';
       try { localStorage.removeItem(KEY); } catch(e){}
     });
   }
