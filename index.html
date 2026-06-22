@@ -2013,8 +2013,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 /* ── KPI 스트립 드래그 이동 + 위치 저장 ─────────────────────── */
 (function setupKpiDrag(){
-  const KEY = 'weeklyDashboard.kpiStripPos.v2';
-  try { localStorage.removeItem('weeklyDashboard.kpiStripPos'); } catch(e){}
+  const KEY = 'weeklyDashboard.kpiStripPos';
   function attach(){
     const el = document.getElementById('kpiStrip');
     if (!el) { setTimeout(attach, 200); return; }
