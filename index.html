@@ -492,11 +492,17 @@ function extractItems(rows, wmap, dept, opts) {
       if (/^blue/.test(m)) return 'Blue Eye';
       if (m.includes('c/f') || m.includes('커플링') || m.includes('청우')) return '커플링플로이드';
       if (m.includes('벨라') || m.includes('be/벨라') || /^be\b/.test(m)) return 'BE/벨라';
-      if (m.includes('muco') || m.includes('창상')) return '창상피복제';
+      if (m.includes('muco') || m.includes('창상') || m.includes('스토케어')) return '창상피복제';
       if (m.includes('syringe') || m.includes('시린지') || m.includes('ml syringe')) return '시린지';
       return null;
     };
-    getCategory = (rIdx, model) => rowToCat[rIdx+1] || byName(model) || '기타';
+    // byName 우선 — rowToCat 은 시트 버전(25/26)별로 행 번호가 다르므로 폴백.
+    // SEPIA 컬러칩(코드 패턴 "101 10MC" 등)·"SEPIA"/"OEM" 헤더는 1반 미관리 → 제외.
+    getCategory = (rIdx, model) => {
+      const m = (model||'').toLowerCase().trim();
+      if (m.includes('sepia') || /^\d{3}\s+/.test(model||'')) return null;
+      return byName(model) || rowToCat[rIdx+1] || null;
+    };
   } else {
     // 2반: 카테고리 헤더 행이 카테고리 합계를 보유 — 헤더만 집계 단위로 사용
     // 헤더는 정확한 이름으로만 매칭 ("TS-ENBD-7F" 같은 개별 품목 오매칭 방지)
@@ -522,8 +528,15 @@ function extractItems(rows, wmap, dept, opts) {
     if (dept === '1반') {
       // grand total 보호
       if (/^전품목$/i.test((row[1]||'').trim())) continue;
-      isTotal = /^total$/i.test(model);
       cat = getCategory(r, model);
+      // Total 행 판정 — 두 패턴 모두 처리:
+      //   2026: c2="Total" (명시)
+      //   2025: c2=카테고리명, c3(SPEC) 비어 있음 (예: "Black Eye" 단독 행)
+      // Why: 25년 시트는 c2="Total" 행이 없고 카테고리명이 모델 자리에 옴.
+      //      이걸 못 잡아서 차트가 (parent + 모든 sub-rows) 합계를 표시 → 시트 grand total(59,498) 대신 82,696 으로 부풀어남
+      const spec = (row[3]||'').trim();
+      isTotal = /^total$/i.test(model) ||
+                (!spec && cat && cat !== '기타' && cat !== 'Cable' && model === cat);
       if (!cat || cat === '기타' || cat === 'Cable') continue;
     } else {
       // 2반: 헤더(EP/ENBD/EPO Probe/Cable Total) 또는 개별 품목
@@ -576,6 +589,42 @@ function extractItems(rows, wmap, dept, opts) {
       currentStock: currentCol >= 0 ? parseNum(row[currentCol]) : 0,
     });
   }
+
+  // 1반: Total 행 없는 카테고리는 sub-products 합산으로 합성
+  // (커플링플로이드·창상피복제·시린지는 시트에 카테고리 Total 행이 없음)
+  if (dept === '1반') {
+    const grouped = {};
+    for (const it of items) {
+      (grouped[it.category] = grouped[it.category] || {hasTotal: false, subs: []});
+      if (it.isTotal) grouped[it.category].hasTotal = true;
+      else grouped[it.category].subs.push(it);
+    }
+    for (const [cat, g] of Object.entries(grouped)) {
+      if (g.hasTotal || g.subs.length === 0) continue;
+      const weekData = {};
+      for (const mo of Object.keys(wmap)) {
+        weekData[mo] = {};
+        for (const wk of Object.keys(wmap[mo])) {
+          const w = {};
+          for (const me of METRICS) {
+            w[me] = g.subs.reduce((s, it) => s + (Number(it.weekData?.[mo]?.[wk]?.[me])||0), 0);
+          }
+          weekData[mo][wk] = w;
+        }
+      }
+      const monthlyPlan = {}, monthlyActual = {};
+      for (const mo of Object.keys(monthlyPlanCol)) {
+        const v = g.subs.reduce((s, it) => s + (Number(it.monthlyPlan?.[mo])||0), 0);
+        if (v > 0) monthlyPlan[mo] = v;
+      }
+      items.push({
+        model: `${cat} 합계`, spec: '', category: cat, subcategory: null,
+        weekData, monthlyPlan, monthlyActual, isTotal: true,
+        safetyStock: 0, currentStock: 0,
+      });
+    }
+  }
+
   return { items, weeksByMonth: getWeeksByMonth(wmap) };
 }
 
