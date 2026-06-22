@@ -118,8 +118,16 @@
   /* 차트 내부 오버레이 KPI */
   .chart-wrap { position: relative; }
   .kpi-strip {
-    position: absolute; top: 8px; right: 12px;
-    z-index: 5; display: flex; gap: 8px; pointer-events: none;
+    position: absolute !important;
+    top: 8px !important;
+    left: 60px !important;
+    right: auto !important;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+    max-width: 240px;
   }
   .kpi-cell {
     pointer-events: auto;
@@ -240,7 +248,7 @@
     </div>
     <!-- 차트 + KPI 오버레이 -->
     <div class="chart-wrap">
-      <div class="kpi-strip">
+      <div class="kpi-strip" id="kpiStrip" style="position:absolute;top:8px;left:60px;right:auto;display:flex;flex-direction:column;gap:6px;z-index:5;pointer-events:auto;max-width:240px;cursor:move;user-select:none;" title="드래그해서 이동">
         <div class="kpi-cell" style="--accent:var(--gold);">
           <div>
             <div class="kpi-label">최근주 수주</div>
@@ -725,7 +733,14 @@ function aggregateByWeek(items, months, globalItems) {
   const ref = keepEmpty ? globalItems : items;
   const latest = keepEmpty ? findLatestWeek(globalItems) : null;
   for (const mo of months) {
-    const wks = ref[0]?.weekData?.[mo] ? Object.keys(ref[0].weekData[mo]).map(Number).sort((a,b)=>a-b) : [];
+    // Why: 첫 품목(ref[0])만 보면 그 품목이 해당 월에 weekData가 없을 때 전 주차가 빠져
+    //      25년 비교 월합이 0이 되어 ∑ 옆 25년 배지가 누락됨. 전 품목의 주차를 합집합으로 사용.
+    const wkSet = new Set();
+    for (const it of ref) {
+      const wd = it.weekData?.[mo]; if (!wd) continue;
+      for (const k of Object.keys(wd)) wkSet.add(Number(k));
+    }
+    const wks = [...wkSet].sort((a,b)=>a-b);
     for (const wk of wks) {
       if (weekFilter.size > 0 && !weekFilter.has(wk)) continue;
       if (latest && (mo > latest.mo || (mo === latest.mo && wk > latest.wk))) continue;
@@ -1299,15 +1314,24 @@ function renderChart() {
     if (yoy) yoy.forEach(r => { ySums[r.mo] = (ySums[r.mo] || 0) + (Number(r[metric]) || 0); });
     const ytdCur = ytdAggCur.reduce((a,r) => a + (Number(r[metric]) || 0), 0);
     const ytdYoy = ytdAggYoy ? ytdAggYoy.reduce((a,r) => a + (Number(r[metric]) || 0), 0) : 0;
-    const ytdData = (lastMo != null && monthLastLabel[lastMo] && ytdCur > 0) ? [{
-      coord: [monthLastLabel[lastMo], 'max'],
+    // Why: YTD 누계 블록을 마지막 월(우측)에 두면 같은 위치의 Σ/25년/평균 라벨과 겹침.
+    //      첫 월 좌측 상단에 고정해 우측 라벨군과 분리.
+    const firstMo = agg.length ? agg[0].mo : null;
+    const ytdAnchor = (firstMo != null && monthLastLabel[firstMo]) ? agg[0].label : (lastMo != null ? monthLastLabel[lastMo] : null);
+    const ytdData = (ytdAnchor && ytdCur > 0) ? [{
+      coord: [ytdAnchor, 'max'],
       value: ytdCur, ytdYoy: ytdYoy, isYtd: true,
-      label: { position: 'bottom', distance: 8, align: 'right' }
+      label: { position: 'bottom', distance: 8, align: 'left' }
     }] : [];
     const monthlyData = months.map(mo => {
       const lb = monthLastLabel[mo];
-      if (!lb || !sums[mo]) return null;
-      return { coord: [lb, 0], value: sums[mo], yoy: ySums[mo] || null };
+      // Why: 현재년 합이 0이어도 25년 데이터가 있으면 비교 배지는 보여야 함.
+      //      lb(현재년 마지막 주차 라벨)가 없는 달만 스킵.
+      if (!lb) return null;
+      const cur = sums[mo] || 0;
+      const prv = ySums[mo] || 0;
+      if (cur === 0 && prv === 0) return null;
+      return { coord: [lb, 0], value: cur, yoy: prv > 0 ? prv : null };
     }).filter(Boolean);
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
@@ -1328,14 +1352,12 @@ function renderChart() {
             }
             return lines.join('\n');
           }
-          // 월별 합계 ∑(현재년) + 25년 동기간
-          const lines = [`{cur|∑ ${Number(p.value).toLocaleString()}}`];
+          // 월별 합계 ∑(현재년) + 25년 동기간 — 가로 배치로 평균선 라벨과의 세로 겹침 회피
           const y = p.data.yoy;
-          if (y != null) {
-            lines.push('{gap| }');
-            lines.push(`{yoy|${yoyTag} ${y.toLocaleString()}}`);
-          }
-          return lines.join('\n');
+          const cur = `{cur|∑ ${Number(p.value).toLocaleString()}}`;
+          return y != null
+            ? `${cur}{gap| }{yoy|${yoyTag} ${y.toLocaleString()}}`
+            : cur;
         },
         backgroundColor: 'transparent', padding: 0, borderWidth: 0,
         lineHeight: 14,
@@ -1988,6 +2010,67 @@ async function init() {
   }
 }
 document.addEventListener('DOMContentLoaded', init);
+
+/* ── KPI 스트립 드래그 이동 + 위치 저장 ─────────────────────── */
+(function setupKpiDrag(){
+  const KEY = 'weeklyDashboard.kpiStripPos';
+  function attach(){
+    const el = document.getElementById('kpiStrip');
+    if (!el) { setTimeout(attach, 200); return; }
+    // 저장된 위치 복원
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+        el.style.left = saved.left + 'px';
+        el.style.top = saved.top + 'px';
+        el.style.right = 'auto';
+      }
+    } catch(e){}
+
+    let dragging = false, sx=0, sy=0, ox=0, oy=0;
+    el.addEventListener('mousedown', (e) => {
+      // 내부 텍스트/버튼 클릭과 구분: 셀(.kpi-cell) 바깥 또는 라벨 영역에서 드래그 시작
+      dragging = true;
+      const rect = el.getBoundingClientRect();
+      const parentRect = el.parentElement.getBoundingClientRect();
+      sx = e.clientX; sy = e.clientY;
+      ox = rect.left - parentRect.left;
+      oy = rect.top - parentRect.top;
+      el.style.opacity = '0.85';
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const parentRect = el.parentElement.getBoundingClientRect();
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      let nl = ox + dx, nt = oy + dy;
+      // 부모 영역 밖으로 너무 나가지 않게 클램프
+      const w = el.offsetWidth, h = el.offsetHeight;
+      nl = Math.max(-w*0.5, Math.min(parentRect.width - w*0.5, nl));
+      nt = Math.max(-h*0.5, Math.min(parentRect.height - h*0.3, nt));
+      el.style.left = nl + 'px';
+      el.style.top = nt + 'px';
+      el.style.right = 'auto';
+    });
+    window.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      el.style.opacity = '1';
+      const left = parseFloat(el.style.left) || 0;
+      const top = parseFloat(el.style.top) || 0;
+      try { localStorage.setItem(KEY, JSON.stringify({left, top})); } catch(e){}
+    });
+    // 더블클릭으로 기본 위치 복원
+    el.addEventListener('dblclick', () => {
+      el.style.left = '60px';
+      el.style.top = '8px';
+      el.style.right = 'auto';
+      try { localStorage.removeItem(KEY); } catch(e){}
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+  else attach();
+})();
 </script>
 </body>
 </html>
