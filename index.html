@@ -789,6 +789,13 @@ function renderItemChips() {
   if (subs.size > 0) visible = visible.filter(it => !it.subcategory || subs.has(it.subcategory));
   if (search) visible = visible.filter(it =>
     it.model.toLowerCase().includes(search) || (it.spec||'').toLowerCase().includes(search));
+  // 같은 model 이 여러 행에 걸쳐있을 수 있어 칩은 모델 단위로 dedupe
+  // (filter 는 it.model 기준이라 한 칩 선택시 동일 모델 행이 모두 포함됨)
+  const seenModels = new Set();
+  visible = visible.filter(it => {
+    if (seenModels.has(it.model)) return false;
+    seenModels.add(it.model); return true;
+  });
   document.getElementById('itemChips').innerHTML = visible.map(it =>
     `<span class="chip chip-item ${sel.has(it.model)?'active':''}" data-ftype="item" data-fval="${escapeAttr(it.model)}" title="${escapeAttr(it.spec||'')} · ${escapeAttr(it.category)}">${it.model}</span>`
   ).join('');
@@ -1257,12 +1264,16 @@ function renderChart() {
         backgroundColor: 'transparent', padding: 0, borderWidth: 0,
         lineHeight: 14,
         rich: {
-          ytdLbl: { color: '#8A9BBF', fontWeight: 600, fontSize: 10 },
-          ytdCur: { color: '#EDF2FB', fontWeight: 800, fontSize: 11 },
-          ytdYoyLbl: { color: '#8A9BBF', fontWeight: 600, fontSize: 10 },
-          ytdYoy: { color: '#B8C5D6', fontWeight: 700, fontSize: 10 },
-          rateUp: { color: '#00E5A0', fontWeight: 800, fontSize: 11, padding: [0,0,0,2] },
-          rateDn: { color: '#E63946', fontWeight: 800, fontSize: 11, padding: [0,0,0,2] },
+          ytdLbl: { color: '#0F1520', fontWeight: 800, fontSize: 10,
+            backgroundColor: '#FFB547', padding: [3,6], borderRadius: 4 },
+          ytdCur: { color: '#FFFFFF', fontWeight: 800, fontSize: 12,
+            backgroundColor: 'rgba(255,181,71,0.18)', padding: [3,7], borderRadius: 4,
+            borderColor: '#FFB547', borderWidth: 1 },
+          ytdYoyLbl: { color: '#EDF2FB', fontWeight: 700, fontSize: 10,
+            backgroundColor: 'rgba(184,197,214,0.18)', padding: [2,5], borderRadius: 3 },
+          ytdYoy: { color: '#B8C5D6', fontWeight: 700, fontSize: 10, padding: [0,0,0,3] },
+          rateUp: { color: '#00E5A0', fontWeight: 800, fontSize: 11, padding: [0,0,0,4] },
+          rateDn: { color: '#E63946', fontWeight: 800, fontSize: 11, padding: [0,0,0,4] },
           cur: {
             color: '#0F1520', fontWeight: 800, fontSize: 12,
             backgroundColor: color, padding: [3, 7], borderRadius: 5,
@@ -1317,6 +1328,8 @@ function renderChart() {
     });
   } else {
   METRICS.filter(m => APP.activeMetrics.has(m)).forEach((m, idx) => {
+    const vals = agg.map(r => r[m]).filter(v => v != null && v !== 0);
+    const avg = vals.length ? Math.round(vals.reduce((a,b)=>a+b,0) / vals.length) : null;
     series.push({
       name: m,
       type: m === '불량' ? 'bar' : 'line',
@@ -1330,6 +1343,35 @@ function renderChart() {
       markPoint: makeMonthSumMP(m, METRIC_COLORS[m]),
     });
     legend.push(m);
+
+    // 평균선 — X축 평행, 별도 line 시리즈로 안정적 렌더링
+    if (avg != null) {
+      const avgArr = new Array(xDataAll.length).fill(avg);
+      const avgName = `${m} 평균 ${avg.toLocaleString()}`;
+      series.push({
+        name: avgName,
+        type: 'line',
+        data: avgArr,
+        yAxisIndex: m === '불량' ? 1 : 0,
+        symbol: 'none',
+        silent: true,
+        smooth: false,
+        showSymbol: false,
+        lineStyle: { color: METRIC_COLORS[m], type: 'dashed', width: 2.6, opacity: 1 },
+        itemStyle: { color: METRIC_COLORS[m] },
+        z: 5,
+        endLabel: {
+          show: true,
+          formatter: avgName,
+          color: '#0F1520', fontWeight: 800, fontSize: 12,
+          backgroundColor: METRIC_COLORS[m], padding: [4, 8], borderRadius: 5,
+          borderColor: '#0F1520', borderWidth: 1,
+          distance: 6,
+        },
+        tooltip: { show: false },
+      });
+      legend.push(avgName);
+    }
 
     // 예측 시리즈
     if (forecastMap?.[m]) {
@@ -1546,10 +1588,16 @@ function renderMonthlyProgress() {
     tableEl.innerHTML = ''; legendEl.innerHTML = ''; return;
   }
 
+  const validRates = rows.map(r => r.plan > 0 ? r.actual / r.plan * 100 : null).filter(v => v != null);
+  const avgRate = validRates.length ? +(validRates.reduce((a,b)=>a+b,0) / validRates.length).toFixed(1) : null;
+  const avgPlan = rows.length ? Math.round(rows.reduce((a,r)=>a+r.plan,0) / rows.length) : 0;
+  const avgActual = rows.length ? Math.round(rows.reduce((a,r)=>a+r.actual,0) / rows.length) : 0;
+
   legendEl.innerHTML = `
-    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#8A9BBF;border-radius:2px;"></span>계획</span>
-    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#4FC3F7;border-radius:2px;"></span>실적(마감)</span>
-    <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,#4FC3F7 0 4px,transparent 4px 7px);border-radius:2px;"></span>실적(진행중)</span>`;
+    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#8A9BBF;border-radius:2px;"></span>계획 <span style="color:var(--text-muted);">(평균 ${fmtN(avgPlan)})</span></span>
+    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:#4FC3F7;border-radius:2px;"></span>실적(마감) <span style="color:var(--text-muted);">(평균 ${fmtN(avgActual)})</span></span>
+    <span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;"><span style="display:inline-block;width:10px;height:10px;background:repeating-linear-gradient(45deg,#4FC3F7 0 4px,transparent 4px 7px);border-radius:2px;"></span>실적(진행중)</span>
+    <span style="display:inline-flex;align-items:center;gap:4px;"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #FFB547;"></span>년간 평균 달성률 <b style="color:#FFB547;">${avgRate == null ? '—' : avgRate + '%'}</b></span>`;
 
   const months = rows.map(r => `${r.mo}월`);
   const planData = rows.map(r => r.plan);
@@ -1602,7 +1650,14 @@ function renderMonthlyProgress() {
         lineStyle:{color:'#00E5A0', width:2.5}, itemStyle:{color:'#00E5A0'}, z:10,
         label:{ show:true, color:'#00E5A0', fontSize:11, fontWeight:800,
           formatter: p => p.value == null ? '' : p.value + '%',
-          backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4 } },
+          backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4 },
+        markLine: avgRate == null ? undefined : {
+          symbol: 'none', silent: true,
+          lineStyle: { color:'#FFB547', type:'dashed', width:2 },
+          label: { formatter: `년간 평균 ${avgRate}%`, color:'#FFB547', fontWeight:700, fontSize:11,
+            backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4, position:'insideEndTop' },
+          data: [{ yAxis: avgRate }]
+        } },
     ],
   }, true);
 
