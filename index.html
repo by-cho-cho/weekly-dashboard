@@ -270,7 +270,10 @@
     <div class="comment-box embedded" id="commentBox" style="margin-top:10px;">분석 중…</div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,255,255,0.08);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div class="kpi-label" style="font-size:11px;">주차별 상세 — 전주 대비 · 동기간 비교</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button id="weekTableToggle" class="btn active" onclick="toggleWeekTable()" style="font-size:10px;padding:4px 10px;">▾ 상세 숨기기</button>
+          <div class="kpi-label" style="font-size:11px;">주차별 상세 — 전주 대비 · 동기간 비교</div>
+        </div>
         <div style="font-size:10px;color:var(--text-muted);">최근 주차 상단</div>
       </div>
       <div id="weekTable"></div>
@@ -899,6 +902,14 @@ function togglePerItem() {
   APP.perItemOn = !APP.perItemOn;
   document.getElementById('perItemBtn').classList.toggle('active', APP.perItemOn);
   renderChart();
+}
+function toggleWeekTable() {
+  const tbl = document.getElementById('weekTable');
+  const btn = document.getElementById('weekTableToggle');
+  const hidden = tbl.style.display === 'none';
+  tbl.style.display = hidden ? '' : 'none';
+  btn.classList.toggle('active', hidden);
+  btn.textContent = hidden ? '▾ 상세 숨기기' : '▸ 상세 보기';
 }
 
 /* ============================================================
