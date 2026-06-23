@@ -264,6 +264,7 @@
     </div>
     <!-- 차트 -->
     <div class="chart-wrap">
+      <div id="ytdOverlay" style="position:absolute;top:10px;right:14px;z-index:6;display:flex;flex-direction:column;gap:6px;align-items:flex-end;pointer-events:none;"></div>
       <div id="chartTrend" style="height:380px;"></div>
     </div>
     <div class="comment-box embedded" id="commentBox" style="margin-top:10px;">분석 중…</div>
@@ -1300,22 +1301,44 @@ function renderChart() {
     // 전년 데이터를 합산하되, 컷오프는 현재 연도의 동기화 시점(data.items 기준)을 사용
     return aggregateByWeek(filterItems(prev.items), ytdMonths, data.items);
   })();
+
+  // 동기간 누계 — 차트 우상단 HTML 오버레이 (활성 지표별 1줄)
+  (function renderYtdOverlay(){
+    const box = document.getElementById('ytdOverlay');
+    if (!box) return;
+    const yoyTag = APP.year === 2026 ? '25년' : '26년';
+    const rows = [];
+    METRICS.filter(m => APP.activeMetrics.has(m)).forEach(m => {
+      const cur = ytdAggCur.reduce((a,r) => a + (Number(r[m]) || 0), 0);
+      if (!(cur > 0)) return;
+      const color = METRIC_COLORS[m] || '#FFB547';
+      const prv = ytdAggYoy ? ytdAggYoy.reduce((a,r) => a + (Number(r[m]) || 0), 0) : 0;
+      let yoyHtml = '';
+      if (prv > 0) {
+        const diff = cur - prv, rate = diff / prv * 100, up = diff >= 0;
+        const rc = up ? '#00E5A0' : '#E63946', rtc = up ? '#0F1520' : '#FFFFFF';
+        yoyHtml =
+          `<span style="color:#FFFFFF;font-weight:800;font-size:11px;background:rgba(15,21,32,0.92);border:1px solid #B8C5D6;border-radius:4px;padding:2px 7px;">${yoyTag} ${prv.toLocaleString()}</span>`
+        + `<span style="color:${rtc};font-weight:800;font-size:11px;background:${rc};border-radius:4px;padding:2px 6px;">${up?'▲':'▼'} ${Math.abs(rate).toFixed(1)}%</span>`;
+      }
+      rows.push(
+        `<div style="display:flex;gap:5px;align-items:center;background:rgba(15,20,32,0.82);backdrop-filter:blur(6px);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:5px 9px;box-shadow:0 4px 12px rgba(0,0,0,0.35);">`
+        + `<span style="color:#0F1520;font-weight:800;font-size:10px;background:${color};border-radius:4px;padding:2px 6px;">동기간 누계 · ${m}</span>`
+        + `<span style="color:${color};font-weight:800;font-size:13px;font-family:'IBM Plex Sans',sans-serif;">${cur.toLocaleString()}</span>`
+        + yoyHtml + `</div>`
+      );
+    });
+    box.innerHTML = rows.join('');
+  })();
+
   function makeMonthSumMP(metric, color) {
     const sums = {};
     agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
     const ySums = {};
     if (yoy) yoy.forEach(r => { ySums[r.mo] = (ySums[r.mo] || 0) + (Number(r[metric]) || 0); });
-    const ytdCur = ytdAggCur.reduce((a,r) => a + (Number(r[metric]) || 0), 0);
-    const ytdYoy = ytdAggYoy ? ytdAggYoy.reduce((a,r) => a + (Number(r[metric]) || 0), 0) : 0;
-    // 동기간 누계 블록 — 차트 우측 끝 상단에 배치 (평균 라벨군은 좌측으로 옮겨 분리).
-    //      KPI 스트립(우상단)과 겹치지 않도록 'max'에서 아래로 띄움(distance).
-    const ytdAnchor = (lastMo != null && monthLastLabel[lastMo]) ? monthLastLabel[lastMo]
-                      : (agg.length ? agg[agg.length - 1].label : null);
-    const ytdData = (ytdAnchor && ytdCur > 0) ? [{
-      coord: [ytdAnchor, 'max'],
-      value: ytdCur, ytdYoy: ytdYoy, isYtd: true,
-      label: { position: 'bottom', distance: 12, align: 'right' }
-    }] : [];
+    // 동기간 누계는 차트 안 markPoint 대신 우상단 HTML 오버레이(#ytdOverlay)로 표시 —
+    // 데이터 값에 따라 위치가 흔들려 하단 ∑·x축 라벨과 겹치던 문제 해소(2026-06-23).
+    const ytdData = [];
     const monthlyData = months.map(mo => {
       const lb = monthLastLabel[mo];
       // Why: 현재년 합이 0이어도 25년 데이터가 있으면 비교 배지는 보여야 함.
