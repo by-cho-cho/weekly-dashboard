@@ -1480,6 +1480,11 @@ function renderChart() {
     }
 
     // 평균선을 markLine으로 — 라벨이 좌상단에 떠서 우측 markPoint와 겹치지 않음
+    // 두 평균(2026·2025)이 근접하면 라벨이 겹치므로, 높은 선은 위쪽·낮은 선은
+    // 아래쪽(바깥 방향)으로 분리 배치해 값이 같아도 겹치지 않게 함(2026-06-23).
+    const curHigher = (avg25 == null) || (avg != null && avg >= avg25);
+    const curAvgPos  = curHigher ? 'insideStartTop' : 'insideStartBottom';
+    const prevAvgPos = curHigher ? 'insideStartBottom' : 'insideStartTop';
     const mlData = [];
     if (idx === 0 && markLineCfg) mlData.push(...markLineCfg.data);
     if (avg != null) {
@@ -1496,7 +1501,7 @@ function renderChart() {
         yAxis: avg,
         lineStyle: { color: avgColor, type: 'dashed', width: 2.6, opacity: 1 },
         label: {
-          show: true, position: 'insideStartTop', distance: 4,
+          show: true, position: curAvgPos, distance: 4,
           formatter: `${APP.year} ${m} 평균 ${avg.toLocaleString()}${cmp}`,
           color: '#0F1520', fontWeight: 800, fontSize: 12,
           backgroundColor: avgColor, padding: [4, 8], borderRadius: 5,
@@ -1512,7 +1517,7 @@ function renderChart() {
           yAxis: avg25,
           lineStyle: { color: '#9B7BFF', type: 'dashed', width: 2.2, opacity: 0.9 },
           label: {
-            show: true, position: 'insideStartTop', distance: 4,
+            show: true, position: prevAvgPos, distance: 4,
             formatter: `${prevYear} ${m} 평균 ${avg25.toLocaleString()}`,
             color: '#FFFFFF', fontWeight: 800, fontSize: 11,
             backgroundColor: '#9B7BFF', padding: [3, 7], borderRadius: 4,
