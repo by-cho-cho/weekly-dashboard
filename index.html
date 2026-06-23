@@ -1809,6 +1809,50 @@ function renderMonthlyProgress() {
     return +(r.actual / r.plan * 100).toFixed(1);
   });
 
+  // 2반 전용 — 월별 Duodeca 품목 계획 대비 실적 메모를 막대 위에 표기
+  let duodecaMP = null;
+  if (APP.dept === '2반') {
+    const data = getData();
+    const dleaves = data.items.filter(it => !it.isTotal && it.category === 'Duodeca');
+    if (dleaves.length) {
+      const mpData = rows.map(r => {
+        const mo = r.mo, wks = data.weeksByMonth[mo] || [];
+        let plan = 0, actual = 0, wp = 0, wa = 0;
+        for (const it of dleaves) {
+          plan += it.monthlyPlan?.[mo] || 0;
+          actual += it.monthlyActual?.[mo] || 0;
+          for (const wk of wks) { const w = it.weekData?.[mo]?.[wk]; if (!w) continue; wp += w.계획 || 0; wa += w.생산 || 0; }
+        }
+        if (plan === 0) plan = wp;
+        if (actual === 0) actual = wa;
+        if (plan === 0 && actual === 0) return null;
+        const rate = plan > 0 ? Math.round(actual / plan * 100) : null;
+        return { coord: [`${mo}월`, Math.max(r.plan, r.actual)], plan, actual, rate };
+      }).filter(Boolean);
+      if (mpData.length) {
+        duodecaMP = {
+          symbol: 'rect', symbolSize: 0, silent: true,
+          label: {
+            show: true, position: 'top', distance: 10,
+            formatter: p => {
+              const rt = p.data.rate == null ? '—' : p.data.rate + '%';
+              return `{t|Duodeca}\n{p|계 ${p.data.plan.toLocaleString()}}\n{a|실 ${p.data.actual.toLocaleString()}}\n{r|달성 ${rt}}`;
+            },
+            backgroundColor: 'rgba(15,20,32,0.9)', borderColor: '#FFB547', borderWidth: 1,
+            borderRadius: 5, padding: [4, 7], lineHeight: 15,
+            rich: {
+              t: { color: '#FFB547', fontWeight: 800, fontSize: 10 },
+              p: { color: '#8A9BBF', fontWeight: 700, fontSize: 10 },
+              a: { color: '#4FC3F7', fontWeight: 700, fontSize: 10 },
+              r: { color: '#00E5A0', fontWeight: 800, fontSize: 10 },
+            },
+          },
+          data: mpData,
+        };
+      }
+    }
+  }
+
   if (!APP.chartMonthly) APP.chartMonthly = echarts.init(sec);
   APP.chartMonthly.setOption({
     backgroundColor: 'transparent',
@@ -1829,7 +1873,7 @@ function renderMonthlyProgress() {
           <div>${r.status === '진행중' ? '진척률' : '달성률'}: <b style="color:#00E5A0;">${rate}%</b></div>`;
       }
     },
-    grid: { left: 60, right: 50, top: 30, bottom: 30 },
+    grid: { left: 60, right: 50, top: duodecaMP ? 78 : 30, bottom: 30 },
     xAxis: { type:'category', data: months, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', fontWeight:600} },
     yAxis: [
       { type:'value', name:'수량(EA)', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:'#1A2236'}} },
@@ -1838,7 +1882,7 @@ function renderMonthlyProgress() {
     ],
     series: [
       { name:'계획', type:'bar', data: planData, itemStyle:{color:'#8A9BBF', borderRadius:[6,6,0,0], opacity:0.55}, barGap:'-100%', barWidth: 28 },
-      { name:'실적', type:'bar', data: actualData, barWidth: 28 },
+      { name:'실적', type:'bar', data: actualData, barWidth: 28, markPoint: duodecaMP || undefined },
       { name:'달성률', type:'line', yAxisIndex:1,
         data: rateData,
         connectNulls:true, smooth:true, symbol:'circle', symbolSize:9,
