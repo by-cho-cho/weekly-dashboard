@@ -301,12 +301,15 @@
 <section id="laggardSection" style="padding:0 32px 0;">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-      <div>
-        <div class="kpi-label" id="laggardTitle">계획 미진 품목</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">진척률 100% 미만 — 낮은 순 정렬</div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="laggardToggle" class="btn" onclick="toggleLaggardTable()" style="font-size:10px;padding:4px 10px;">▸ 미진 품목 보기</button>
+        <div>
+          <div class="kpi-label" id="laggardTitle">계획 미진 품목</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">진척률 100% 미만 — 낮은 순 정렬</div>
+        </div>
       </div>
     </div>
-    <div id="laggardTable"></div>
+    <div id="laggardTable" style="display:none;"></div>
   </div>
 </section>
 
@@ -914,6 +917,14 @@ function toggleMonthlyTable() {
   const btn = document.getElementById('mpToggle');
   btn.classList.toggle('active', mpShowClosed);
   btn.textContent = mpShowClosed ? '▾ 마감월 표 숨기기' : '▸ 마감월 표 보기';
+}
+function toggleLaggardTable() {
+  const tbl = document.getElementById('laggardTable');
+  const btn = document.getElementById('laggardToggle');
+  const hidden = tbl.style.display === 'none';
+  tbl.style.display = hidden ? '' : 'none';
+  btn.classList.toggle('active', hidden);
+  btn.textContent = hidden ? '▾ 미진 품목 숨기기' : '▸ 미진 품목 보기';
 }
 function toggleWeekTable() {
   const tbl = document.getElementById('weekTable');
