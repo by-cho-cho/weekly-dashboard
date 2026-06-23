@@ -288,7 +288,10 @@
         <div class="kpi-label">월별 생산계획 대비 실적 진척도</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">마감월은 달성률, 진행중월은 주차 누적 실적 기준 진척률</div>
       </div>
-      <div id="monthlyProgressLegend" style="font-size:11px;color:var(--text-muted);"></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button id="mpToggle" class="btn" onclick="toggleMonthlyTable()" style="font-size:10px;padding:4px 10px;">▸ 마감월 표 보기</button>
+        <div id="monthlyProgressLegend" style="font-size:11px;color:var(--text-muted);"></div>
+      </div>
     </div>
     <div id="chartMonthlyProgress" style="height:300px;"></div>
     <div id="monthlyProgressTable" style="margin-top:10px;"></div>
@@ -902,6 +905,15 @@ function togglePerItem() {
   APP.perItemOn = !APP.perItemOn;
   document.getElementById('perItemBtn').classList.toggle('active', APP.perItemOn);
   renderChart();
+}
+let mpShowClosed = false; // 월별 진척도 표: 마감월 행 표시 여부 (기본 숨김, 진행중월만 노출)
+function toggleMonthlyTable() {
+  mpShowClosed = !mpShowClosed;
+  document.querySelectorAll('#monthlyProgressTable .mp-closed-row')
+    .forEach(tr => { tr.style.display = mpShowClosed ? '' : 'none'; });
+  const btn = document.getElementById('mpToggle');
+  btn.classList.toggle('active', mpShowClosed);
+  btn.textContent = mpShowClosed ? '▾ 마감월 표 숨기기' : '▸ 마감월 표 보기';
 }
 function toggleWeekTable() {
   const tbl = document.getElementById('weekTable');
@@ -1838,7 +1850,9 @@ function renderMonthlyProgress() {
       : r.status === '진행중'
         ? `<span style="color:#FFB547;font-weight:700;">진행중 (${r.latestWk}주차)</span>`
         : '<span style="color:var(--text-muted);">예정</span>';
-    tableHtml += `<tr>
+    const isClosedRow = r.status !== '진행중';
+    const hideStyle = (isClosedRow && !mpShowClosed) ? 'display:none;' : '';
+    tableHtml += `<tr class="${isClosedRow ? 'mp-closed-row' : ''}" style="${hideStyle}">
       <td style="font-weight:700;">${r.mo}월</td>
       <td>${statusBadge}</td>
       <td style="text-align:right;color:#8A9BBF;font-weight:600;" class="num">${fmtN(r.plan)}</td>
