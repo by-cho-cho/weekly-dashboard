@@ -296,7 +296,7 @@
         <div id="monthlyProgressLegend" style="font-size:11px;color:var(--text-muted);"></div>
       </div>
     </div>
-    <div id="chartMonthlyProgress" style="height:300px;"></div>
+    <div id="chartMonthlyProgress" style="height:340px;"></div>
     <div id="monthlyProgressTable" style="margin-top:10px;"></div>
   </div>
 </section>
@@ -1816,6 +1816,9 @@ function renderMonthlyProgress() {
     const data = getData();
     const dleaves = data.items.filter(it => !it.isTotal && it.category === 'Duodeca');
     if (dleaves.length) {
+      // 모든 Duodeca 박스를 같은 높이(전체 막대 최대값)에 정렬 → 상단 한 줄로 띄워
+      // 달성률 라벨과 겹치지 않게 함
+      const mpAnchorY = Math.max(...rows.map(rr => Math.max(rr.plan, rr.actual)), 0);
       const mpData = rows.map(r => {
         const mo = r.mo, wks = data.weeksByMonth[mo] || [];
         let plan = 0, actual = 0, wp = 0, wa = 0;
@@ -1828,7 +1831,7 @@ function renderMonthlyProgress() {
         if (actual === 0) actual = wa;
         if (plan === 0 && actual === 0) return null;
         const rate = plan > 0 ? Math.round(actual / plan * 100) : null;
-        return { coord: [`${mo}월`, Math.max(r.plan, r.actual)], plan, actual, rate };
+        return { coord: [`${mo}월`, mpAnchorY], plan, actual, rate };
       }).filter(Boolean);
       if (mpData.length) {
         duodecaMP = {
@@ -1871,10 +1874,10 @@ function renderMonthlyProgress() {
         return `<div style="font-weight:700;margin-bottom:4px;">${r.mo}월 · <span style="color:#8A9BBF;">${label}</span></div>
           <div>계획: <b style="color:#8A9BBF;">${fmtN(r.plan)}</b></div>
           <div>실적(현재까지 생산): <b style="color:#4FC3F7;">${fmtN(r.actual)}</b></div>
-          <div>${r.status === '진행중' ? '진척률' : '달성률'}: <b style="color:#00E5A0;">${rate}%</b></div>`;
+          <div>${r.status === '진행중' ? '진척률' : '달성률'}: <b style="color:#C9B3F5;">${rate}%</b></div>`;
       }
     },
-    grid: { left: 60, right: 50, top: duodecaMP ? 78 : 30, bottom: 30 },
+    grid: { left: 60, right: 50, top: duodecaMP ? 112 : 30, bottom: 30 },
     xAxis: { type:'category', data: months, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', fontWeight:600} },
     yAxis: [
       { type:'value', name:'수량(EA)', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:'#1A2236'}} },
@@ -1887,10 +1890,10 @@ function renderMonthlyProgress() {
       { name:'달성률', type:'line', yAxisIndex:1,
         data: rateData,
         connectNulls:true, smooth:true, symbol:'circle', symbolSize:9,
-        lineStyle:{color:'#00E5A0', width:2.5}, itemStyle:{color:'#00E5A0'}, z:10,
-        label:{ show:true, color:'#00E5A0', fontSize:11, fontWeight:800,
+        lineStyle:{color:'#AB8FE0', width:2.5}, itemStyle:{color:'#AB8FE0'}, z:10,
+        label:{ show:true, color:'#D8C6F7', fontSize:11, fontWeight:800,
           formatter: p => p.value == null ? '' : p.value + '%',
-          backgroundColor:'rgba(10,14,24,0.72)', padding:[3,6], borderRadius:4 } },
+          backgroundColor:'rgba(28,20,48,0.9)', borderColor:'#AB8FE0', borderWidth:1, padding:[3,6], borderRadius:4 } },
     ],
   }, true);
 
