@@ -84,6 +84,9 @@
   .chip-sub.active   { background: rgba(201,169,97,0.25); border-color: var(--gold); box-shadow:0 0 6px rgba(201,169,97,0.3); }
   .chip-item         { color: var(--text-secondary); border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); font-size: 10px; padding:3px 9px;}
   .chip-item.active  { color: var(--gold); border-color: var(--gold); background: rgba(201,169,97,0.18); box-shadow:0 0 5px rgba(201,169,97,0.25);}
+  /* 미선택 칩은 흐리게 — 선택/미선택을 시각적으로 명확히 구분 */
+  .chip-year:not(.active), .chip-month:not(.active), .chip-week:not(.active),
+  .chip-cat:not(.active), .chip-sub:not(.active), .chip-item:not(.active) { opacity: 0.4; }
   .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
   .kpi-val { font-size: 28px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
@@ -683,8 +686,16 @@ function filterItems(items) {
     const allInd = curData.items.filter(it => !it.isTotal && cats.has(it.category));
     if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) useTotal = true;
   }
-  // 세부품목(서브카테고리)이 선택되면 Total은 sub 필터를 표현할 수 없으므로 개별 품목 모드로 drill-down
-  if (subs.size > 0) useTotal = false;
+  // 세부품목(서브카테고리)은 "일부만" 골랐을 때만 개별 품목 모드로 drill-down.
+  // 부모 카테고리 클릭 시 자동 포함된 '전체' 서브는 narrowing 이 아니므로 Total 유지
+  // → 품목군을 클릭해 전부 선택해도 해제(전체합계)와 같은 시트 Total 값으로 일치.
+  if (subs.size > 0 && curData) {
+    const availSubs = new Set(
+      curData.items.filter(it => cats.has(it.category) && it.subcategory).map(it => it.subcategory)
+    );
+    const isPartialSub = availSubs.size > 0 && [...availSubs].some(s => !subs.has(s));
+    if (isPartialSub) useTotal = false;
+  }
   const filtered = items.filter(it => {
     if (cats.size > 0 && !cats.has(it.category)) return false;
     if (subs.size > 0) {
@@ -1011,6 +1022,10 @@ function selectRecentMonths() {
 function selectAllCats() {
   const data = getData(); if (!data) return;
   APP.selectedCats[APP.dept] = new Set([...new Set(data.items.map(it => it.category))]);
+  // drill-down(세부품목군·개별품목) 초기화 — '전체'는 항상 깨끗한 시트 Total 표시,
+  // 직전에 세부 일부만 골라둔 잔여 상태가 남아 값이 틀어지는 것 방지(해제와 동일 값 보장).
+  APP.selectedSubs[APP.dept] = new Set();
+  APP.selectedItems[APP.dept] = new Set();
   renderCatChips(); renderItemChips(); renderBody();
 }
 function clearCats() { APP.selectedCats[APP.dept] = new Set(); renderCatChips(); renderItemChips(); renderBody(); }
