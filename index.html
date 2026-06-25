@@ -677,45 +677,30 @@ function filterItems(items) {
   const cats = getCats();
   const subs = getSubs();
   const sel = getItems();
-  // "전체 선택" 감지: 선택된 카테고리 안의 모든 개별 품목이 sel에 포함되면 = Total 모드
-  // 이유: 개별 합산 ≠ 시트 Total (시트 입력 불일치). 카테고리 클릭 후 자동 전체 선택일 때
-  //       시각적으로는 모든 칩이 선택되지만 집계는 Total로 가야 25년 비교가 정합 유지됨.
   const curData = getData();
-  let useTotal = sel.size === 0;
-  if (!useTotal && cats.size > 0 && curData) {
+  // 시트 '합계' 행은 수기 입력이라 신뢰 불가(2026 커플링플로이드·창상·Blue Eye 수주에서
+  // 합계 ≠ 개별합산 확인). 항상 개별 품목으로 집계 → 헤드라인 = 화면에 보이는 품목 합.
+  // 2025는 합계=개별이라 동기간 비교에 영향 없음.
+  // sel(개별품목 직접선택)이 '부분'일 때만 그 품목들로 drill-down; 카테고리 클릭으로
+  // 자동 전체 선택된 경우는 narrowing 아님 → 카테고리 전체 개별합산.
+  let selSubset = sel.size > 0;
+  if (selSubset && cats.size > 0 && curData) {
     const allInd = curData.items.filter(it => !it.isTotal && cats.has(it.category));
-    if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) useTotal = true;
-  }
-  // 세부품목(서브카테고리)은 "일부만" 골랐을 때만 개별 품목 모드로 drill-down.
-  // 부모 카테고리 클릭 시 자동 포함된 '전체' 서브는 narrowing 이 아니므로 Total 유지
-  // → 품목군을 클릭해 전부 선택해도 해제(전체합계)와 같은 시트 Total 값으로 일치.
-  if (subs.size > 0 && curData) {
-    const availSubs = new Set(
-      curData.items.filter(it => cats.has(it.category) && it.subcategory).map(it => it.subcategory)
-    );
-    const isPartialSub = availSubs.size > 0 && [...availSubs].some(s => !subs.has(s));
-    if (isPartialSub) useTotal = false;
+    if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) selSubset = false;
   }
   const filtered = items.filter(it => {
+    if (it.isTotal) return false;
     if (cats.size > 0 && !cats.has(it.category)) return false;
-    if (subs.size > 0) {
-      if (it.subcategory && !subs.has(it.subcategory)) return false;
-    }
-    if (useTotal) {
-      if (!it.isTotal) return false;
-    } else {
-      if (it.isTotal) return false;
-      if (!sel.has(it.model)) return false;
-    }
+    if (subs.size > 0 && it.subcategory && !subs.has(it.subcategory)) return false;
+    if (selSubset && !sel.has(it.model)) return false;
     return true;
   });
-  // 폴백: useTotal 모드인데 해당 데이터셋(예: 25년 1반)에 Total 행이 없으면
-  //       개별 품목 합산으로 대체 — 25년 비교가 빈 라인으로 끊기는 것 방지
-  if (useTotal && filtered.length === 0) {
+  // 폴백: 개별 품목이 전혀 없는 카테고리(합계 행만 존재)는 합계 행으로 대체 —
+  //       빈 라인으로 끊기는 것 방지(예: 일부 연도에 Total 행만 있는 카테고리)
+  if (filtered.length === 0) {
     return items.filter(it => {
-      if (it.isTotal) return false;
+      if (!it.isTotal) return false;
       if (cats.size > 0 && !cats.has(it.category)) return false;
-      if (subs.size > 0 && it.subcategory && !subs.has(it.subcategory)) return false;
       return true;
     });
   }
@@ -1471,8 +1456,9 @@ function renderChart() {
     const cats = (catsSel.size > 0 ? allCats.filter(c => catsSel.has(c)) : allCats);
     cats.forEach((cat, ci) => {
       const catItems = data.items.filter(it => it.category === cat);
-      const totals = catItems.filter(it => it.isTotal);
-      const useItems = totals.length > 0 ? totals : catItems;
+      // 개별 품목 합산 사용(시트 합계 행은 신뢰 불가). 개별이 없으면 합계 행 폴백.
+      const inds = catItems.filter(it => !it.isTotal);
+      const useItems = inds.length > 0 ? inds : catItems.filter(it => it.isTotal);
       const catAgg = aggregateByWeek(useItems, months, data.items);
       const labelToVal = new Map(catAgg.map(r => [r.label, r[metric]]));
       const color = PALETTE[ci % PALETTE.length];
