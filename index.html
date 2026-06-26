@@ -1468,14 +1468,24 @@ function renderChart() {
     const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A'];
     const allCats = [...new Set(data.items.map(it => it.category).filter(c => c && c !== 'Cable' && c !== '기타'))];
     const cats = (catsSel.size > 0 ? allCats.filter(c => catsSel.has(c)) : allCats);
+    // 개별 품목을 '부분' 선택했는지 — 그렇다면 각 카테고리 라인도 선택된 품목만 합산
+    const selItems = getItems();
+    let selSubset = selItems.size > 0;
+    if (selSubset && catsSel.size > 0) {
+      const allInd = data.items.filter(it => !it.isTotal && catsSel.has(it.category));
+      if (allInd.length > 0 && allInd.every(it => selItems.has(it.model))) selSubset = false;
+    }
     cats.forEach((cat, ci) => {
       const catItems = data.items.filter(it => it.category === cat);
       // filterItems와 동일 원칙: 1반=개별 우선, 2반=합계 우선(2025 개별 파싱 불안정).
       const inds = catItems.filter(it => !it.isTotal);
       const totals = catItems.filter(it => it.isTotal);
-      const useItems = (APP.dept === '2반')
-        ? (totals.length > 0 ? totals : inds)
-        : (inds.length > 0 ? inds : totals);
+      // 품목 부분선택 시: 해당 카테고리의 '선택된' 개별 품목만 합산(선택 없으면 빈 라인)
+      const useItems = selSubset
+        ? inds.filter(it => selItems.has(it.model))
+        : (APP.dept === '2반'
+            ? (totals.length > 0 ? totals : inds)
+            : (inds.length > 0 ? inds : totals));
       const catAgg = aggregateByWeek(useItems, months, data.items);
       const labelToVal = new Map(catAgg.map(r => [r.label, r[metric]]));
       const color = PALETTE[ci % PALETTE.length];
