@@ -42,15 +42,15 @@
     --bg-card: #FFFFFF;
     --bg-card-hi: #FFFFFF;
     --border: #E1E5EC;
-    --text-primary: #1B2433;
-    --text-secondary: #4A5568;
-    --text-muted: #8A93A3;
-    --gold: #A8821F;
-    --cyan: #1E7CC4;
-    --mint: #00936A;
-    --red: #CE2C39;
-    --amber: #C4811A;
-    --purple: #6A4FC0;
+    --text-primary: #161D29;
+    --text-secondary: #3D4757;
+    --text-muted: #5B6473;
+    --gold: #936C12;
+    --cyan: #1A6FB5;
+    --mint: #087C5A;
+    --red: #C32330;
+    --amber: #9C6610;
+    --purple: #5A41B0;
     --wash: rgba(0,0,0,0.035);
     --wash-2: rgba(0,0,0,0.06);
     --wash-3: rgba(0,0,0,0.02);
@@ -122,6 +122,12 @@
   /* 미선택 칩은 흐리게 — 선택/미선택을 시각적으로 명확히 구분 */
   .chip-year:not(.active), .chip-month:not(.active), .chip-week:not(.active),
   .chip-cat:not(.active), .chip-sub:not(.active), .chip-item:not(.active) { opacity: 0.4; }
+  /* 화이트 모드: opacity 0.4는 흰 배경에서 글씨가 사라짐 — 미선택은 흐림 대신 회색 텍스트로
+     (선택 칩은 강조색 유지 → 선택/미선택 구분은 색·배경·테두리로) */
+  body.light .chip-year:not(.active), body.light .chip-month:not(.active), body.light .chip-week:not(.active),
+  body.light .chip-cat:not(.active), body.light .chip-sub:not(.active), body.light .chip-item:not(.active) {
+    opacity: 1; color: var(--text-secondary); border-color: var(--border); background: var(--wash);
+  }
   .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
   .kpi-val { font-size: 28px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
@@ -2173,10 +2179,10 @@ function chartTheme() {
 }
 // 강조색 — 화이트 모드에서 대비 확보를 위해 한 단계 진하게 매핑(다크에선 원색 유지)
 const ACCENT_LIGHT = {
-  '#C9A961':'#A8821F','#4FC3F7':'#1E7CC4','#00E5A0':'#00936A','#E63946':'#CE2C39',
-  '#FFB547':'#C4811A','#AB8FE0':'#6A4FC0','#FF6B9D':'#D43E72','#7BD389':'#4E9D5C',
-  '#6FC3DF':'#2E8FB0','#F2A65A':'#C2762B','#8A9BBF':'#5A6577','#B8C5D6':'#8893A6',
-  '#9B7BFF':'#6A4FC0','#B57BFF':'#7A4FC0','#FFA94D':'#C2762B','#D4A5A5':'#B07878',
+  '#C9A961':'#936C12','#4FC3F7':'#1A6FB5','#00E5A0':'#087C5A','#E63946':'#C32330',
+  '#FFB547':'#9C6610','#AB8FE0':'#5A41B0','#FF6B9D':'#C53467','#7BD389':'#46924F',
+  '#6FC3DF':'#2A82A4','#F2A65A':'#B56C23','#8A9BBF':'#52607A','#B8C5D6':'#7E8AA0',
+  '#9B7BFF':'#5A41B0','#B57BFF':'#6E45B5','#FFA94D':'#B56C23','#D4A5A5':'#A56A6A',
 };
 function mapAccent(hex) {
   return document.body.classList.contains('light') ? (ACCENT_LIGHT[hex] || hex) : hex;
