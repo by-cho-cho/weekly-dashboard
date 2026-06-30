@@ -26,6 +26,40 @@
     --red: #E63946;
     --amber: #FFB547;
     --purple: #AB8FE0;
+    /* 테마 인지용 — 다크 기본값 */
+    --wash: rgba(255,255,255,0.03);
+    --wash-2: rgba(255,255,255,0.06);
+    --wash-3: rgba(255,255,255,0.02);
+    --divider: rgba(255,255,255,0.08);
+    --header-bg: rgba(10,14,24,0.92);
+    --kpi-cell-bg: rgba(15,20,32,0.82);
+    --card-shadow: rgba(0,0,0,0.35);
+    --body-glow-1: rgba(201,169,97,0.08);
+    --body-glow-2: rgba(79,195,247,0.05);
+  }
+  body.light {
+    --bg-deep: #EEF1F6;
+    --bg-card: #FFFFFF;
+    --bg-card-hi: #FFFFFF;
+    --border: #E1E5EC;
+    --text-primary: #1B2433;
+    --text-secondary: #4A5568;
+    --text-muted: #8A93A3;
+    --gold: #A8821F;
+    --cyan: #1E7CC4;
+    --mint: #00936A;
+    --red: #CE2C39;
+    --amber: #C4811A;
+    --purple: #6A4FC0;
+    --wash: rgba(0,0,0,0.035);
+    --wash-2: rgba(0,0,0,0.06);
+    --wash-3: rgba(0,0,0,0.02);
+    --divider: rgba(0,0,0,0.09);
+    --header-bg: rgba(255,255,255,0.92);
+    --kpi-cell-bg: rgba(255,255,255,0.92);
+    --card-shadow: rgba(20,30,50,0.12);
+    --body-glow-1: transparent;
+    --body-glow-2: transparent;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -35,10 +69,11 @@
   }
   body {
     background:
-      radial-gradient(ellipse at top, rgba(201,169,97,0.08), transparent 50%),
-      radial-gradient(ellipse at bottom, rgba(79,195,247,0.05), transparent 50%),
+      radial-gradient(ellipse at top, var(--body-glow-1), transparent 50%),
+      radial-gradient(ellipse at bottom, var(--body-glow-2), transparent 50%),
       var(--bg-deep);
     min-height: 100vh;
+    transition: background .25s, color .25s;
   }
   .num { font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; }
   .card {
@@ -47,16 +82,16 @@
   }
   .header {
     position: sticky; top: 0; z-index: 50;
-    background: rgba(10,14,24,0.92); backdrop-filter: blur(10px);
+    background: var(--header-bg); backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border); padding: 14px 32px;
   }
   .btn {
     padding: 7px 14px; border-radius: 8px; font-weight: 700; font-size: 12px;
     cursor: pointer; border: 1px solid var(--border);
-    background: rgba(255,255,255,0.03); color: var(--text-secondary);
+    background: var(--wash); color: var(--text-secondary);
     transition: all .2s;
   }
-  .btn:hover { background: rgba(255,255,255,0.06); }
+  .btn:hover { background: var(--wash-2); }
   .btn.active {
     background: linear-gradient(135deg, rgba(201,169,97,0.22), rgba(201,169,97,0.08));
     border-color: var(--gold); color: var(--gold);
@@ -82,7 +117,7 @@
   .chip-cat.active   { background: rgba(255,181,71,0.25); border-color: var(--amber); box-shadow:0 0 6px rgba(255,181,71,0.3); }
   .chip-sub          { color: var(--gold); border-color: rgba(201,169,97,0.35); background: rgba(201,169,97,0.05); font-size:10px; padding:3px 9px;}
   .chip-sub.active   { background: rgba(201,169,97,0.25); border-color: var(--gold); box-shadow:0 0 6px rgba(201,169,97,0.3); }
-  .chip-item         { color: var(--text-secondary); border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.03); font-size: 10px; padding:3px 9px;}
+  .chip-item         { color: var(--text-secondary); border-color: var(--divider); background: var(--wash); font-size: 10px; padding:3px 9px;}
   .chip-item.active  { color: var(--gold); border-color: var(--gold); background: rgba(201,169,97,0.18); box-shadow:0 0 5px rgba(201,169,97,0.25);}
   /* 미선택 칩은 흐리게 — 선택/미선택을 시각적으로 명확히 구분 */
   .chip-year:not(.active), .chip-month:not(.active), .chip-week:not(.active),
@@ -94,12 +129,12 @@
   .down { color: var(--red); }
   table.exec th, table.exec td { padding: 8px 12px; }
   table.exec thead th {
-    background: rgba(255,255,255,0.03); color: var(--text-muted);
+    background: var(--wash); color: var(--text-muted);
     font-size: 11px; font-weight: 600; text-align: left;
     border-bottom: 1px solid var(--border);
   }
-  table.exec tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
-  table.exec tbody tr:hover { background: rgba(255,255,255,0.02); }
+  table.exec tbody tr { border-bottom: 1px solid var(--divider); }
+  table.exec tbody tr:hover { background: var(--wash-3); }
   .filter-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:3px 0; }
   .filter-label { font-size:11px; font-weight:700; color:var(--text-muted); min-width:50px; }
   .filter-grid { display:flex; flex-wrap:wrap; gap:4px; flex:1; user-select:none; -webkit-user-select:none; }
@@ -129,13 +164,13 @@
     pointer-events: auto;
     display: flex; align-items: center; gap: 8px;
     padding: 6px 11px 6px 9px; position: relative;
-    background: rgba(15,20,32,0.82);
+    background: var(--kpi-cell-bg);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     border: 1px solid var(--border);
     border-left: 3px solid var(--accent);
     border-radius: 7px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    box-shadow: 0 4px 12px var(--card-shadow);
   }
   .kpi-cell .kpi-label {
     font-size: 11px; letter-spacing: 0.04em; color: var(--text-muted);
@@ -173,13 +208,14 @@
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <span style="font-size:10px;color:var(--text-muted);">부서</span>
+      <button class="btn" id="themeBtn" onclick="toggleTheme()" style="font-size:11px;" title="다크/화이트 전환">☀️ 화이트</button>
+      <span style="font-size:10px;color:var(--text-muted);margin-left:6px;">부서</span>
       <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반 (액상)</button>
       <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반 (카테터)</button>
     </div>
   </div>
 
-  <div class="filter-row" style="margin-top:10px;padding-top:8px;border-top:1px dashed rgba(255,255,255,0.08);">
+  <div class="filter-row" style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--divider);">
     <span class="filter-label">연도</span>
     <div class="filter-grid" id="yearChips"></div>
   </div>
@@ -238,7 +274,7 @@
     <span class="filter-label">품목 <span id="itemCount" style="font-weight:400;color:var(--text-muted);font-size:10px;">—</span></span>
     <div class="filter-grid" id="itemChips" style="max-height:80px;overflow-y:auto;"></div>
     <input id="itemSearch" placeholder="🔍 검색" oninput="renderItemChips()"
-      style="background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text-primary);
+      style="background:var(--wash);border:1px solid var(--border);color:var(--text-primary);
              border-radius:8px;padding:5px 10px;font-size:11px;width:160px;outline:none;">
     <button id="btnAllItems" class="btn" onclick="selectAllItems()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="clearItems()" style="font-size:10px;padding:4px 10px;">해제</button>
@@ -251,11 +287,11 @@
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
       <div id="trendSub" style="font-size:11px;color:var(--text-muted);">—</div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;">
+        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--wash);border:1px solid var(--border);border-radius:8px;">
           <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
           <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
-          <span class="chip metric" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:rgba(255,255,255,0.12);background:transparent;opacity:0.35;">생산</span>
-          <span class="chip metric" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:rgba(255,255,255,0.12);background:transparent;opacity:0.35;">출고</span>
+          <span class="chip metric" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:var(--divider);background:transparent;opacity:0.35;">생산</span>
+          <span class="chip metric" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:var(--divider);background:transparent;opacity:0.35;">출고</span>
         </div>
         <button id="yoyBtn" onclick="toggleYoY()" class="btn"
           style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
@@ -271,7 +307,7 @@
       <div id="chartTrend" style="height:380px;"></div>
     </div>
     <div class="comment-box embedded" id="commentBox" style="margin-top:10px;">분석 중…</div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px dashed rgba(255,255,255,0.08);">
+    <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--divider);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <button id="weekTableToggle" class="btn" onclick="toggleWeekTable()" style="font-size:10px;padding:4px 10px;">▸ 상세 보기</button>
@@ -1062,19 +1098,24 @@ function toggleMetric(m) {
     if (APP.activeMetrics.size === 1) return;
     APP.activeMetrics.delete(m);
   } else APP.activeMetrics.add(m);
+  paintMetricChips();
+  renderChart();
+  renderShare();
+}
+// 지표 칩 색 — 테마(다크/화이트)에 맞춰 강조색 매핑 적용
+function paintMetricChips() {
   document.querySelectorAll('.chip.metric').forEach(el => {
     const me = el.dataset.metric;
-    const col = METRIC_COLORS[me];
+    const col = mapAccent(METRIC_COLORS[me]);
+    el.style.color = col;
     if (APP.activeMetrics.has(me)) {
       el.classList.add('active'); el.style.opacity='1';
       el.style.background = col + '26'; el.style.borderColor = col + '99';
     } else {
       el.classList.remove('active'); el.style.opacity='0.35';
-      el.style.background = 'transparent'; el.style.borderColor = 'rgba(255,255,255,0.12)';
+      el.style.background = 'transparent'; el.style.borderColor = 'var(--divider)';
     }
   });
-  renderChart();
-  renderShare();
 }
 
 /* ============================================================
@@ -1505,7 +1546,7 @@ function renderChart() {
             : (inds.length > 0 ? inds : totals));
       const catAgg = aggregateByWeek(useItems, months, data.items);
       const labelToVal = new Map(catAgg.map(r => [r.label, r[metric]]));
-      const color = PALETTE[ci % PALETTE.length];
+      const color = mapAccent(PALETTE[ci % PALETTE.length]);
       series.push({
         name: cat,
         type: metric === '불량' ? 'bar' : 'line',
@@ -1589,8 +1630,8 @@ function renderChart() {
       smooth: true, symbol:'circle', symbolSize:7,
       data: padFuture(agg.map(r => r[m])),
       yAxisIndex: m === '불량' ? 1 : 0,
-      lineStyle: { color: METRIC_COLORS[m], width: 2.5 },
-      itemStyle: { color: METRIC_COLORS[m] },
+      lineStyle: { color: mapAccent(METRIC_COLORS[m]), width: 2.5 },
+      itemStyle: { color: mapAccent(METRIC_COLORS[m]) },
       barWidth: '20%',
       markLine: mlData.length ? { symbol: ['none','none'], silent: true, data: mlData } : undefined,
       markPoint: makeMonthSumMP(m, METRIC_COLORS[m]),
@@ -1652,8 +1693,8 @@ function renderChart() {
         smooth: true, symbol:'emptyCircle', symbolSize:5,
         data: padFuture(agg.map(r => yoyMap.get(`${r.mo}-${r.wk}`)?.[m] ?? null)),
         yAxisIndex: m === '불량' ? 1 : 0,
-        lineStyle: { color: METRIC_COLORS[m], width: 1.5, type: 'dashed', opacity: 0.6 },
-        itemStyle: { color: METRIC_COLORS[m], opacity: 0.6 },
+        lineStyle: { color: mapAccent(METRIC_COLORS[m]), width: 1.5, type: 'dashed', opacity: 0.6 },
+        itemStyle: { color: mapAccent(METRIC_COLORS[m]), opacity: 0.6 },
         barWidth: '20%',
         connectNulls: true,
       });
@@ -1663,11 +1704,12 @@ function renderChart() {
   }
 
   if (!APP.chart) APP.chart = echarts.init(document.getElementById('chartTrend'));
+  const T = chartTheme();
   APP.chart.setOption({
     backgroundColor: 'transparent',
-    textStyle: { fontFamily:'Pretendard', color:'#8A9BBF' },
+    textStyle: { fontFamily:'Pretendard', color:T.axisText },
     tooltip: {
-      trigger:'axis', backgroundColor:'#0F1520', borderColor:'#243049', textStyle:{color:'#EDF2FB'},
+      trigger:'axis', backgroundColor:T.tipBg, borderColor:T.tipBorder, textStyle:{color:T.tipText},
       formatter(params){
         let h = `<div style="font-weight:700;margin-bottom:4px;">${params[0].axisValue}</div>`;
         params.forEach(p => {
@@ -1680,14 +1722,14 @@ function renderChart() {
         return h;
       }
     },
-    legend: { data: legend.filter(n => !n.endsWith('_lo') && !n.endsWith('_band')), textStyle:{color:'#8A9BBF'}, top:8, left:12, type:'scroll' },
+    legend: { data: legend.filter(n => !n.endsWith('_lo') && !n.endsWith('_band')), textStyle:{color:T.axisText}, top:8, left:12, type:'scroll' },
     grid: { left:55, right:55, top:72, bottom:30 },
-    xAxis: { type:'category', data:xDataAll, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', rotate: xDataAll.length > 10 ? 30 : 0,
+    xAxis: { type:'category', data:xDataAll, axisLine:{lineStyle:{color:T.axisLine}}, axisLabel:{color:T.axisText, rotate: xDataAll.length > 10 ? 30 : 0,
       formatter: (v) => futureLabels.includes(v) ? `{f|${v}}` : v,
-      rich: { f: { color: '#AB8FE0', fontWeight: 700 } }
+      rich: { f: { color: mapAccent('#AB8FE0'), fontWeight: 700 } }
     } },
     yAxis: [
-      { type:'value', name:'수량', nameTextStyle:{color:'#6B7693',fontSize:10}, splitLine:{lineStyle:{color:'#1A2236'}}, axisLabel:{color:'#8A9BBF', formatter:v=>v>=1000?Math.round(v/1000)+'k':v} },
+      { type:'value', name:'수량', nameTextStyle:{color:T.axisName,fontSize:10}, splitLine:{lineStyle:{color:T.split}}, axisLabel:{color:T.axisText, formatter:v=>v>=1000?Math.round(v/1000)+'k':v} },
     ],
     series
   }, true);
@@ -1902,11 +1944,12 @@ function renderMonthlyProgress() {
   }
 
   if (!APP.chartMonthly) APP.chartMonthly = echarts.init(sec);
+  const T = chartTheme();
   APP.chartMonthly.setOption({
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      backgroundColor:'#1A2236', borderColor:'#243049', textStyle:{color:'#E8EEF7'},
+      backgroundColor:T.tipBg, borderColor:T.tipBorder, textStyle:{color:T.tipText},
       axisPointer:{ type:'shadow' },
       formatter: (params) => {
         const idx = params[0].dataIndex;
@@ -1915,26 +1958,26 @@ function renderMonthlyProgress() {
         const label = r.status === '진행중'
           ? `진행중 (${r.latestWk}주차까지)`
           : r.status === '마감' ? '마감' : '예정';
-        return `<div style="font-weight:700;margin-bottom:4px;">${r.mo}월 · <span style="color:#8A9BBF;">${label}</span></div>
-          <div>계획: <b style="color:#8A9BBF;">${fmtN(r.plan)}</b></div>
-          <div>실적(현재까지 생산): <b style="color:#4FC3F7;">${fmtN(r.actual)}</b></div>
-          <div>${r.status === '진행중' ? '진척률' : '달성률'}: <b style="color:#C9B3F5;">${rate}%</b></div>`;
+        return `<div style="font-weight:700;margin-bottom:4px;">${r.mo}월 · <span style="color:${T.axisText};">${label}</span></div>
+          <div>계획: <b style="color:${T.axisText};">${fmtN(r.plan)}</b></div>
+          <div>실적(현재까지 생산): <b style="color:${mapAccent('#4FC3F7')};">${fmtN(r.actual)}</b></div>
+          <div>${r.status === '진행중' ? '진척률' : '달성률'}: <b style="color:${mapAccent('#AB8FE0')};">${rate}%</b></div>`;
       }
     },
     grid: { left: 60, right: 50, top: duodecaMP ? 112 : 30, bottom: 30 },
-    xAxis: { type:'category', data: months, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF', fontWeight:600} },
+    xAxis: { type:'category', data: months, axisLine:{lineStyle:{color:T.axisLine}}, axisLabel:{color:T.axisText, fontWeight:600} },
     yAxis: [
-      { type:'value', name:'수량(EA)', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:'#1A2236'}} },
-      { type:'value', name:'달성%', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter:'{value}%'}, splitLine:{show:false},
+      { type:'value', name:'수량(EA)', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:T.split}} },
+      { type:'value', name:'달성%', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter:'{value}%'}, splitLine:{show:false},
         max: Math.max(120, Math.ceil(Math.max(...rateData.filter(v=>v!=null), 100) * 1.15 / 10) * 10) },
     ],
     series: [
-      { name:'계획', type:'bar', data: planData, itemStyle:{color:'#8A9BBF', borderRadius:[6,6,0,0], opacity:0.55}, barGap:'-100%', barWidth: 28 },
-      { name:'실적', type:'bar', data: actualData, barWidth: 28, markPoint: duodecaMP || undefined },
+      { name:'계획', type:'bar', data: planData, itemStyle:{color:mapAccent('#8A9BBF'), borderRadius:[6,6,0,0], opacity:0.55}, barGap:'-100%', barWidth: 28 },
+      { name:'실적', type:'bar', data: actualData, barWidth: 28, itemStyle:{color:mapAccent('#4FC3F7'), borderRadius:[6,6,0,0]}, markPoint: duodecaMP || undefined },
       { name:'달성률', type:'line', yAxisIndex:1,
         data: rateData,
         connectNulls:true, smooth:true, symbol:'circle', symbolSize:9,
-        lineStyle:{color:'#AB8FE0', width:2.5}, itemStyle:{color:'#AB8FE0'}, z:10,
+        lineStyle:{color:mapAccent('#AB8FE0'), width:2.5}, itemStyle:{color:mapAccent('#AB8FE0')}, z:10,
         label:{ show:true, color:'#D8C6F7', fontSize:11, fontWeight:800,
           formatter: p => p.value == null ? '' : p.value + '%',
           backgroundColor:'rgba(28,20,48,0.9)', borderColor:'#AB8FE0', borderWidth:1, padding:[3,6], borderRadius:4 } },
@@ -1952,18 +1995,18 @@ function renderMonthlyProgress() {
     </tr></thead><tbody>`;
   for (const r of rows) {
     const rate = r.plan > 0 ? (r.actual/r.plan*100) : null;
-    const rateColor = rate == null ? 'var(--text-muted)' : rate >= 100 ? 'var(--mint)' : rate >= 80 ? 'var(--gold)' : '#E63946';
+    const rateColor = rate == null ? 'var(--text-muted)' : rate >= 100 ? 'var(--mint)' : rate >= 80 ? 'var(--gold)' : 'var(--red)';
     const statusBadge = r.status === '마감'
-      ? '<span style="color:#4FC3F7;font-weight:700;">마감</span>'
+      ? '<span style="color:var(--cyan);font-weight:700;">마감</span>'
       : r.status === '진행중'
-        ? `<span style="color:#FFB547;font-weight:700;">진행중 (${r.latestWk}주차)</span>`
+        ? `<span style="color:var(--amber);font-weight:700;">진행중 (${r.latestWk}주차)</span>`
         : '<span style="color:var(--text-muted);">예정</span>';
     const isClosedRow = r.status !== '진행중';
     const hideStyle = (isClosedRow && !mpShowClosed) ? 'display:none;' : '';
     tableHtml += `<tr class="${isClosedRow ? 'mp-closed-row' : ''}" style="${hideStyle}">
       <td style="font-weight:700;">${r.mo}월</td>
       <td>${statusBadge}</td>
-      <td style="text-align:right;color:#8A9BBF;font-weight:600;" class="num">${fmtN(r.plan)}</td>
+      <td style="text-align:right;color:var(--text-muted);font-weight:600;" class="num">${fmtN(r.plan)}</td>
       <td style="text-align:right;color:var(--cyan);font-weight:600;" class="num">${fmtN(r.actual)}</td>
       <td style="text-align:right;color:var(--text-secondary);" class="num">${fmtN(r.actual)}</td>
       <td style="text-align:right;font-weight:700;color:${rateColor};" class="num">${rate == null ? '—' : rate.toFixed(1) + '%'}</td>
@@ -2026,9 +2069,9 @@ function renderLaggardItems() {
     html += `<tr>
       <td style="color:var(--text-secondary);">${l.category}</td>
       <td style="font-weight:600;">${l.model}</td>
-      <td style="text-align:right;color:#8A9BBF;" class="num">${fmtN(l.plan)}</td>
+      <td style="text-align:right;color:var(--text-muted);" class="num">${fmtN(l.plan)}</td>
       <td style="text-align:right;color:var(--cyan);" class="num">${fmtN(l.actual)}</td>
-      <td style="text-align:right;color:#E63946;font-weight:700;" class="num">${fmtN(l.shortage)}</td>
+      <td style="text-align:right;color:var(--red);font-weight:700;" class="num">${fmtN(l.shortage)}</td>
       <td style="text-align:right;color:${sev};font-weight:700;" class="num">${l.rate.toFixed(1)}%</td>
     </tr>`;
   }
@@ -2071,41 +2114,42 @@ function renderSafety() {
   if (shortages.length === 0) {
     cmt.innerHTML = '<span style="color:var(--mint);font-weight:700;">✓ 전체 품목군 안전재고 확보 완료</span>';
   } else {
-    let html = '<div style="font-weight:700;color:#E8EEF7;margin-bottom:4px;">⚠️ 안전재고 부족 분석</div>';
-    html += `<div style="color:#FFB547;font-weight:600;margin-bottom:6px;">부족 품목군: ${shortages.length}개 · 총 부족량: ${fmtN(totalShortage)}개</div>`;
+    let html = '<div style="font-weight:700;color:var(--text-primary);margin-bottom:4px;">⚠️ 안전재고 부족 분석</div>';
+    html += `<div style="color:var(--amber);font-weight:600;margin-bottom:6px;">부족 품목군: ${shortages.length}개 · 총 부족량: ${fmtN(totalShortage)}개</div>`;
     for (const s of shortages) {
       const sev = s.rate < 50 ? '🔴 심각' : s.rate < 80 ? '🟠 주의' : '🟡 경고';
       const col = s.rate < 50 ? '#E63946' : s.rate < 80 ? '#FFB547' : '#C9A961';
-      html += `<div style="margin:4px 0;padding:6px 8px;background:rgba(255,255,255,0.025);border-radius:4px;">
-        <span style="font-weight:700;color:#E8EEF7;">${s.cat}</span> ·
+      html += `<div style="margin:4px 0;padding:6px 8px;background:var(--wash-3);border-radius:4px;">
+        <span style="font-weight:700;color:var(--text-primary);">${s.cat}</span> ·
         <span style="color:${col};font-weight:700;">${s.rate.toFixed(1)}%</span> ${sev}
         <span style="color:var(--text-muted);">(${fmtN(s.shortage)}개 부족)</span>
       </div>`;
     }
-    html += '<div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);font-size:10px;color:var(--text-muted);">💡 부족한 품목군을 우선으로 재고 확충 필요</div>';
+    html += '<div style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--divider);font-size:10px;color:var(--text-muted);">💡 부족한 품목군을 우선으로 재고 확충 필요</div>';
     cmt.innerHTML = html;
   }
 
   if (!APP.chartSafety) APP.chartSafety = echarts.init(document.getElementById('chartSafety'));
   const ch = APP.chartSafety;
+  const T = chartTheme();
   ch.setOption({
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis', backgroundColor:'#1A2236', borderColor:'#243049', textStyle:{color:'#E8EEF7'}, axisPointer:{type:'shadow'} },
-    legend: { data:['안전재고','현재고','확보율'], textStyle:{color:'#8A9BBF'}, top: 6 },
+    tooltip: { trigger: 'axis', backgroundColor:T.tipBg, borderColor:T.tipBorder, textStyle:{color:T.tipText}, axisPointer:{type:'shadow'} },
+    legend: { data:['안전재고','현재고','확보율'], textStyle:{color:T.axisText}, top: 6 },
     grid: { left: 60, right: 60, top: 50, bottom: 30 },
-    xAxis: { type:'category', data: cats, axisLine:{lineStyle:{color:'#243049'}}, axisLabel:{color:'#8A9BBF'} },
+    xAxis: { type:'category', data: cats, axisLine:{lineStyle:{color:T.axisLine}}, axisLabel:{color:T.axisText} },
     yAxis: [
-      { type:'value', name:'수량(EA)', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:'#1A2236'}} },
-      { type:'value', name:'확보율 %', nameTextStyle:{color:'#5A6478'}, axisLabel:{color:'#8A9BBF', formatter:'{value}%'}, splitLine:{show:false},
+      { type:'value', name:'수량(EA)', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:T.split}} },
+      { type:'value', name:'확보율 %', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter:'{value}%'}, splitLine:{show:false},
         max: Math.max(150, Math.ceil(Math.max(...rateArr, 100) * 1.15 / 10) * 10) },
     ],
     series: [
-      { name:'안전재고', type:'bar', data: safetyArr, itemStyle:{color:'#C9A961', borderRadius:[6,6,0,0]}, barWidth: 22 },
-      { name:'현재고',  type:'bar', data: currentArr, itemStyle:{color:'#E63946', borderRadius:[6,6,0,0]}, barWidth: 22 },
+      { name:'안전재고', type:'bar', data: safetyArr, itemStyle:{color:mapAccent('#C9A961'), borderRadius:[6,6,0,0]}, barWidth: 22 },
+      { name:'현재고',  type:'bar', data: currentArr, itemStyle:{color:mapAccent('#E63946'), borderRadius:[6,6,0,0]}, barWidth: 22 },
       { name:'확보율',  type:'line', yAxisIndex:1,
         data: rateArr.map(v => ({ value: v, label: { position: v >= 5 ? 'top' : 'bottom' } })),
         smooth:true, symbol:'circle', symbolSize:9,
-        lineStyle:{color:'#4FC3F7', width:2.5}, itemStyle:{color:'#4FC3F7'}, z: 10,
+        lineStyle:{color:mapAccent('#4FC3F7'), width:2.5}, itemStyle:{color:mapAccent('#4FC3F7')}, z: 10,
         label:{
           show: true, color:'#4FC3F7', fontSize:11, fontWeight:800,
           formatter: '{c}%', distance: 6,
@@ -2114,6 +2158,47 @@ function renderSafety() {
     ]
   }, true);
 }
+
+/* ============================================================
+   테마(다크/화이트) — 토글 + 차트 색 헬퍼
+   ============================================================ */
+// ECharts 크롬(축·격자·툴팁·테두리) 색 — 현재 테마 기준
+function chartTheme() {
+  const l = document.body.classList.contains('light');
+  return l
+    ? { axisText:'#5A6577', axisName:'#7A8494', split:'#E6EAF1', axisLine:'#D5DAE3',
+        tipBg:'#FFFFFF', tipText:'#1B2433', tipBorder:'#D5DAE3', pieBorder:'#FFFFFF', centerText:'#1B2433' }
+    : { axisText:'#8A9BBF', axisName:'#5A6478', split:'#1A2236', axisLine:'#243049',
+        tipBg:'#0F1520', tipText:'#EDF2FB', tipBorder:'#243049', pieBorder:'#131826', centerText:'#EDF2FB' };
+}
+// 강조색 — 화이트 모드에서 대비 확보를 위해 한 단계 진하게 매핑(다크에선 원색 유지)
+const ACCENT_LIGHT = {
+  '#C9A961':'#A8821F','#4FC3F7':'#1E7CC4','#00E5A0':'#00936A','#E63946':'#CE2C39',
+  '#FFB547':'#C4811A','#AB8FE0':'#6A4FC0','#FF6B9D':'#D43E72','#7BD389':'#4E9D5C',
+  '#6FC3DF':'#2E8FB0','#F2A65A':'#C2762B','#8A9BBF':'#5A6577','#B8C5D6':'#8893A6',
+  '#9B7BFF':'#6A4FC0','#B57BFF':'#7A4FC0','#FFA94D':'#C2762B','#D4A5A5':'#B07878',
+};
+function mapAccent(hex) {
+  return document.body.classList.contains('light') ? (ACCENT_LIGHT[hex] || hex) : hex;
+}
+function applyTheme(t) {
+  document.body.classList.toggle('light', t === 'light');
+  try { localStorage.setItem('wd_theme', t); } catch(e) {}
+  const b = document.getElementById('themeBtn');
+  if (b) b.textContent = t === 'light' ? '🌙 다크' : '☀️ 화이트';
+  if (typeof paintMetricChips === 'function') paintMetricChips();
+  if (APP && APP.data) renderBody();
+}
+function toggleTheme() {
+  applyTheme(document.body.classList.contains('light') ? 'dark' : 'light');
+}
+(function initTheme(){
+  let t = 'dark';
+  try { t = localStorage.getItem('wd_theme') || 'dark'; } catch(e) {}
+  document.body.classList.toggle('light', t === 'light');
+  const b = document.getElementById('themeBtn');
+  if (b) b.textContent = t === 'light' ? '🌙 다크' : '☀️ 화이트';
+})();
 
 /* ============================================================
    품목군별 구성 비중 (도넛) — 상단 지표칩 연동, 모든 필터 반영,
@@ -2170,9 +2255,9 @@ function renderShare() {
     return sumOf(srcData, useItems);
   };
 
-  const colorOf = (name, i) => mode === 'cat'
+  const colorOf = (name, i) => mapAccent(mode === 'cat'
     ? PALETTE[Math.max(0, allCats.indexOf(name)) % PALETTE.length]
-    : PALETTE[i % PALETTE.length];
+    : PALETTE[i % PALETTE.length]);
 
   // 현재년 rows
   let rows = names.map((name,i) => ({ name, value: valFor(data, name), color: colorOf(name,i) }))
@@ -2198,21 +2283,22 @@ function renderShare() {
     + (hasComp ? ` · 좌측 ${compYear}년 동기간` : '') + ' · 조각/범례 클릭 시 필터';
 
   const fmt = (v) => Math.round(v).toLocaleString();
+  const T = chartTheme();
   const donutOption = (rws, tot, centerSub) => ({
-    tooltip: { trigger:'item', backgroundColor:'rgba(19,24,38,0.95)', borderColor:'#243049',
-      textStyle:{ color:'#EDF2FB', fontSize:12 },
+    tooltip: { trigger:'item', backgroundColor:T.tipBg, borderColor:T.tipBorder,
+      textStyle:{ color:T.tipText, fontSize:12 },
       formatter: p => `${p.marker}${p.name}<br/><b>${metric} ${fmt(p.value)}</b> · ${p.percent}%` },
     series: [{
       type:'pie', radius:['60%','86%'], center:['50%','50%'],
       avoidLabelOverlap:true, label:{show:false}, labelLine:{show:false},
-      itemStyle:{ borderColor:'#131826', borderWidth:2, borderRadius:3 },
+      itemStyle:{ borderColor:T.pieBorder, borderWidth:2, borderRadius:3 },
       data: rws.map(r => ({ name:r.name, value:r.value, itemStyle:{ color:r.color } })),
     }],
     graphic: [
       { type:'text', left:'center', top:'40%', z:10,
-        style:{ text: fmt(tot), fill:'#EDF2FB', fontSize:23, fontWeight:700, textAlign:'center' } },
+        style:{ text: fmt(tot), fill:T.centerText, fontSize:23, fontWeight:700, textAlign:'center' } },
       { type:'text', left:'center', top:'57%', z:10,
-        style:{ text: centerSub, fill:'#6B7693', fontSize:11, textAlign:'center' } },
+        style:{ text: centerSub, fill:T.axisText, fontSize:11, textAlign:'center' } },
     ],
   });
 
@@ -2248,16 +2334,16 @@ function renderShare() {
         const cv = compValByName[r.name] || 0;
         const cpct = compTotal ? (cv/compTotal*100) : 0;
         const dpp = pct - cpct;
-        const dcol = dpp > 0.05 ? '#00E5A0' : (dpp < -0.05 ? '#E63946' : '#6B7693');
+        const dcol = dpp > 0.05 ? mapAccent('#00E5A0') : (dpp < -0.05 ? mapAccent('#E63946') : 'var(--text-muted)');
         const arrow = dpp > 0.05 ? '▲' : (dpp < -0.05 ? '▼' : '–');
         compCell = `<span style="flex:0 0 132px;text-align:right;font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${compYear}년 ${cpct.toFixed(1)}% <span style="color:${dcol};">${arrow}${Math.abs(dpp).toFixed(1)}p</span></span>`;
       }
       return `<div class="share-row" data-name="${escapeAttr(r.name)}" data-mode="${mode}"
         style="display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background .15s;"
-        onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
+        onmouseover="this.style.background='var(--wash-2)'" onmouseout="this.style.background='transparent'">
         <span style="width:11px;height:11px;border-radius:2px;background:${r.color};flex:0 0 auto;"></span>
         <span style="flex:1;min-width:70px;font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}</span>
-        <span style="flex:0 0 56px;height:6px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden;"><span style="display:block;height:100%;width:${pct.toFixed(1)}%;background:${r.color};"></span></span>
+        <span style="flex:0 0 56px;height:6px;background:var(--wash-2);border-radius:3px;overflow:hidden;"><span style="display:block;height:100%;width:${pct.toFixed(1)}%;background:${r.color};"></span></span>
         <span style="flex:0 0 70px;text-align:right;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${fmt(r.value)}</span>
         <span style="flex:0 0 46px;text-align:right;font-size:13px;font-weight:700;color:${r.color};font-variant-numeric:tabular-nums;">${pct.toFixed(1)}%</span>
         ${compCell}
@@ -2283,7 +2369,7 @@ function shareDrill(name, mode) {
   }
 }
 
-function renderBody() { renderKPI(); renderComment(); renderChart(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); }
+function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
@@ -2344,8 +2430,8 @@ async function init() {
   } catch (err) {
     document.getElementById('loadingOverlay').innerHTML = `
       <div style="text-align:center;padding:40px;">
-        <div style="font-size:18px;color:#E63946;font-weight:700;">데이터 로딩 실패</div>
-        <div style="font-size:12px;color:#6B7693;margin-top:14px;">${err.message}</div>
+        <div style="font-size:18px;color:var(--red);font-weight:700;">데이터 로딩 실패</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:14px;">${err.message}</div>
       </div>`;
   }
 }
