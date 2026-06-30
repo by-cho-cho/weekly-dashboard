@@ -2228,20 +2228,34 @@ function renderShare() {
   const sumOf = (srcData, useItems) =>
     aggregateByWeek(useItems, months, srcData.items).reduce((s,r)=> s + (r[metric]||0), 0);
 
-  // 품목군이 1개만 남으면 → 그 안의 개별 품목 비중으로 드릴다운
+  // 품목군이 1개만 남으면 → 세부 분류가 있으면 '세부'(텐텍·제이시스…)별, 없으면 개별 품목별
+  const SUB_ORDER = ['텐텍','제이시스','비올','원텍','청우'];
   let mode = 'cat', names, drillCat = null;
   if (cats.length === 1) {
-    mode = 'item'; drillCat = cats[0];
+    drillCat = cats[0];
     const inds = data.items.filter(it => it.category === drillCat && !it.isTotal);
     const pool = selSubset ? inds.filter(it => selItems.has(it.model)) : inds;
-    names = [...new Set(pool.map(it => it.model))];
+    const subsPresent = [...new Set(pool.map(it => detectSubcategory(drillCat, it.model)).filter(Boolean))];
+    if (subsPresent.length >= 2) {
+      mode = 'sub';
+      names = SUB_ORDER.filter(s => subsPresent.includes(s));
+      subsPresent.forEach(s => { if (!names.includes(s)) names.push(s); });
+    } else {
+      mode = 'item';
+      names = [...new Set(pool.map(it => it.model))];
+    }
   } else {
     names = cats.slice();
   }
 
-  // 특정 연도 데이터에서 name(품목군 또는 품목)의 metric 합 — 부서별 소스 원칙 동일 적용
+  // 특정 연도 데이터에서 name(품목군·세부·품목)의 metric 합 — 부서별 소스 원칙 동일 적용
   const valFor = (srcData, name) => {
     if (!srcData) return 0;
+    if (mode === 'sub') {
+      const its = srcData.items.filter(it => it.category === drillCat && !it.isTotal
+        && detectSubcategory(drillCat, it.model) === name);
+      return sumOf(srcData, its);
+    }
     if (mode === 'item') {
       const its = srcData.items.filter(it => it.category === drillCat && !it.isTotal && it.model === name);
       return sumOf(srcData, its);
@@ -2259,18 +2273,28 @@ function renderShare() {
     ? PALETTE[Math.max(0, allCats.indexOf(name)) % PALETTE.length]
     : PALETTE[i % PALETTE.length]);
 
-  // 현재년 rows
-  let rows = names.map((name,i) => ({ name, value: valFor(data, name), color: colorOf(name,i) }))
+  // ── 조각 토글(제외/포함) — 드릴다운(세부·품목) 모드에서만 ──
+  // 컨텍스트(품목군/모드/구성)가 바뀌면 제외 목록 초기화
+  if (!APP.shareEx) APP.shareEx = new Set();
+  const canToggle = (mode === 'sub' || mode === 'item');
+  const ctxKey = `${APP.dept}|${mode}|${drillCat||''}|${names.slice().sort().join('§')}`;
+  if (APP.shareCtx !== ctxKey) { APP.shareEx = new Set(); APP.shareCtx = ctxKey; }
+  const isEx = (name) => canToggle && APP.shareEx.has(name);
+
+  // 현재년 rows — 색은 names 위치 기준(엔티티 고정), 정렬 전 부여
+  let allRows = names.map((name,i) => ({ name, value: valFor(data, name), color: colorOf(name,i), excluded: isEx(name) }))
                   .filter(r => r.value > 0).sort((a,b)=> b.value - a.value);
+  APP.shareNames = allRows.map(r => r.name); // 토글 최소 1개 유지용
+  const rows = allRows.filter(r => !r.excluded); // 도넛·비중 계산은 포함분만
   const total = rows.reduce((s,r)=>s+r.value,0);
 
-  // 비교년(동기간) — 같은 name 집합·기간·필터로 다른 해 데이터 집계
+  // 비교년(동기간) — 같은 name 집합·기간·필터로 다른 해 데이터 집계(제외분 반영)
   const compYear = APP.year === 2026 ? 2025 : 2026;
   const compData = APP.data[compYear]?.[APP.dept];
   const compValByName = {};
   let compTotal = 0;
   if (compData && compData.items?.length) {
-    names.forEach(name => { const v = valFor(compData, name); compValByName[name] = v; compTotal += v; });
+    names.forEach(name => { const v = valFor(compData, name); compValByName[name] = v; if (!isEx(name)) compTotal += v; });
   }
   const hasComp = compTotal > 0;
 
@@ -2279,8 +2303,9 @@ function renderShare() {
     : '전체기간';
   const subEl = document.getElementById('shareSub');
   if (subEl) subEl.textContent = `${APP.year}년 · ${APP.dept} · ${periodLabel} · ${metric} 기준`
-    + (mode === 'item' ? ` · ${drillCat} 품목별` : '')
-    + (hasComp ? ` · 좌측 ${compYear}년 동기간` : '') + ' · 조각/범례 클릭 시 필터';
+    + (mode === 'sub' ? ` · ${drillCat} 세부별` : mode === 'item' ? ` · ${drillCat} 품목별` : '')
+    + (hasComp ? ` · 좌측 ${compYear}년 동기간` : '')
+    + (canToggle ? ' · 조각/범례 클릭 시 제외·복원(토글)' : ' · 조각/범례 클릭 시 필터');
 
   const fmt = (v) => Math.round(v).toLocaleString();
   const T = chartTheme();
@@ -2305,7 +2330,7 @@ function renderShare() {
   // 현재년 도넛 (가운데)
   APP.chartShare.setOption(donutOption(rows, total, `${APP.year}년 · ${periodLabel}`), true);
   APP.chartShare.off('click');
-  APP.chartShare.on('click', p => shareDrill(p.name, mode));
+  APP.chartShare.on('click', p => shareClick(p.name, mode));
   APP.chartShare.resize();
 
   // 비교년 동기간 도넛 (왼쪽) — 데이터 있을 때만 표시
@@ -2315,10 +2340,10 @@ function renderShare() {
       yoyEl.style.display = '';
       if (!APP.chartShareYoY) APP.chartShareYoY = echarts.init(yoyEl);
       const compRows = names.map((name,i) => ({ name, value: compValByName[name]||0, color: colorOf(name,i) }))
-                            .filter(r => r.value > 0).sort((a,b)=> b.value - a.value);
+                            .filter(r => r.value > 0 && !isEx(r.name)).sort((a,b)=> b.value - a.value);
       APP.chartShareYoY.setOption(donutOption(compRows, compTotal, `${compYear}년 동기간`), true);
       APP.chartShareYoY.off('click');
-      APP.chartShareYoY.on('click', p => shareDrill(p.name, mode));
+      APP.chartShareYoY.on('click', p => shareClick(p.name, mode));
       APP.chartShareYoY.resize();
     } else {
       yoyEl.style.display = 'none';
@@ -2327,31 +2352,65 @@ function renderShare() {
 
   const legend = document.getElementById('shareLegend');
   if (legend) {
-    legend.innerHTML = rows.length ? rows.map(r => {
-      const pct = total ? (r.value/total*100) : 0;
+    const resetHtml = (canToggle && APP.shareEx.size > 0)
+      ? `<div id="shareReset" style="font-size:11px;color:var(--cyan);cursor:pointer;padding:3px 6px;margin-bottom:3px;font-weight:600;">↺ 전체 표시 (${APP.shareEx.size}개 제외 해제)</div>`
+      : '';
+    legend.innerHTML = resetHtml + (allRows.length ? allRows.map(r => {
+      const ex = r.excluded;
+      const pct = (!ex && total) ? (r.value/total*100) : 0;
       let compCell = '';
-      if (hasComp) {
+      if (hasComp && !ex) {
         const cv = compValByName[r.name] || 0;
         const cpct = compTotal ? (cv/compTotal*100) : 0;
         const dpp = pct - cpct;
         const dcol = dpp > 0.05 ? mapAccent('#00E5A0') : (dpp < -0.05 ? mapAccent('#E63946') : 'var(--text-muted)');
         const arrow = dpp > 0.05 ? '▲' : (dpp < -0.05 ? '▼' : '–');
         compCell = `<span style="flex:0 0 132px;text-align:right;font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${compYear}년 ${cpct.toFixed(1)}% <span style="color:${dcol};">${arrow}${Math.abs(dpp).toFixed(1)}p</span></span>`;
+      } else if (hasComp) {
+        compCell = `<span style="flex:0 0 132px;"></span>`;
       }
-      return `<div class="share-row" data-name="${escapeAttr(r.name)}" data-mode="${mode}"
-        style="display:flex;align-items:center;gap:10px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background .15s;"
+      const nameStyle = ex ? 'color:var(--text-muted);text-decoration:line-through;' : 'color:var(--text-primary);';
+      const pctText = ex ? '제외' : pct.toFixed(1)+'%';
+      const pctColor = ex ? 'var(--text-muted)' : r.color;
+      const swatch = ex ? 'background:transparent;border:1.5px solid var(--text-muted);' : `background:${r.color};`;
+      const tog = canToggle ? `<i style="flex:0 0 auto;font-size:11px;color:var(--text-muted);">${ex?'☐':'☑'}</i>` : '';
+      return `<div class="share-row" data-name="${escapeAttr(r.name)}" data-mode="${mode}" title="${canToggle?'클릭 시 제외/복원':''}"
+        style="display:flex;align-items:center;gap:9px;padding:5px 6px;border-radius:6px;cursor:pointer;transition:background .15s;opacity:${ex?'0.5':'1'};"
         onmouseover="this.style.background='var(--wash-2)'" onmouseout="this.style.background='transparent'">
-        <span style="width:11px;height:11px;border-radius:2px;background:${r.color};flex:0 0 auto;"></span>
-        <span style="flex:1;min-width:70px;font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}</span>
+        ${tog}
+        <span style="width:11px;height:11px;border-radius:2px;${swatch}flex:0 0 auto;"></span>
+        <span style="flex:1;min-width:64px;font-size:13px;${nameStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}</span>
         <span style="flex:0 0 56px;height:6px;background:var(--wash-2);border-radius:3px;overflow:hidden;"><span style="display:block;height:100%;width:${pct.toFixed(1)}%;background:${r.color};"></span></span>
         <span style="flex:0 0 70px;text-align:right;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${fmt(r.value)}</span>
-        <span style="flex:0 0 46px;text-align:right;font-size:13px;font-weight:700;color:${r.color};font-variant-numeric:tabular-nums;">${pct.toFixed(1)}%</span>
+        <span style="flex:0 0 46px;text-align:right;font-size:13px;font-weight:700;color:${pctColor};font-variant-numeric:tabular-nums;">${pctText}</span>
         ${compCell}
       </div>`;
-    }).join('') : `<div style="font-size:12px;color:var(--text-muted);padding:8px;">표시할 데이터가 없습니다.</div>`;
+    }).join('') : `<div style="font-size:12px;color:var(--text-muted);padding:8px;">표시할 데이터가 없습니다.</div>`);
     legend.querySelectorAll('.share-row').forEach(row =>
-      row.addEventListener('click', () => shareDrill(row.dataset.name, row.dataset.mode)));
+      row.addEventListener('click', () => shareClick(row.dataset.name, row.dataset.mode)));
+    const rb = document.getElementById('shareReset');
+    if (rb) rb.addEventListener('click', () => { APP.shareEx = new Set(); renderShare(); });
   }
+}
+
+// 도넛/범례 클릭 — 드릴다운(세부·품목) 모드면 토글(제외/복원), 품목군 모드면 필터 드릴
+function shareClick(name, mode) {
+  if (mode === 'sub' || mode === 'item') shareToggle(name);
+  else shareDrill(name, mode);
+}
+// 세부/품목 조각 제외·복원 — 비중을 나머지끼리 재계산. 최소 1개는 유지.
+function shareToggle(name) {
+  if (!name) return;
+  if (!APP.shareEx) APP.shareEx = new Set();
+  if (APP.shareEx.has(name)) {
+    APP.shareEx.delete(name);
+  } else {
+    const universe = APP.shareNames || [];
+    const remaining = universe.filter(n => !APP.shareEx.has(n) && n !== name);
+    if (remaining.length === 0) return; // 전부 제외 방지
+    APP.shareEx.add(name);
+  }
+  renderShare();
 }
 
 // 도넛/범례 클릭 → 해당 품목군(또는 품목)으로 필터 좁히기
