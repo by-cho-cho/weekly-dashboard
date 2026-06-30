@@ -1418,25 +1418,32 @@ function renderChart() {
   (function renderYtdOverlay(){
     const box = document.getElementById('ytdOverlay');
     if (!box) return;
+    const light = document.body.classList.contains('light');
+    const boxBg = light ? 'var(--kpi-cell-bg)' : 'rgba(15,20,32,0.82)';
+    const boxSh = light ? '0 2px 8px var(--card-shadow)' : '0 4px 12px rgba(0,0,0,0.35)';
+    const prvBg = light ? 'var(--wash-2)' : 'rgba(15,21,32,0.92)';
+    const prvTc = light ? 'var(--text-secondary)' : '#FFFFFF';
+    const prvBd = light ? 'var(--border)' : '#B8C5D6';
     const yoyTag = APP.year === 2026 ? '25년' : '26년';
     const rows = [];
     METRICS.filter(m => APP.activeMetrics.has(m)).forEach(m => {
       const cur = ytdAggCur.reduce((a,r) => a + (Number(r[m]) || 0), 0);
       if (!(cur > 0)) return;
-      const color = METRIC_COLORS[m] || '#FFB547';
+      const color = METRIC_COLORS[m] || '#FFB547';      // 라벨 배지 채움색(밝게 유지 + 어두운 글씨)
+      const vcol = mapAccent(color);                    // 값 텍스트색(테마별)
       const prv = ytdAggYoy ? ytdAggYoy.reduce((a,r) => a + (Number(r[m]) || 0), 0) : 0;
       let yoyHtml = '';
       if (prv > 0) {
         const diff = cur - prv, rate = diff / prv * 100, up = diff >= 0;
         const rc = up ? '#00E5A0' : '#E63946', rtc = up ? '#0F1520' : '#FFFFFF';
         yoyHtml =
-          `<span style="color:#FFFFFF;font-weight:800;font-size:11px;background:rgba(15,21,32,0.92);border:1px solid #B8C5D6;border-radius:4px;padding:2px 7px;">${yoyTag} ${prv.toLocaleString()}</span>`
+          `<span style="color:${prvTc};font-weight:800;font-size:11px;background:${prvBg};border:1px solid ${prvBd};border-radius:4px;padding:2px 7px;">${yoyTag} ${prv.toLocaleString()}</span>`
         + `<span style="color:${rtc};font-weight:800;font-size:11px;background:${rc};border-radius:4px;padding:2px 6px;">${up?'▲':'▼'} ${Math.abs(rate).toFixed(1)}%</span>`;
       }
       rows.push(
-        `<div style="display:flex;gap:5px;align-items:center;background:rgba(15,20,32,0.82);backdrop-filter:blur(6px);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:5px 9px;box-shadow:0 4px 12px rgba(0,0,0,0.35);">`
+        `<div style="display:flex;gap:5px;align-items:center;background:${boxBg};backdrop-filter:blur(6px);border:1px solid var(--border);border-left:3px solid ${vcol};border-radius:7px;padding:5px 9px;box-shadow:${boxSh};">`
         + `<span style="color:#0F1520;font-weight:800;font-size:10px;background:${color};border-radius:4px;padding:2px 6px;">동기간 누계 · ${m}</span>`
-        + `<span style="color:${color};font-weight:800;font-size:13px;font-family:'IBM Plex Sans',sans-serif;">${cur.toLocaleString()}</span>`
+        + `<span style="color:${vcol};font-weight:800;font-size:13px;font-family:'IBM Plex Sans',sans-serif;">${cur.toLocaleString()}</span>`
         + yoyHtml + `</div>`
       );
     });
