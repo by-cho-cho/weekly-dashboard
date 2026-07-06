@@ -1449,6 +1449,13 @@ function renderChart() {
     box.innerHTML = rows.join('');
   })();
 
+  // 좁은 화면에서 ∑·25년 배지가 가로로 이웃 달과 겹침 →
+  // 카테고리당 픽셀폭이 좁으면 세로 2단(∑ 위·25년 아래)으로 전환해 묶음 폭을 절반으로.
+  const _chartW = (document.getElementById('chartTrend')?.clientWidth) || 800;
+  const _plotW = Math.max(120, _chartW - 110); // grid left(55)+right(55)
+  const _pxPerCat = _plotW / Math.max(1, xDataAll.length);
+  const stackYtd = _pxPerCat < 30;
+
   function makeMonthSumMP(metric, color) {
     const sums = {};
     agg.forEach(r => { sums[r.mo] = (sums[r.mo] || 0) + (Number(r[metric]) || 0); });
@@ -1467,6 +1474,21 @@ function renderChart() {
       if (cur === 0 && prv === 0) return null;
       return { coord: [lb, 0], value: cur, yoy: prv > 0 ? prv : null };
     }).filter(Boolean);
+    // 이웃 앵커와 가까운 배지는 한 단 위로 올려 가로 겹침 회피
+    // (특히 주차가 적은 진행중 월은 직전 달과 붙어 세로 배치로도 겹칠 수 있음)
+    const _badgePx = stackYtd ? 74 : 120;
+    const _rise = stackYtd ? 42 : 26;
+    const _sorted = monthlyData
+      .map(d => ({ d, idx: xData.indexOf(d.coord[0]) }))
+      .filter(a => a.idx >= 0)
+      .sort((a, b) => a.idx - b.idx);
+    let _prevIdx = -Infinity, _prevLevel = 0;
+    for (const a of _sorted) {
+      const gap = (a.idx - _prevIdx) * _pxPerCat;
+      const level = (gap < _badgePx && _prevLevel === 0) ? 1 : 0;
+      a.d.label = { offset: [0, -level * _rise] };
+      _prevIdx = a.idx; _prevLevel = level;
+    }
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
       label: {
@@ -1486,15 +1508,15 @@ function renderChart() {
             }
             return lines.join('\n');
           }
-          // 월별 합계 ∑(현재년) + 25년 동기간 — 가로 배치로 평균선 라벨과의 세로 겹침 회피
+          // 월별 합계 ∑(현재년) + 25년 동기간 — 넓으면 가로, 좁으면 세로 2단(겹침 방지)
           const y = p.data.yoy;
           const cur = `{cur|∑ ${Number(p.value).toLocaleString()}}`;
-          return y != null
-            ? `${cur}{gap| }{yoy|${yoyTag} ${y.toLocaleString()}}`
-            : cur;
+          if (y == null) return cur;
+          const yoyChip = `{yoy|${yoyTag} ${y.toLocaleString()}}`;
+          return stackYtd ? `${cur}\n${yoyChip}` : `${cur}{gap| }${yoyChip}`;
         },
         backgroundColor: 'transparent', padding: 0, borderWidth: 0,
-        lineHeight: 14,
+        lineHeight: stackYtd ? 21 : 14,
         rich: {
           ytdLbl: { color: '#0F1520', fontWeight: 800, fontSize: 10,
             backgroundColor: '#FFB547', padding: [3,6], borderRadius: 4 },
