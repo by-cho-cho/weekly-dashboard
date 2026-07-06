@@ -1474,20 +1474,23 @@ function renderChart() {
       if (cur === 0 && prv === 0) return null;
       return { coord: [lb, 0], value: cur, yoy: prv > 0 ? prv : null };
     }).filter(Boolean);
-    // 이웃 앵커와 가까운 배지는 한 단 위로 올려 가로 겹침 회피
-    // (특히 주차가 적은 진행중 월은 직전 달과 붙어 세로 배치로도 겹칠 수 있음)
-    const _badgePx = stackYtd ? 74 : 120;
-    const _rise = stackYtd ? 42 : 26;
+    // 배지 겹침 완전 제거 — 그리디 다단 배치.
+    // 각 배지를 x구간(±반폭)이 겹치지 않는 '가장 낮은 단'에 올린다.
+    // → 같은 단끼리는 절대 안 겹치고, 단 사이는 세로 간격(_rise)으로 분리.
+    //   좁을수록 위로 여러 단 쌓이지만 서로 겹치는 일은 없다.
+    const _badgePx = stackYtd ? 84 : 128;  // 배지 폭(여유 포함)
+    const _rise    = stackYtd ? 44 : 28;   // 단 사이 세로 간격
     const _sorted = monthlyData
-      .map(d => ({ d, idx: xData.indexOf(d.coord[0]) }))
-      .filter(a => a.idx >= 0)
-      .sort((a, b) => a.idx - b.idx);
-    let _prevIdx = -Infinity, _prevLevel = 0;
+      .map(d => ({ d, x: xData.indexOf(d.coord[0]) * _pxPerCat }))
+      .filter(a => a.x >= 0)
+      .sort((a, b) => a.x - b.x);
+    const _levelRight = [];  // 각 단에 놓인 마지막 배지의 우변 x
     for (const a of _sorted) {
-      const gap = (a.idx - _prevIdx) * _pxPerCat;
-      const level = (gap < _badgePx && _prevLevel === 0) ? 1 : 0;
-      a.d.label = { offset: [0, -level * _rise] };
-      _prevIdx = a.idx; _prevLevel = level;
+      const left = a.x - _badgePx / 2;
+      let lvl = 0;
+      while (lvl < _levelRight.length && _levelRight[lvl] > left) lvl++;
+      _levelRight[lvl] = a.x + _badgePx / 2;
+      a.d.label = { offset: [0, -lvl * _rise] };
     }
     return {
       symbol: 'pin', symbolSize: 0, silent: true,
