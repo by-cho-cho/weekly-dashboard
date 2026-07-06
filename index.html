@@ -329,7 +329,7 @@
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
-        <div class="kpi-label">작년 대비 성장·하락 TOP</div>
+        <div class="kpi-label">작년 대비 성장·하락 TOP 5</div>
         <div id="growthSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
       </div>
     </div>
@@ -2325,34 +2325,42 @@ function renderGrowth() {
     return;
   }
 
-  const grown = entities.filter(e => e.delta > 0).sort((a,b)=> b.delta - a.delta);
-  const declined = entities.filter(e => e.delta < 0).sort((a,b)=> a.delta - b.delta);
+  const grown = entities.filter(e => e.delta > 0).sort((a,b)=> b.delta - a.delta).slice(0, 5);
+  const declined = entities.filter(e => e.delta < 0).sort((a,b)=> a.delta - b.delta).slice(0, 5);
 
-  const card = (e, up) => {
+  // 순위 행 — 순번·이름·(올해←작년)·증감 EA·증감률
+  const row = (e, rank, up) => {
     const accent = up ? 'var(--mint)' : 'var(--red)';
-    const icon = up ? '🚀' : '📉';
-    const title = up ? `최대 성장 ${unit}` : `최대 하락 ${unit}`;
-    if (!e) {
-      return `<div style="flex:1 1 260px;min-width:240px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:14px 16px;">
-        <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.04em;">${icon} ${title}</div>
-        <div style="color:var(--text-muted);margin-top:10px;">해당 ${unit} 없음</div></div>`;
-    }
-    const rateText = e.prev === 0 ? '신규 진입' : e.cur === 0 ? '생산 중단'
+    const rateText = e.prev === 0 ? '신규' : e.cur === 0 ? '중단'
       : `${up?'▲':'▼'} ${Math.abs(e.rate).toFixed(1)}%`;
-    const deltaText = `${e.delta >= 0 ? '+' : '−'}${fmtN(Math.abs(e.delta))} EA`;
-    return `<div style="flex:1 1 260px;min-width:240px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:14px 16px;">
-      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.04em;">${icon} ${title}</div>
-      <div style="font-size:16px;font-weight:800;color:var(--text-primary);margin:6px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(e.name)}">${e.name}</div>
-      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-        <span style="font-size:22px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${deltaText}</span>
-        <span style="font-size:13px;font-weight:700;color:${accent};">${rateText}</span>
+    const deltaText = `${e.delta >= 0 ? '+' : '−'}${fmtN(Math.abs(e.delta))}`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-top:1px solid var(--divider);">
+      <span style="flex:0 0 20px;height:20px;line-height:20px;text-align:center;border-radius:5px;background:${accent};color:#0F1520;font-weight:800;font-size:11px;">${rank}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(e.name)}">${e.name}</div>
+        <div style="font-size:10px;color:var(--text-muted);">${APP.year} ${fmtN(e.cur)} ← ${prevYear} ${fmtN(e.prev)}</div>
       </div>
-      <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">
-        ${APP.year}년 <b class="num">${fmtN(e.cur)}</b> ← ${prevYear}년 <b class="num">${fmtN(e.prev)}</b>
-      </div></div>`;
+      <div style="flex:0 0 auto;text-align:right;">
+        <div style="font-size:15px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${deltaText}<span style="font-size:10px;font-weight:600;color:var(--text-muted);"> EA</span></div>
+        <div style="font-size:11px;font-weight:700;color:${accent};">${rateText}</div>
+      </div>
+    </div>`;
   };
 
-  body.innerHTML = card(grown[0], true) + card(declined[0], false);
+  const column = (list, up) => {
+    const accent = up ? 'var(--mint)' : 'var(--red)';
+    const icon = up ? '🚀' : '📉';
+    const head = up ? `좋은 것 · 성장 TOP ${list.length}` : `나쁜 것 · 하락 TOP ${list.length}`;
+    const rows = list.length
+      ? list.map((e,i)=> row(e, i+1, up)).join('')
+      : `<div style="color:var(--text-muted);padding:12px 4px;font-size:12px;">해당 ${unit} 없음</div>`;
+    return `<div style="flex:1 1 340px;min-width:300px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:12px 14px;">
+      <div style="font-size:12px;font-weight:800;color:${accent};margin-bottom:4px;letter-spacing:0.03em;">${icon} ${head}</div>
+      ${rows}
+    </div>`;
+  };
+
+  body.innerHTML = column(grown, true) + column(declined, false);
 }
 
 /* ============================================================
