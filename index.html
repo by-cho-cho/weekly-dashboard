@@ -329,6 +329,18 @@
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
+        <div class="kpi-label">작년 대비 성장·하락 TOP</div>
+        <div id="growthSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
+      </div>
+    </div>
+    <div id="growthBody" style="display:flex;gap:14px;flex-wrap:wrap;">분석 중…</div>
+  </div>
+</section>
+
+<section style="padding:14px 32px 0;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div>
         <div class="kpi-label">품목군별 구성 비중</div>
         <div id="shareSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
       </div>
@@ -1105,6 +1117,7 @@ function toggleMetric(m) {
   } else APP.activeMetrics.add(m);
   paintMetricChips();
   renderChart();
+  renderGrowth();
   renderShare();
 }
 // 지표 칩 색 — 테마(다크/화이트)에 맞춰 강조색 매핑 적용
@@ -2245,6 +2258,104 @@ function toggleTheme() {
 })();
 
 /* ============================================================
+   작년 대비 성장·하락 TOP — 도넛과 동일한 부서별 소스·필터 사용
+   · 전체(모든 품목군 선택/미선택): 품목군 단위 비교
+   · 특정 품목군 선택: 선택 품목군 내 개별 품목 단위 비교
+   · 현재 활성 지표·선택 월 기준, 작년은 올해 최신 주차에 맞춘 동기간 합
+   · 순위는 절대 증감(EA) 기준(볼륨 영향), % 병기
+   ============================================================ */
+function renderGrowth() {
+  const body = document.getElementById('growthBody');
+  const subEl = document.getElementById('growthSub');
+  if (!body) return;
+  const data = getData();
+  if (!data) { body.innerHTML = ''; if (subEl) subEl.textContent = '—'; return; }
+  const prevYear = APP.year === 2026 ? 2025 : 2026;
+  const prevData = APP.data[prevYear]?.[APP.dept];
+
+  const metric = METRICS.find(m => APP.activeMetrics.has(m)) || '수주';
+  const months = [...APP.selectedMonths].sort((a,b)=>a-b);
+  const curGlobal = data.items; // 작년도 올해 최신 주차 기준으로 컷(동기간 공정 비교)
+  const sumItems = (srcData, its) =>
+    (srcData && its.length) ? aggregateByWeek(its, months, curGlobal).reduce((s,r)=>s+(r[metric]||0),0) : 0;
+
+  const allCats = [...new Set(data.items.map(it => it.category).filter(c => c && c !== 'Cable' && c !== '기타'))];
+  const catsSel = getCats();
+  const isAll = catsSel.size === 0 || catsSel.size >= allCats.length;
+  const selCats = isAll ? allCats : allCats.filter(c => catsSel.has(c));
+  const unit = isAll ? '품목군' : '품목';
+
+  // 품목군 단위 합(부서별 소스: 1반=개별 우선, 2반=합계 우선)
+  const catVal = (srcData, catName) => {
+    if (!srcData) return 0;
+    const ci = srcData.items.filter(it => it.category === catName);
+    const inds = ci.filter(it => !it.isTotal);
+    const totals = ci.filter(it => it.isTotal);
+    const useItems = APP.dept === '2반' ? (totals.length>0?totals:inds) : (inds.length>0?inds:totals);
+    return sumItems(srcData, useItems);
+  };
+  const itemVal = (srcData, model) =>
+    sumItems(srcData, srcData ? srcData.items.filter(it => !it.isTotal && it.model === model) : []);
+
+  let entities;
+  if (isAll) {
+    entities = allCats.map(c => ({ name:c, cur:catVal(data,c), prev:catVal(prevData,c) }));
+  } else {
+    // 선택 품목군 내 개별 품목 (세부/개별 추가선택 반영)
+    let leaves = data.items.filter(it => !it.isTotal && selCats.includes(it.category));
+    const subs = getSubs();
+    if (subs.size > 0) leaves = leaves.filter(it => !it.subcategory || subs.has(it.subcategory));
+    const sel = getItems();
+    if (sel.size > 0) leaves = leaves.filter(it => sel.has(it.model));
+    const models = [...new Set(leaves.map(it => it.model))];
+    entities = models.map(m => ({ name:m, cur:itemVal(data,m), prev:itemVal(prevData,m) }));
+  }
+  entities = entities.filter(e => e.cur > 0 || e.prev > 0);
+  entities.forEach(e => { e.delta = e.cur - e.prev; e.rate = e.prev > 0 ? e.delta/e.prev*100 : null; });
+
+  const periodLabel = months.length
+    ? (months.length === 1 ? months[0]+'월' : months[0]+'~'+months[months.length-1]+'월')
+    : '전체기간';
+  if (subEl) subEl.textContent =
+    `${APP.year}년 vs ${prevYear}년 · ${APP.dept} · ${periodLabel} · ${metric} 기준 · ${unit} 단위`
+    + (isAll ? '' : ` (${selCats.join('·')} 내)`);
+
+  if (!prevData || !prevData.items?.length) {
+    body.innerHTML = `<div style="color:var(--text-muted);padding:10px 4px;">비교할 ${prevYear}년 데이터가 없습니다.</div>`;
+    return;
+  }
+
+  const grown = entities.filter(e => e.delta > 0).sort((a,b)=> b.delta - a.delta);
+  const declined = entities.filter(e => e.delta < 0).sort((a,b)=> a.delta - b.delta);
+
+  const card = (e, up) => {
+    const accent = up ? 'var(--mint)' : 'var(--red)';
+    const icon = up ? '🚀' : '📉';
+    const title = up ? `최대 성장 ${unit}` : `최대 하락 ${unit}`;
+    if (!e) {
+      return `<div style="flex:1 1 260px;min-width:240px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:14px 16px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.04em;">${icon} ${title}</div>
+        <div style="color:var(--text-muted);margin-top:10px;">해당 ${unit} 없음</div></div>`;
+    }
+    const rateText = e.prev === 0 ? '신규 진입' : e.cur === 0 ? '생산 중단'
+      : `${up?'▲':'▼'} ${Math.abs(e.rate).toFixed(1)}%`;
+    const deltaText = `${e.delta >= 0 ? '+' : '−'}${fmtN(Math.abs(e.delta))} EA`;
+    return `<div style="flex:1 1 260px;min-width:240px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.04em;">${icon} ${title}</div>
+      <div style="font-size:16px;font-weight:800;color:var(--text-primary);margin:6px 0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(e.name)}">${e.name}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:22px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${deltaText}</span>
+        <span style="font-size:13px;font-weight:700;color:${accent};">${rateText}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-secondary);margin-top:6px;">
+        ${APP.year}년 <b class="num">${fmtN(e.cur)}</b> ← ${prevYear}년 <b class="num">${fmtN(e.prev)}</b>
+      </div></div>`;
+  };
+
+  body.innerHTML = card(grown[0], true) + card(declined[0], false);
+}
+
+/* ============================================================
    품목군별 구성 비중 (도넛) — 상단 지표칩 연동, 모든 필터 반영,
    조각/범례 클릭 시 해당 품목군(또는 품목)으로 필터
    ============================================================ */
@@ -2472,7 +2583,7 @@ function shareDrill(name, mode) {
   }
 }
 
-function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); }
+function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
