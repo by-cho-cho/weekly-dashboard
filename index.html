@@ -798,11 +798,15 @@ function filterItems(items) {
   // 합계 모드에서 카테고리별로 합계 행 보유 여부 — 합계 있으면 합계 행, 없으면(2반 Duodeca) 개별 품목.
   // (전부 합계 행만 모으면 Duodeca가 누락돼 선택해도 값이 안 변하는 버그 발생)
   const totalCats = useTotal ? new Set(items.filter(it => it.isTotal).map(it => it.category)) : null;
+  // 2반 Duodeca(SM720)는 시트 EP 합계행에 이미 포함됨 → EP 합계가 집계에 들어가는 보기(전체·EP 포함)에서
+  // Duodeca 개별을 더하면 이중집계. EP 합계가 포함될 때만 Duodeca 제외(Duodeca 단독 보기는 유지).
+  const epInAgg = useTotal && (cats.size === 0 || cats.has('EP')) && items.some(it => it.isTotal && it.category === 'EP');
 
   const filtered = items.filter(it => {
     if (cats.size > 0 && !cats.has(it.category)) return false;
     if (subs.size > 0 && it.subcategory && !subs.has(it.subcategory)) return false;
     if (useTotal) {
+      if (epInAgg && it.category === 'Duodeca') return false; // EP 합계에 이미 포함 → 이중집계 방지
       if (totalCats.has(it.category)) { if (!it.isTotal) return false; }
       else { if (it.isTotal) return false; }
     } else {
