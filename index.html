@@ -398,6 +398,21 @@
   </div>
 </section>
 
+<!-- 품목군별 현재고 조회 -->
+<section style="padding:14px 32px 44px;">
+  <div class="card">
+    <div class="kpi-label">📦 품목군별 현재고 조회</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군을 선택한 뒤 세부 품목을 고르면 현재고를 확인할 수 있습니다</div>
+    <div style="font-size:11px;color:var(--text-muted);margin:12px 0 4px;">품목군 선택</div>
+    <div id="stockPanelCats" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    <div id="stockPanelItemsWrap" style="display:none;">
+      <div style="font-size:11px;color:var(--text-muted);margin:12px 0 4px;">세부 품목 선택</div>
+      <div id="stockPanelItems" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div id="stockPanelDetail" style="margin-top:12px;"></div>
+  </div>
+</section>
+
 <script>
 const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
 const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
@@ -2591,7 +2606,66 @@ function shareDrill(name, mode) {
   }
 }
 
-function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); }
+/* ── 품목군별 현재고 조회 패널 ─────────────────────────────── */
+function renderStockPanel() {
+  const catsBox = document.getElementById('stockPanelCats');
+  if (!catsBox) return;
+  const data = APP.data[2026]?.[APP.dept] || getData();  // 현재고는 항상 최신(2026) 기준
+  const st = window._stockPanel || (window._stockPanel = { cat: null, item: null });
+  if (!data) { catsBox.innerHTML = ''; return; }
+  const real = data.items.filter(it => !it.isTotal);  // 합계행 제외 — 실제 품목만
+  const cats = [...new Set(real.map(it => it.category))];
+  if (st.cat && !cats.includes(st.cat)) { st.cat = null; st.item = null; }
+  const esc = s => String(s).replace(/'/g, "\\'");
+  catsBox.innerHTML = cats.map(cat => {
+    const grp = real.filter(it => it.category === cat);
+    const totCur = grp.reduce((s, it) => s + (it.currentStock || 0), 0);
+    const active = st.cat === cat;
+    return `<button onclick="selectStockCat('${esc(cat)}')" style="padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};">${cat} <span style="font-size:10px;color:var(--text-muted);">${grp.length}종 · 재고 ${fmtN(totCur)}</span></button>`;
+  }).join('');
+  const itemsWrap = document.getElementById('stockPanelItemsWrap');
+  const itemsBox = document.getElementById('stockPanelItems');
+  const detail = document.getElementById('stockPanelDetail');
+  if (!st.cat) { itemsWrap.style.display = 'none'; detail.innerHTML = ''; return; }
+  const grp = real.filter(it => it.category === st.cat);
+  if (st.item && !grp.some(it => it.model === st.item)) st.item = null;
+  itemsWrap.style.display = 'block';
+  itemsBox.innerHTML = grp.map(it => {
+    const active = st.item === it.model;
+    const short = (it.safetyStock > 0) && ((it.currentStock || 0) < it.safetyStock);
+    const dot = short ? 'var(--red)' : (it.safetyStock > 0 ? 'var(--mint)' : 'var(--text-muted)');
+    return `<button onclick="selectStockItem('${esc(it.model)}')" style="padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--cyan)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--cyan)':'var(--text-secondary)'};display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:${dot};display:inline-block;"></span>${it.model}${it.spec?` <span style="font-size:10px;color:var(--text-muted);">${it.spec}</span>`:''}</button>`;
+  }).join('');
+  detail.innerHTML = st.item ? stockDetailCard(grp.find(x => x.model === st.item)) : stockCatTable(grp, st.cat);
+}
+function stockDetailCard(it) {
+  if (!it) return '';
+  const cur = it.currentStock || 0, safe = it.safetyStock || 0;
+  const short = (safe > 0) && (cur < safe);
+  const statusColor = short ? 'var(--red)' : (safe > 0 ? 'var(--mint)' : 'var(--text-muted)');
+  const statusText = safe > 0 ? (short ? '⚠ 안전재고 미달' : '✔ 안전재고 충족') : '안전재고 미설정';
+  const rate = safe > 0 ? (cur / safe * 100) : null;
+  const cell = (label, val, color) => `<div style="flex:1;min-width:120px;background:var(--wash);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${label}</div><div style="font-size:22px;font-weight:800;color:${color||'var(--text-primary)'};">${val}</div></div>`;
+  return `<div><div style="font-size:13px;font-weight:700;margin-bottom:8px;">${it.model} ${it.spec?`<span style="font-size:11px;color:var(--text-muted);">${it.spec}</span>`:''}<span style="margin-left:8px;font-size:11px;font-weight:700;color:${statusColor};">${statusText}</span></div><div style="display:flex;flex-wrap:wrap;gap:8px;">${cell('현재고(EA)', fmtN(cur), 'var(--cyan)')}${cell('안전재고', fmtN(safe))}${cell('확보율', rate==null?'—':rate.toFixed(0)+'%', short?'var(--red)':'var(--mint)')}</div></div>`;
+}
+function stockCatTable(grp, cat) {
+  const totCur = grp.reduce((s, it) => s + (it.currentStock || 0), 0);
+  const totSafe = grp.reduce((s, it) => s + (it.safetyStock || 0), 0);
+  let html = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;"><b style="color:var(--gold);">${cat}</b> 전체 현재고 <b style="color:var(--cyan);">${fmtN(totCur)}</b> · 안전재고 <b>${fmtN(totSafe)}</b> <span style="color:var(--text-muted);">— 세부 품목을 선택하면 상세가 표시됩니다</span></div>`;
+  html += `<table class="exec" style="width:100%;border-collapse:collapse;"><thead><tr><th>품목</th><th style="text-align:right">현재고</th><th style="text-align:right">안전재고</th><th style="text-align:right">확보율</th><th style="text-align:right">상태</th></tr></thead><tbody>`;
+  grp.slice().sort((a, b) => (b.currentStock||0) - (a.currentStock||0)).forEach(it => {
+    const cur = it.currentStock || 0, safe = it.safetyStock || 0;
+    const short = (safe > 0) && (cur < safe);
+    const rate = safe > 0 ? (cur / safe * 100) : null;
+    const stTxt = safe > 0 ? (short ? '<span style="color:var(--red);font-weight:700;">부족</span>' : '<span style="color:var(--mint);font-weight:700;">충족</span>') : '<span style="color:var(--text-muted);">—</span>';
+    html += `<tr onclick="selectStockItem('${String(it.model).replace(/'/g,"\\'")}')" style="cursor:pointer;"><td>${it.model}${it.spec?` <span style="font-size:10px;color:var(--text-muted);">${it.spec}</span>`:''}</td><td style="text-align:right;color:var(--cyan);font-weight:600;">${fmtN(cur)}</td><td style="text-align:right;">${fmtN(safe)}</td><td style="text-align:right;">${rate==null?'—':rate.toFixed(0)+'%'}</td><td style="text-align:right;">${stTxt}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  return html;
+}
+function selectStockCat(cat) { const st = window._stockPanel || (window._stockPanel = {}); st.cat = (st.cat === cat) ? null : cat; st.item = null; renderStockPanel(); }
+function selectStockItem(model) { const st = window._stockPanel || (window._stockPanel = {}); st.item = (st.item === model) ? null : model; renderStockPanel(); }
+function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
