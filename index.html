@@ -326,6 +326,13 @@
   </div>
 </section>
 
+<!-- 품목군별 수주·생산 전년 동기 대비 요약 -->
+<section style="padding:14px 32px 0;">
+  <div class="card">
+    <div id="catYoySummary"></div>
+  </div>
+</section>
+
 <section style="padding:14px 32px 0;">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
@@ -2671,7 +2678,59 @@ function stockCatTable(grp, cat) {
 }
 function selectStockCat(cat) { const st = window._stockPanel || (window._stockPanel = {}); st.cat = (st.cat === cat) ? null : cat; st.item = null; renderStockPanel(); }
 function selectStockItem(model) { const st = window._stockPanel || (window._stockPanel = {}); st.item = (st.item === model) ? null : model; renderStockPanel(); }
-function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
+/* ── 품목군별 수주·생산 전년 동기 대비 요약 (월간 대시보드와 동일) ── */
+function renderCatYoySummary() {
+  const box = document.getElementById('catYoySummary');
+  if (!box) return;
+  const data = getData();
+  if (!data) { box.innerHTML = ''; return; }
+  const prevYear = APP.year === 2026 ? 2025 : 2026;
+  const prevData = APP.data[prevYear]?.[APP.dept];
+  const months = [...APP.selectedMonths].sort((a, b) => a - b);
+  const curGlobal = data.items;  // 작년을 올해 최신 주차 기준으로 컷(동기간 공정 비교)
+  const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A'];
+  const sumM = (srcData, its, metric) => (srcData && its.length) ? aggregateByWeek(its, months, curGlobal).reduce((s, r) => s + (r[metric] || 0), 0) : 0;
+  // 품목군 단위 합(부서별 소스: 1반=개별 우선, 2반=합계 우선) — renderGrowth와 동일
+  const catVal = (srcData, cat, metric) => {
+    if (!srcData) return 0;
+    const ci = srcData.items.filter(it => it.category === cat);
+    const inds = ci.filter(it => !it.isTotal);
+    const totals = ci.filter(it => it.isTotal);
+    const useItems = APP.dept === '2반' ? (totals.length > 0 ? totals : inds) : (inds.length > 0 ? inds : totals);
+    return sumM(srcData, useItems, metric);
+  };
+  const allCats = [...new Set(data.items.map(it => it.category).filter(c => c && c !== 'Cable' && c !== '기타'))];
+  const rows = allCats.map(cat => ({
+    cat,
+    o: catVal(data, cat, '수주'), o25: catVal(prevData, cat, '수주'),
+    p: catVal(data, cat, '생산'), p25: catVal(prevData, cat, '생산'),
+    color: mapAccent(PALETTE[Math.max(0, allCats.indexOf(cat)) % PALETTE.length]),
+  })).filter(r => r.o > 0 || r.o25 > 0 || r.p > 0 || r.p25 > 0).sort((a, b) => b.o - a.o);
+  if (!rows.length) { box.innerHTML = ''; return; }
+  const periodLabel = months.length ? (months.length === 1 ? months[0] + '월' : months[0] + '~' + months[months.length - 1] + '월') : '전체기간';
+  const chip = (label, val, g, color, strong) => {
+    const gHtml = g == null ? '<span style="color:var(--text-muted);font-size:10px;">신규</span>'
+      : `<span style="color:${g >= 0 ? 'var(--mint)' : 'var(--red)'};font-weight:700;font-size:11px;">${g >= 0 ? '▲' : '▼'} ${Math.abs(g).toFixed(1)}%</span>`;
+    return `<div style="display:flex;align-items:center;gap:6px;background:${strong ? 'var(--wash-2)' : 'var(--wash)'};border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:5px 10px;"><span style="font-size:11px;font-weight:${strong ? 800 : 600};color:${strong ? color : 'var(--text-secondary)'};">${label}</span><span style="font-size:12px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtN(val)}</span>${gHtml}</div>`;
+  };
+  const section = (title, valKey, prevKey, totColor) => {
+    // 전체 합계 — 2반 Duodeca는 EP 합계행에 이미 포함돼 있어 중복이므로 제외 (칩은 표시)
+    let tot = 0, tot25 = 0;
+    for (const r of rows) { if (APP.dept === '2반' && r.cat === 'Duodeca') continue; tot += r[valKey]; tot25 += r[prevKey]; }
+    const totG = tot25 > 0 ? (tot - tot25) / tot25 * 100 : null;
+    let h = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">${title} 전년 동기 대비 요약 · ${prevYear}년 → ${APP.year}년 (${periodLabel} 기준)</div>`;
+    h += `<div style="display:flex;flex-wrap:wrap;gap:6px;">`;
+    h += chip(`전체 ${title}`, tot, totG, totColor, true);
+    rows.forEach(r => { const g = r[prevKey] > 0 ? (r[valKey] - r[prevKey]) / r[prevKey] * 100 : null; h += chip(r.cat, r[valKey], g, r.color, false); });
+    h += `</div>`;
+    return h;
+  };
+  let html = section('수주', 'o', 'o25', mapAccent('#C9A961'));
+  html += `<div style="height:10px;"></div>`;
+  html += section('생산', 'p', 'p25', mapAccent('#4FC3F7'));
+  box.innerHTML = html;
+}
+function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderCatYoySummary(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
