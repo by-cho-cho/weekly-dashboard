@@ -2720,7 +2720,17 @@ function renderCatYoySummary() {
     o: catVal(data, cat, '수주'), o25: catVal(prevData, cat, '수주'),
     p: catVal(data, cat, '생산'), p25: catVal(prevData, cat, '생산'),
     color: mapAccent(PALETTE[Math.max(0, allCats.indexOf(cat)) % PALETTE.length]),
-  })).filter(r => r.o > 0 || r.o25 > 0 || r.p > 0 || r.p25 > 0).sort((a, b) => b.o - a.o);
+  })).filter(r => r.o > 0 || r.o25 > 0 || r.p > 0 || r.p25 > 0);
+  // 2반은 고정 순서(EP·Duodeca·ENBD·EPO Probe), 그 외 부서는 수주 내림차순
+  const ORDER_2BAN = ['EP', 'Duodeca', 'ENBD', 'EPO Probe'];
+  if (APP.dept === '2반') {
+    rows.sort((a, b) => {
+      const ia = ORDER_2BAN.indexOf(a.cat), ib = ORDER_2BAN.indexOf(b.cat);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || b.o - a.o;
+    });
+  } else {
+    rows.sort((a, b) => b.o - a.o);
+  }
   if (!rows.length) { box.innerHTML = ''; return; }
   const periodLabel = months.length ? (months.length === 1 ? months[0] + '월' : months[0] + '~' + months[months.length - 1] + '월') : '전체기간';
   const chip = (label, val, g, color, strong) => {
