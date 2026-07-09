@@ -524,7 +524,7 @@ function parse2Ban26(csvText) {
   const wmap = {};
   const monthlyPlanCol = {};
   const monthlyActualCol = {};
-  let safetyCol = -1, currentCol = -1;
+  let safetyCol = -1, currentCol = -1, unshipCol = -1;
   for (let i = 0; i < headers.length; i++) {
     const h = (headers[i]||'').trim();
     const m = h.match(/^(\d{1,2})-(\d)\s*수주$/);
@@ -545,8 +545,9 @@ function parse2Ban26(csvText) {
     }
     if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
     if (currentCol < 0 && h.includes('현재고')) currentCol = i;
+    if (unshipCol < 0 && h.includes('미출오더')) unshipCol = i;
   }
-  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, monthlyPlanCol, monthlyActualCol });
+  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, unshipCol, monthlyPlanCol, monthlyActualCol });
 }
 
 // 1반 2026 / 2반 2025 / 1반 2025 — 위치 기반
@@ -557,22 +558,24 @@ function parseGeneric(csvText, dept, headerRowIdx) {
   const { wmap, monthlyPlanCol } = detectWeeklyColumns(headers, 150, dept);
   if (Object.keys(wmap).length === 0) return null;
   // 안전재고/현재고 컬럼 탐지 — 헤더 행 + 직전/직후 행(병합 헤더 대응)
-  let safetyCol = -1, currentCol = -1;
+  let safetyCol = -1, currentCol = -1, unshipCol = -1;
   const scanRows = [headers, rows[headerRowIdx+1] || [], rows[headerRowIdx-1] || []];
   for (const r of scanRows) {
     for (let i = 0; i < r.length; i++) {
       const h = (r[i]||'').trim();
       if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
       if (currentCol < 0 && h.includes('현재고')) currentCol = i;
+      if (unshipCol < 0 && h.includes('미출오더')) unshipCol = i;
     }
   }
   // 1반 시트는 헤더가 병합 셀이라 gviz CSV에 텍스트가 빠짐 — 고정 위치 폴백
-  // 컬럼 매핑(0-indexed): C=2(model) D=3(SPEC) E=4(안전재고) F=5(판매가) G=6(재고금액) ... J=9(현재고)
+  // 컬럼 매핑(0-indexed): C=2(model) D=3(SPEC) E=4(안전재고) ... J=9(현재고) L=11(미출오더) — 월간 대시보드와 동일
   if (dept === '1반') {
     if (safetyCol < 0)  safetyCol = 4;
     if (currentCol < 0) currentCol = 9;
+    if (unshipCol < 0)  unshipCol = 11;
   }
-  return extractItems(rows, wmap, dept, { safetyCol, currentCol, monthlyPlanCol });
+  return extractItems(rows, wmap, dept, { safetyCol, currentCol, unshipCol, monthlyPlanCol });
 }
 
 function extractItems(rows, wmap, dept, opts) {
@@ -580,6 +583,7 @@ function extractItems(rows, wmap, dept, opts) {
   const specCol  = dept === '1반' ? 3 : 1;
   const safetyCol = opts?.safetyCol ?? -1;
   const currentCol = opts?.currentCol ?? -1;
+  const unshipCol = opts?.unshipCol ?? -1;
   const monthlyPlanCol = opts?.monthlyPlanCol || {};
   const monthlyActualCol = opts?.monthlyActualCol || {};
 
@@ -691,6 +695,7 @@ function extractItems(rows, wmap, dept, opts) {
       isTotal,
       safetyStock: safetyCol >= 0 ? parseNum(row[safetyCol]) : 0,
       currentStock: currentCol >= 0 ? parseNum(row[currentCol]) : 0,
+      unshipped: unshipCol >= 0 ? parseNum(row[unshipCol]) : 0,
     });
   }
 
@@ -724,7 +729,7 @@ function extractItems(rows, wmap, dept, opts) {
       items.push({
         model: `${cat} 합계`, spec: '', category: cat, subcategory: null,
         weekData, monthlyPlan, monthlyActual, isTotal: true,
-        safetyStock: 0, currentStock: 0,
+        safetyStock: 0, currentStock: 0, unshipped: 0,
       });
     }
   }
@@ -2633,7 +2638,7 @@ function renderStockPanel() {
   itemsWrap.style.display = 'block';
   itemsBox.innerHTML = grp.map(it => {
     const active = st.item === it.model;
-    const short = (it.safetyStock > 0) && ((it.currentStock || 0) < it.safetyStock);
+    const short = (it.safetyStock > 0) && (((it.currentStock || 0) - (it.unshipped || 0)) < it.safetyStock);
     const dot = short ? 'var(--red)' : (it.safetyStock > 0 ? 'var(--mint)' : 'var(--text-muted)');
     return `<button onclick="selectStockItem('${esc(it.model)}')" style="padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--cyan)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--cyan)':'var(--text-secondary)'};display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:${dot};display:inline-block;"></span>${it.model}${it.spec?` <span style="font-size:10px;color:var(--text-muted);">${it.spec}</span>`:''}</button>`;
   }).join('');
@@ -2641,25 +2646,25 @@ function renderStockPanel() {
 }
 function stockDetailCard(it) {
   if (!it) return '';
-  const cur = it.currentStock || 0, safe = it.safetyStock || 0;
-  const short = (safe > 0) && (cur < safe);
+  const cur = it.currentStock || 0, safe = it.safetyStock || 0, unship = it.unshipped || 0;
+  const eff = cur - unship;
+  const short = (safe > 0) && (eff < safe);
   const statusColor = short ? 'var(--red)' : (safe > 0 ? 'var(--mint)' : 'var(--text-muted)');
   const statusText = safe > 0 ? (short ? '⚠ 안전재고 미달' : '✔ 안전재고 충족') : '안전재고 미설정';
-  const rate = safe > 0 ? (cur / safe * 100) : null;
   const cell = (label, val, color) => `<div style="flex:1;min-width:120px;background:var(--wash);border:1px solid var(--border);border-radius:10px;padding:12px 14px;"><div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">${label}</div><div style="font-size:22px;font-weight:800;color:${color||'var(--text-primary)'};">${val}</div></div>`;
-  return `<div><div style="font-size:13px;font-weight:700;margin-bottom:8px;">${it.model} ${it.spec?`<span style="font-size:11px;color:var(--text-muted);">${it.spec}</span>`:''}<span style="margin-left:8px;font-size:11px;font-weight:700;color:${statusColor};">${statusText}</span></div><div style="display:flex;flex-wrap:wrap;gap:8px;">${cell('현재고(EA)', fmtN(cur), 'var(--cyan)')}${cell('안전재고', fmtN(safe))}${cell('확보율', rate==null?'—':rate.toFixed(0)+'%', short?'var(--red)':'var(--mint)')}</div></div>`;
+  return `<div><div style="font-size:13px;font-weight:700;margin-bottom:8px;">${it.model} ${it.spec?`<span style="font-size:11px;color:var(--text-muted);">${it.spec}</span>`:''}<span style="margin-left:8px;font-size:11px;font-weight:700;color:${statusColor};">${statusText}</span></div><div style="display:flex;flex-wrap:wrap;gap:8px;">${cell('현재고(EA)', fmtN(cur), 'var(--cyan)')}${cell('안전재고', fmtN(safe))}${cell('미출오더', fmtN(unship), 'var(--amber)')}${cell('실가용재고', fmtN(eff), short?'var(--red)':'var(--mint)')}</div></div>`;
 }
 function stockCatTable(grp, cat) {
   const totCur = grp.reduce((s, it) => s + (it.currentStock || 0), 0);
-  const totSafe = grp.reduce((s, it) => s + (it.safetyStock || 0), 0);
-  let html = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;"><b style="color:var(--gold);">${cat}</b> 전체 현재고 <b style="color:var(--cyan);">${fmtN(totCur)}</b> · 안전재고 <b>${fmtN(totSafe)}</b> <span style="color:var(--text-muted);">— 세부 품목을 선택하면 상세가 표시됩니다</span></div>`;
-  html += `<table class="exec" style="width:100%;border-collapse:collapse;"><thead><tr><th>품목</th><th style="text-align:right">현재고</th><th style="text-align:right">안전재고</th><th style="text-align:right">확보율</th><th style="text-align:right">상태</th></tr></thead><tbody>`;
+  const totUnship = grp.reduce((s, it) => s + (it.unshipped || 0), 0);
+  let html = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;"><b style="color:var(--gold);">${cat}</b> 전체 현재고 <b style="color:var(--cyan);">${fmtN(totCur)}</b> · 미출오더 <b style="color:var(--amber);">${fmtN(totUnship)}</b> · 실가용 <b>${fmtN(totCur-totUnship)}</b> <span style="color:var(--text-muted);">— 세부 품목을 선택하면 상세가 표시됩니다</span></div>`;
+  html += `<table class="exec" style="width:100%;border-collapse:collapse;"><thead><tr><th>품목</th><th style="text-align:right">현재고</th><th style="text-align:right">안전재고</th><th style="text-align:right">미출오더</th><th style="text-align:right">실가용</th><th style="text-align:right">상태</th></tr></thead><tbody>`;
   grp.slice().sort((a, b) => (b.currentStock||0) - (a.currentStock||0)).forEach(it => {
-    const cur = it.currentStock || 0, safe = it.safetyStock || 0;
-    const short = (safe > 0) && (cur < safe);
-    const rate = safe > 0 ? (cur / safe * 100) : null;
+    const cur = it.currentStock || 0, safe = it.safetyStock || 0, unship = it.unshipped || 0;
+    const eff = cur - unship;
+    const short = (safe > 0) && (eff < safe);
     const stTxt = safe > 0 ? (short ? '<span style="color:var(--red);font-weight:700;">부족</span>' : '<span style="color:var(--mint);font-weight:700;">충족</span>') : '<span style="color:var(--text-muted);">—</span>';
-    html += `<tr onclick="selectStockItem('${String(it.model).replace(/'/g,"\\'")}')" style="cursor:pointer;"><td>${it.model}${it.spec?` <span style="font-size:10px;color:var(--text-muted);">${it.spec}</span>`:''}</td><td style="text-align:right;color:var(--cyan);font-weight:600;">${fmtN(cur)}</td><td style="text-align:right;">${fmtN(safe)}</td><td style="text-align:right;">${rate==null?'—':rate.toFixed(0)+'%'}</td><td style="text-align:right;">${stTxt}</td></tr>`;
+    html += `<tr onclick="selectStockItem('${String(it.model).replace(/'/g,"\\'")}')" style="cursor:pointer;"><td>${it.model}${it.spec?` <span style="font-size:10px;color:var(--text-muted);">${it.spec}</span>`:''}</td><td style="text-align:right;color:var(--cyan);font-weight:600;">${fmtN(cur)}</td><td style="text-align:right;">${fmtN(safe)}</td><td style="text-align:right;color:var(--amber);">${fmtN(unship)}</td><td style="text-align:right;color:${short?'var(--red)':'var(--mint)'};font-weight:600;">${fmtN(eff)}</td><td style="text-align:right;">${stTxt}</td></tr>`;
   });
   html += '</tbody></table>';
   return html;
