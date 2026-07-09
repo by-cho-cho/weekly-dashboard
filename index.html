@@ -2378,7 +2378,7 @@ function renderGrowth() {
   const column = (list, up) => {
     const accent = up ? 'var(--mint)' : 'var(--red)';
     const icon = up ? '🚀' : '📉';
-    const head = up ? `좋은 것 · 성장 TOP ${list.length}` : `나쁜 것 · 하락 TOP ${list.length}`;
+    const head = up ? `성장 TOP ${list.length}` : `하락 TOP ${list.length}`;
     const rows = list.length
       ? list.map((e,i)=> row(e, i+1, up)).join('')
       : `<div style="color:var(--text-muted);padding:12px 4px;font-size:12px;">해당 ${unit} 없음</div>`;
