@@ -216,11 +216,59 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
       <button class="btn" id="themeBtn" onclick="toggleTheme()" style="font-size:11px;" title="다크/화이트 전환">☀️ 화이트</button>
+      <button id="presentBtn" class="btn no-print" onclick="togglePresentMode()" style="font-size:11px;" title="발표용 전체화면 확대">🖥 발표 모드</button>
+      <div id="zoomBar" class="no-print" style="display:none;align-items:center;gap:4px;">
+        <button onclick="setZoom(-5)" style="padding:6px 9px;background:var(--wash-2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;">−</button>
+        <span id="zoomLabel" style="font-size:11px;color:var(--text-muted);min-width:34px;text-align:center;">80%</span>
+        <button onclick="setZoom(+5)" style="padding:6px 9px;background:var(--wash-2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;">+</button>
+      </div>
       <span style="font-size:10px;color:var(--text-muted);margin-left:6px;">부서</span>
       <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반 (액상)</button>
       <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반 (카테터)</button>
     </div>
   </div>
+<script>
+let _presentMode = false;
+let _zoom = 80;
+function togglePresentMode() {
+  _presentMode = !_presentMode;
+  const btn = document.getElementById('presentBtn');
+  const zoomBar = document.getElementById('zoomBar');
+  if (_presentMode) {
+    _zoom = Math.round(Math.min(window.innerWidth / 1600, window.innerHeight / 900) * 100);
+    _zoom = Math.max(60, Math.min(_zoom, 95));
+    applyZoom();
+    btn.classList.add('active');
+    btn.textContent = '✕ 발표 모드';
+    zoomBar.style.display = 'flex';
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
+  } else {
+    document.documentElement.style.zoom = '100%';
+    btn.classList.remove('active');
+    btn.textContent = '🖥 발표 모드';
+    zoomBar.style.display = 'none';
+    if (document.fullscreenElement) document.exitFullscreen?.();
+  }
+}
+function setZoom(delta) {
+  _zoom = Math.max(50, Math.min(_zoom + delta, 100));
+  applyZoom();
+}
+function applyZoom() {
+  document.documentElement.style.zoom = _zoom + '%';
+  document.getElementById('zoomLabel').textContent = _zoom + '%';
+}
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && _presentMode) {
+    _presentMode = false;
+    document.documentElement.style.zoom = '100%';
+    const btn = document.getElementById('presentBtn');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '🖥 발표 모드'; }
+    const zoomBar = document.getElementById('zoomBar');
+    if (zoomBar) zoomBar.style.display = 'none';
+  }
+});
+</script>
 
   <div class="filter-row" style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--divider);">
     <span class="filter-label">연도</span>
@@ -330,7 +378,11 @@
   </div>
 </section>
 
-<!-- 품목군별 수주·생산 전년 동기 대비 요약 -->
+<!-- 품목군별 수주·생산 전년 동기 대비 요약 + 성장·하락 TOP5 (기본 접힘 — 주간 변동 파악에는 부차적) -->
+<section style="padding:14px 32px 0;">
+  <button id="yoyTopToggle" class="btn" onclick="toggleYoyTop()" style="font-size:10px;padding:4px 10px;">▸ 전년 동기 비교 · 성장·하락 TOP5 보기</button>
+</section>
+<div id="yoyTopWrap" style="display:none;">
 <section style="padding:14px 32px 0;">
   <div class="card">
     <div id="catYoySummary"></div>
@@ -348,6 +400,7 @@
     <div id="growthBody" style="display:flex;gap:14px;flex-wrap:wrap;">분석 중…</div>
   </div>
 </section>
+</div>
 
 <section style="padding:14px 32px 0;">
   <div class="card">
@@ -402,7 +455,7 @@
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
         <div class="kpi-label">안전재고 확보율(%)</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군별 현재고 vs 안전재고</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군별 실가용재고(현재고−미출오더) vs 안전재고</div>
       </div>
     </div>
     <div id="chartSafety" style="height:380px;"></div>
@@ -1059,6 +1112,14 @@ function toggleComment() {
   box.style.display = hidden ? '' : 'none';
   btn.classList.toggle('active', hidden);
   btn.textContent = hidden ? '▾ 코멘트 숨기기' : '▸ 코멘트 보기';
+}
+function toggleYoyTop() {
+  const wrap = document.getElementById('yoyTopWrap');
+  const btn = document.getElementById('yoyTopToggle');
+  const hidden = wrap.style.display === 'none';
+  wrap.style.display = hidden ? '' : 'none';
+  btn.classList.toggle('active', hidden);
+  btn.textContent = hidden ? '▾ 전년 동기 비교 · 성장·하락 TOP5 숨기기' : '▸ 전년 동기 비교 · 성장·하락 TOP5 보기';
 }
 
 /* ============================================================
@@ -2190,11 +2251,14 @@ function renderSafety() {
   if (!items.length) { sec.style.display = 'none'; return; }
 
   // 카테고리별 집계
+  // Why: 현재고 조회 패널·품목 상세는 실가용재고(현재고-미출오더) 기준으로 부족을 판정하는데
+  // 이 게이지만 현재고 그대로 써서 같은 화면 안에서 "충족/부족" 판정이 엇갈리던 문제 수정.
   const groups = {};
   for (const it of items) {
-    if (!groups[it.category]) groups[it.category] = { safety: 0, current: 0 };
+    if (!groups[it.category]) groups[it.category] = { safety: 0, current: 0, unshipped: 0 };
     groups[it.category].safety += it.safetyStock || 0;
     groups[it.category].current += it.currentStock || 0;
+    groups[it.category].unshipped += it.unshipped || 0;
   }
   // EPO Probe 는 대표이사 대시보드에서 제외 (안전재고 미관리)
   const cats = Object.keys(groups).filter(c => c !== 'EPO Probe' && (groups[c].safety > 0 || groups[c].current > 0));
@@ -2202,14 +2266,14 @@ function renderSafety() {
   sec.style.display = '';
 
   const safetyArr  = cats.map(c => groups[c].safety);
-  const currentArr = cats.map(c => groups[c].current);
-  const rateArr    = cats.map(c => groups[c].safety > 0 ? +(groups[c].current / groups[c].safety * 100).toFixed(1) : 0);
+  const currentArr = cats.map(c => Math.max(0, groups[c].current - groups[c].unshipped)); // 실가용재고
+  const rateArr    = cats.map((c,i) => groups[c].safety > 0 ? +(currentArr[i] / groups[c].safety * 100).toFixed(1) : 0);
 
-  // 부족 분석
+  // 부족 분석 (실가용재고 기준)
   const shortages = [];
   let totalShortage = 0;
   for (let i = 0; i < cats.length; i++) {
-    const need = groups[cats[i]].safety - groups[cats[i]].current;
+    const need = groups[cats[i]].safety - currentArr[i];
     if (need > 0) { shortages.push({ cat: cats[i], rate: rateArr[i], shortage: need }); totalShortage += need; }
   }
   shortages.sort((a,b) => a.rate - b.rate);
@@ -2239,7 +2303,7 @@ function renderSafety() {
   ch.setOption({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis', backgroundColor:T.tipBg, borderColor:T.tipBorder, textStyle:{color:T.tipText}, axisPointer:{type:'shadow'} },
-    legend: { data:['안전재고','현재고','확보율'], textStyle:{color:T.axisText}, top: 6 },
+    legend: { data:['안전재고','실가용재고','확보율'], textStyle:{color:T.axisText}, top: 6 },
     grid: { left: 60, right: 60, top: 50, bottom: 30 },
     xAxis: { type:'category', data: cats, axisLine:{lineStyle:{color:T.axisLine}}, axisLabel:{color:T.axisText} },
     yAxis: [
@@ -2249,7 +2313,7 @@ function renderSafety() {
     ],
     series: [
       { name:'안전재고', type:'bar', data: safetyArr, itemStyle:{color:mapAccent('#C9A961'), borderRadius:[6,6,0,0]}, barWidth: 22 },
-      { name:'현재고',  type:'bar', data: currentArr, itemStyle:{color:mapAccent('#E63946'), borderRadius:[6,6,0,0]}, barWidth: 22 },
+      { name:'실가용재고',  type:'bar', data: currentArr, itemStyle:{color:mapAccent('#E63946'), borderRadius:[6,6,0,0]}, barWidth: 22 },
       { name:'확보율',  type:'line', yAxisIndex:1,
         data: rateArr.map(v => ({ value: v, label: { position: v >= 5 ? 'top' : 'bottom' } })),
         smooth:true, symbol:'circle', symbolSize:9,
