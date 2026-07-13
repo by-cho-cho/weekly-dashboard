@@ -2426,6 +2426,14 @@ function renderShare() {
   const catsSel = getCats();
   let cats = (catsSel.size > 0 ? allCats.filter(c => catsSel.has(c)) : allCats);
 
+  // 2반 Duodeca(SM720)는 EP 합계행에 이미 포함 → EP 조각이 함께 표시되는 보기에서
+  // Duodeca를 개별 조각으로 또 더하면 이중집계(도넛만 추이차트보다 큼). filterItems의
+  // epInAgg 로직과 동일하게, EP가 함께 보일 때만 Duodeca 조각 제외. (Duodeca 단독 보기는 유지)
+  if (APP.dept === '2반' && cats.includes('EP') && cats.includes('Duodeca')
+      && data.items.some(it => it.isTotal && it.category === 'EP')) {
+    cats = cats.filter(c => c !== 'Duodeca');
+  }
+
   // 개별 품목 '부분' 선택 판정 (renderChart perItemOn 블록과 동일 원칙)
   const selItems = getItems();
   let selSubset = selItems.size > 0;
