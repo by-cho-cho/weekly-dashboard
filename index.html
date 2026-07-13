@@ -2507,8 +2507,12 @@ function renderShare() {
   }
 
   // 임의 연도 데이터(srcData)에서 품목들의 metric 합 — 같은 기간/주차 필터 적용
+  // Why: 비교연도(2025) 합산 시 자기 자신의 전체 월 데이터를 커트오프 기준으로 쓰면
+  // 현재연도에는 아직 없는 미래 주차(예: 26년 7월2주 시점의 25년 7월4~5주)까지 포함돼
+  // 상단 "동기간 누계" 배지(같은 주차까지만 합산)와 도넛 수치가 어긋난다.
+  // 커트오프 기준을 항상 현재 활성 연도(data.items)로 고정해 동일 주차까지만 합산.
   const sumOf = (srcData, useItems) =>
-    aggregateByWeek(useItems, months, srcData.items).reduce((s,r)=> s + (r[metric]||0), 0);
+    aggregateByWeek(useItems, months, data.items).reduce((s,r)=> s + (r[metric]||0), 0);
 
   // 품목군이 1개만 남으면 → 세부 분류가 있으면 '세부'(텐텍·제이시스…)별, 없으면 개별 품목별
   const SUB_ORDER = ['텐텍','제이시스','비올','원텍','청우'];
