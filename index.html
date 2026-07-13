@@ -817,7 +817,10 @@ function filterItems(items) {
     return true;
   });
   // 폴백: 결과 없으면 반대 소스로 (드문 빈 데이터 방어)
-  if (filtered.length === 0) {
+  // 단, 세부품목(subs)·부분품목으로 좁힌 상태의 빈 결과는 '실제 0'이므로 폴백 금지.
+  // (예: 25년에 없는 원텍/청우를 25년 동기간 비교하면, 폴백이 커플링플로이드 카테고리
+  //  합계 행을 대신 반환해 25년 수주가 0이 아니라 176,200처럼 부풀려지는 버그 방지)
+  if (filtered.length === 0 && subs.size === 0 && !selSubset) {
     if (useTotal) {
       return items.filter(it => !it.isTotal && (cats.size === 0 || cats.has(it.category)));
     }
