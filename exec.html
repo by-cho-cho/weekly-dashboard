@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주간 임원 브리핑 — 생산부</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;600;700&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E18; --card: #10151F; --card-hi: #131A28;
+    --border: #1E2739; --divider: rgba(255,255,255,0.07);
+    --ink: #EDF2FB; --ink-2: #B8C2D9; --ink-3: #8A94B2;
+    --gold: #C9A961; --cyan: #4FC3F7; --mint: #00E5A0; --red: #FF5A6E; --amber: #FFB547; --purple: #AB8FE0;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Noto Sans KR', sans-serif;
+    overflow: hidden;
+  }
+  .num { font-family:'IBM Plex Sans','Noto Sans KR',sans-serif; font-variant-numeric: tabular-nums; }
+
+  .stage {
+    height:100vh; display:grid; padding: 22px 34px 26px;
+    grid-template-rows: auto auto 1fr auto; gap: 16px; max-width: 1760px; margin: 0 auto;
+  }
+
+  /* ── 상단 스트립 ── */
+  .topbar { display:flex; align-items:center; gap:14px; }
+  .brand { font-size:12px; font-weight:700; letter-spacing:0.22em; color:var(--gold); text-transform:uppercase; }
+  .brand small { color:var(--ink-3); font-weight:500; letter-spacing:0.1em; margin-left:10px; }
+  .topbar .sp { flex:1; }
+  .tbtn {
+    background:transparent; border:1px solid var(--border); color:var(--ink-2);
+    border-radius:8px; padding:6px 13px; font-size:12px; font-weight:600; cursor:pointer;
+    font-family:inherit; transition: border-color .15s, color .15s;
+  }
+  .tbtn:hover { border-color:var(--gold); color:var(--ink); }
+  .tbtn.on { border-color:var(--gold); color:var(--gold); }
+  .tbtn:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+
+  /* ── 헤드라인 (시그니처) ── */
+  .masthead { border-top:1px solid var(--divider); border-bottom:1px solid var(--divider); padding: 20px 2px 22px; }
+  .mast-eyebrow { font-size:12px; color:var(--ink-3); letter-spacing:0.14em; margin-bottom:10px; display:flex; gap:10px; align-items:center;}
+  .ai-badge { font-size:10px; font-weight:800; color:#0A0E18; background:var(--gold); border-radius:4px; padding:1px 7px; letter-spacing:0.08em; display:none; }
+  .headline {
+    font-size: clamp(22px, 2.6vw, 37px); font-weight: 900; line-height:1.34; letter-spacing:-0.01em;
+    max-width: 1500px; word-break: keep-all;
+  }
+  .headline .hl-up { color: var(--mint); } .headline .hl-down { color: var(--red); }
+  .headline .hl-gold { color: var(--gold); } .headline .hl-cyan { color: var(--cyan); }
+
+  /* ── 본문 그리드 ── */
+  .main { display:grid; grid-template-columns: 300px 1fr; gap:16px; min-height:0; }
+  .scores { display:grid; grid-template-rows: repeat(3, 1fr); gap:12px; }
+  .score {
+    background: var(--card); border:1px solid var(--border); border-radius:14px;
+    padding: 14px 18px; display:flex; flex-direction:column; justify-content:center; gap:2px; position:relative;
+  }
+  .score .lab { font-size:12px; font-weight:700; color:var(--ink-3); letter-spacing:0.1em; display:flex; align-items:center; gap:7px;}
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .score .val { font-size: clamp(26px, 2.4vw, 38px); font-weight:300; letter-spacing:-0.01em; }
+  .score .delta { font-size:12px; color:var(--ink-3); }
+  .score .delta b { font-weight:800; }
+  .score svg { position:absolute; right:14px; bottom:12px; opacity:0.9; }
+
+  .insights { display:grid; grid-template-rows: repeat(auto-fit, minmax(0,1fr)); gap:12px; min-height:0; }
+  .insight {
+    background: var(--card); border:1px solid var(--border); border-left:4px solid var(--c, var(--gold));
+    border-radius:14px; padding: 13px 20px; display:grid; grid-template-columns: 1.15fr 1.3fr 1fr; gap:22px; align-items:center;
+  }
+  .insight .fact { font-size:15.5px; font-weight:800; line-height:1.4; word-break:keep-all; }
+  .insight .fact .fnum { color: var(--c, var(--gold)); }
+  .cell-h { font-size:10px; font-weight:800; letter-spacing:0.14em; color:var(--ink-3); margin-bottom:4px; }
+  .insight .body { font-size:12.5px; color:var(--ink-2); line-height:1.55; word-break:keep-all; }
+
+  /* ── 하단 ── */
+  .bottom { display:grid; grid-template-columns: 1fr 1fr; gap:16px; }
+  .panel { background: var(--card); border:1px solid var(--border); border-radius:14px; padding: 13px 20px; min-height:74px; }
+  .panel .ph { font-size:11px; font-weight:800; letter-spacing:0.14em; margin-bottom:7px; }
+  .panel .pc { font-size:13px; color:var(--ink-2); line-height:1.6; word-break:keep-all; }
+  .panel .pc b { color: var(--ink); }
+  .risk .ph { color: var(--red); } .watch .ph { color: var(--cyan); }
+
+  /* 로딩/모달 */
+  #overlay { position:fixed; inset:0; background:var(--bg); z-index:50; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px; }
+  #overlay .t { color:var(--gold); font-weight:700; letter-spacing:0.1em; }
+  .bar { width:200px; height:3px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:40%; background:var(--gold); animation: slide 1.1s ease-in-out infinite; }
+  @keyframes slide { 0%{transform:translateX(-100%)} 100%{transform:translateX(320%)} }
+  #aiModal { position:fixed; inset:0; background:rgba(5,8,14,0.7); z-index:60; display:none; align-items:center; justify-content:center; }
+  #aiModal .box { background:var(--card-hi); border:1px solid var(--border); border-radius:16px; padding:26px 28px; width:440px; }
+  #aiModal h3 { font-size:15px; margin-bottom:6px; }
+  #aiModal p { font-size:12px; color:var(--ink-3); line-height:1.6; margin-bottom:14px; }
+  #aiModal input { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px; color:var(--ink); padding:9px 12px; font-size:13px; font-family:inherit; }
+  #aiModal .row { display:flex; gap:8px; margin-top:14px; justify-content:flex-end; }
+
+  /* 등장 시퀀스 */
+  .rise { opacity:0; transform: translateY(10px); animation: rise .55s cubic-bezier(.2,.7,.3,1) forwards; }
+  @keyframes rise { to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) { .rise { animation:none; opacity:1; transform:none; } .bar i { animation:none; } }
+  @media (max-width: 1100px) {
+    body { overflow:auto; }
+    .stage { height:auto; }
+    .main { grid-template-columns: 1fr; }
+    .scores { grid-template-rows:none; grid-template-columns: repeat(3,1fr); }
+    .insight { grid-template-columns: 1fr; gap:8px; }
+    .bottom { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay"><div class="t">브리핑 생성 중</div><div class="bar"><i></i></div></div>
+
+<div class="stage">
+  <div class="topbar rise" style="animation-delay:.05s">
+    <span class="brand">Weekly Executive Brief <small id="briefDate">—</small></span>
+    <span class="sp"></span>
+    <button class="tbtn" id="dept1" onclick="setDept('1반')">1반 (액상)</button>
+    <button class="tbtn" id="dept2" onclick="setDept('2반')">2반 (카테터)</button>
+    <button class="tbtn" onclick="openAI()" title="AI 요약 설정">✦ AI 요약</button>
+    <button class="tbtn" onclick="document.documentElement.requestFullscreen?.()">⛶ 발표</button>
+    <button class="tbtn" onclick="location.href='./index.html'">대시보드 →</button>
+  </div>
+
+  <div class="masthead rise" style="animation-delay:.15s">
+    <div class="mast-eyebrow"><span id="mastLabel">—</span><span class="ai-badge" id="aiBadge">AI 요약</span></div>
+    <div class="headline" id="headline">—</div>
+  </div>
+
+  <div class="main">
+    <div class="scores rise" style="animation-delay:.3s" id="scores"></div>
+    <div class="insights" id="insights"></div>
+  </div>
+
+  <div class="bottom rise" style="animation-delay:.75s">
+    <div class="panel risk"><div class="ph">⚠ 리스크</div><div class="pc" id="riskBody">—</div></div>
+    <div class="panel watch"><div class="ph">◎ 다음 주 관전 포인트</div><div class="pc" id="watchBody">—</div></div>
+  </div>
+</div>
+
+<div id="aiModal">
+  <div class="box">
+    <h3>✦ AI 요약 설정</h3>
+    <p>Anthropic API 키를 입력하면 규칙 기반 요약을 Claude 가 임원 보고 문체로 다듬어 줍니다.
+       키는 <b>이 브라우저(localStorage)에만</b> 저장되며 외부로 전송되지 않습니다. 키가 없어도 규칙 기반 브리핑은 정상 동작합니다.</p>
+    <input type="password" id="aiKey" placeholder="sk-ant-...">
+    <div class="row">
+      <button class="tbtn" onclick="closeAI()">닫기</button>
+      <button class="tbtn" onclick="clearAIKey()">키 삭제</button>
+      <button class="tbtn on" onclick="saveAIKey()">저장 후 생성</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════ 데이터 계층 (주간 대시보드와 동일 파서 — 자동 삽입) ═══════════ */
+const APP = { dept: '2반', year: 2026, selectedWeeks: new Set([1,2,3,4,5]), data: {} };
+function getData(year) { return APP.data[year || APP.year]?.[APP.dept]; }
+function getCats() { return new Set(); }
+function getSubs() { return new Set(); }
+function getItems() { return new Set(); }
+const parseNum = v => {
+  if (v == null || v === '') return 0;
+  const n = Number(String(v).replace(/,/g, '').trim());
+  return isFinite(n) ? n : 0;
+};
+const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
+const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
+const GIDS = { '1반': '2145094968', '2반': '680125344' };
+
+const METRICS = ['수주','생산','출고','불량','계획'];
+
+function parseCSV(text){
+  const rows=[]; let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else q=false; } else cell+=c; }
+    else { if(c==='"')q=true;
+      else if(c===','){row.push(cell);cell='';}
+      else if(c==='\n'){row.push(cell);rows.push(row);row=[];cell='';}
+      else if(c!=='\r')cell+=c; }
+  }
+  if(cell||row.length){row.push(cell);rows.push(row);}
+  return rows;
+}
+
+function detectWeeklyColumns(headers, startCol, dept) {
+  // 월간 요약 섹션과 주간 상세 섹션 모두 동일한 "1"~"12" 마커를 사용하므로,
+  // 두 번째 "1" 마커를 주간 섹션 시작점으로 잡는다. (startCol은 폴백)
+  // Why: 시트별로 컬럼 위치가 달라 고정 startCol=150 으로 잘랐더니 25년 1반은
+  //      주간 "1" 마커가 col 148 에 있어 1월이 통째로 누락됐음(2026-06-22 확인).
+  const allMarks = [];
+  for (let i = 0; i < headers.length; i++) {
+    const v = (headers[i]||'').trim();
+    if (/^([1-9]|1[0-2])$/.test(v)) allMarks.push({ mo: +v, col: i });
+  }
+  const ones = allMarks.filter(m => m.mo === 1);
+  const weeklyStart = ones.length >= 2 ? ones[1].col
+                    : ones.length === 1 ? ones[0].col
+                    : startCol;
+  const markers = allMarks.filter(m => m.col >= weeklyStart);
+  const stride = dept === '1반' ? 7 : 8;
+  const wmap = {};
+  const monthlyPlanCol = {};
+  for (let i = 0; i < markers.length; i++) {
+    const cur = markers[i], next = markers[i+1];
+    const endCol = next ? next.col : Math.min(cur.col + 60, headers.length);
+    monthlyPlanCol[cur.mo] = cur.col + 1; // 월 마커 옆 칸이 월간 계획 합계
+    wmap[cur.mo] = {};
+    let wk = 1;
+    for (let c = cur.col + 2; c + (stride - 1) <= endCol; c += stride) {
+      if (dept === '1반') {
+        wmap[cur.mo][wk] = { 수주: c + 6, 생산: c + 1, 출고: c + 2, 불량: c + 4, 계획: c + 0 };
+      } else {
+        wmap[cur.mo][wk] = { 수주: c,     생산: c + 2, 출고: c + 3, 불량: c + 4, 계획: c + 1 };
+      }
+      wk++; if (wk > 5) break;
+    }
+  }
+  return { wmap, monthlyPlanCol };
+}
+
+// 2반 2026 — 명시적 헤더 "M-W 수주" 사용
+
+function parse2Ban26(csvText) {
+  const rows = parseCSV(csvText);
+  const headers = rows[0] || [];
+  const subHeaders = rows[1] || [];
+  const wmap = {};
+  const monthlyPlanCol = {};
+  const monthlyActualCol = {};
+  let safetyCol = -1, currentCol = -1, unshipCol = -1;
+  for (let i = 0; i < headers.length; i++) {
+    const h = (headers[i]||'').trim();
+    const m = h.match(/^(\d{1,2})-(\d)\s*수주$/);
+    if (m) {
+      const mo = +m[1], wk = +m[2];
+      wmap[mo] = wmap[mo] || {};
+      wmap[mo][wk] = { 수주: i, 생산: i+2, 출고: i+3, 불량: i+4, 계획: i+1 };
+    }
+    const mp = h.match(/^(\d{1,2})\s*월\s*계획$/);
+    if (mp) monthlyPlanCol[+mp[1]] = i;
+    // 월별 합계 블록: row0에 "6월" 같은 머지 헤더, row1에 수주/생산/출고/불량/성능/외관/기타
+    const monthOnly = h.match(/^(\d{1,2})\s*월$/);
+    if (monthOnly) {
+      const mo = +monthOnly[1];
+      for (let j = i; j < Math.min(i + 10, subHeaders.length); j++) {
+        if ((subHeaders[j]||'').trim() === '생산') { monthlyActualCol[mo] = j; break; }
+      }
+    }
+    if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
+    if (currentCol < 0 && h.includes('현재고')) currentCol = i;
+    if (unshipCol < 0 && h.includes('미출오더')) unshipCol = i;
+  }
+  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, unshipCol, monthlyPlanCol, monthlyActualCol });
+}
+
+// 1반 2026 / 2반 2025 / 1반 2025 — 위치 기반
+
+function parseGeneric(csvText, dept, headerRowIdx) {
+  const rows = parseCSV(csvText);
+  if (rows.length < 4) return null;
+  const headers = rows[headerRowIdx] || [];
+  const { wmap, monthlyPlanCol } = detectWeeklyColumns(headers, 150, dept);
+  if (Object.keys(wmap).length === 0) return null;
+  // 안전재고/현재고 컬럼 탐지 — 헤더 행 + 직전/직후 행(병합 헤더 대응)
+  let safetyCol = -1, currentCol = -1, unshipCol = -1;
+  const scanRows = [headers, rows[headerRowIdx+1] || [], rows[headerRowIdx-1] || []];
+  for (const r of scanRows) {
+    for (let i = 0; i < r.length; i++) {
+      const h = (r[i]||'').trim();
+      if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
+      if (currentCol < 0 && h.includes('현재고')) currentCol = i;
+      if (unshipCol < 0 && h.includes('미출오더')) unshipCol = i;
+    }
+  }
+  // 1반 시트는 헤더가 병합 셀이라 gviz CSV에 텍스트가 빠짐 — 고정 위치 폴백
+  // 컬럼 매핑(0-indexed): C=2(model) D=3(SPEC) E=4(안전재고) ... J=9(현재고) L=11(미출오더) — 월간 대시보드와 동일
+  if (dept === '1반') {
+    if (safetyCol < 0)  safetyCol = 4;
+    if (currentCol < 0) currentCol = 9;
+    if (unshipCol < 0)  unshipCol = 11;
+  }
+  return extractItems(rows, wmap, dept, { safetyCol, currentCol, unshipCol, monthlyPlanCol });
+}
+
+function extractItems(rows, wmap, dept, opts) {
+  const modelCol = dept === '1반' ? 2 : 0;
+  const specCol  = dept === '1반' ? 3 : 1;
+  const safetyCol = opts?.safetyCol ?? -1;
+  const currentCol = opts?.currentCol ?? -1;
+  const unshipCol = opts?.unshipCol ?? -1;
+  const monthlyPlanCol = opts?.monthlyPlanCol || {};
+  const monthlyActualCol = opts?.monthlyActualCol || {};
+
+  // 카테고리 매핑
+  let getCategory;
+  if (dept === '1반') {
+    const rowToCat = {};
+    for (const cd of CAT_1BAN_ROWS) for (const r of cd.rows) rowToCat[r] = cd.cat;
+    // 이름 패턴 기반 폴백 (행 범위에서 누락된 품목 자동 분류)
+    const byName = (model) => {
+      const m = (model||'').toLowerCase().trim();
+      if (/^iot/.test(m) || m.includes('iot pro')) return 'IOT';
+      if (/^black\s*eye/.test(m) || m.startsWith('black_')) return 'Black Eye';
+      if (/^blue/.test(m)) return 'Blue Eye';
+      if (m.includes('c/f') || m.includes('커플링') || m.includes('청우')) return '커플링플로이드';
+      if (m.includes('벨라') || m.includes('be/벨라') || /^be\b/.test(m)) return 'BE/벨라';
+      if (m.includes('muco') || m.includes('창상') || m.includes('스토케어')) return '창상피복제';
+      if (m.includes('syringe') || m.includes('시린지') || m.includes('ml syringe')) return '시린지';
+      return null;
+    };
+    // byName 우선 — rowToCat 은 시트 버전(25/26)별로 행 번호가 다르므로 폴백.
+    // SEPIA 컬러칩(코드 패턴 "101 10MC" 등)·"SEPIA"/"OEM" 헤더는 1반 미관리 → 제외.
+    getCategory = (rIdx, model) => {
+      const m = (model||'').toLowerCase().trim();
+      if (m.includes('sepia') || /^\d{3}\s+/.test(model||'')) return null;
+      return byName(model) || rowToCat[rIdx+1] || null;
+    };
+  } else {
+    // 2반: 카테고리 헤더 행이 카테고리 합계를 보유 — 헤더만 집계 단위로 사용
+    // 헤더는 정확한 이름으로만 매칭 ("TS-ENBD-7F" 같은 개별 품목 오매칭 방지)
+    getCategory = (rIdx, model) => {
+      const m = (model||'').trim();
+      if (/^cable\s*total$/i.test(m)) return 'Cable';
+      if (/^epo\s*probe$/i.test(m))   return 'EPO Probe';
+      if (/^enbd$/i.test(m))          return 'ENBD';
+      if (/^ep$/i.test(m))            return 'EP';
+      return null; // 헤더 아닌 행 (개별 품목)
+    };
+  }
+
+  const items = [];
+  const startRow = dept === '1반' ? 5 : 1;
+  let currentCat = null; // 2반 — 가장 최근 헤더 행이 정한 카테고리
+  for (let r = startRow; r < rows.length; r++) {
+    const row = rows[r]; if (!row) continue;
+    const model = (row[modelCol]||'').trim();
+    if (!model) continue;
+
+    let cat, isTotal;
+    if (dept === '1반') {
+      // grand total 보호
+      if (/^전품목$/i.test((row[1]||'').trim())) continue;
+      cat = getCategory(r, model);
+      // Total 행 판정 — 두 패턴 모두 처리:
+      //   2026: c2="Total" (명시)
+      //   2025: c2=카테고리명, c3(SPEC) 비어 있음 (예: "Black Eye" 단독 행)
+      // Why: 25년 시트는 c2="Total" 행이 없고 카테고리명이 모델 자리에 옴.
+      //      이걸 못 잡아서 차트가 (parent + 모든 sub-rows) 합계를 표시 → 시트 grand total(59,498) 대신 82,696 으로 부풀어남
+      const spec = (row[3]||'').trim();
+      isTotal = /^total$/i.test(model) ||
+                (!spec && cat && cat !== '기타' && cat !== 'Cable' && model === cat);
+      if (!cat || cat === '기타' || cat === 'Cable') continue;
+    } else {
+      // 2반: 헤더(EP/ENBD/EPO Probe/Cable Total) 또는 개별 품목
+      if (/^(item|품명|품목|spec|규격|전품목|total)$/i.test(model) && !getCategory(r, model)) continue;
+      const headerCat = getCategory(r, model);
+      if (headerCat) {
+        currentCat = headerCat; isTotal = true; cat = headerCat;
+      } else {
+        if (!currentCat) continue;
+        isTotal = false; cat = currentCat;
+        // Duodeca: SM720SJD / SM720SOD 는 별도 품목군으로 분리 (대표이사 대시보드 규칙)
+        if (/SM720S[JO]D/i.test(model)) cat = 'Duodeca';
+      }
+      if (cat === 'Cable') continue;
+    }
+
+    const weekData = {}; let hasAny = false;
+    for (const mo of Object.keys(wmap)) {
+      weekData[mo] = {};
+      for (const wk of Object.keys(wmap[mo])) {
+        const c = wmap[mo][wk];
+        const w = {};
+        for (const me of METRICS) w[me] = parseNum(row[c[me]]);
+        weekData[mo][wk] = w;
+        if (w.수주 + w.생산 + w.출고 + w.불량 + w.계획 > 0) hasAny = true;
+      }
+    }
+    const monthlyPlan = {};
+    for (const mo of Object.keys(monthlyPlanCol)) {
+      const v = parseNum(row[monthlyPlanCol[mo]]);
+      if (v > 0) { monthlyPlan[mo] = v; hasAny = true; }
+    }
+    const monthlyActual = {};
+    for (const mo of Object.keys(monthlyActualCol)) {
+      const v = parseNum(row[monthlyActualCol[mo]]);
+      if (v > 0) { monthlyActual[mo] = v; hasAny = true; }
+    }
+    if (!hasAny) continue;
+    const displayModel = isTotal ? `${cat} 합계` : model;
+    items.push({
+      model: displayModel,
+      spec: (row[specCol]||'').trim(),
+      category: cat,
+      subcategory: detectSubcategory(cat, model),
+      weekData,
+      monthlyPlan,
+      monthlyActual,
+      isTotal,
+      safetyStock: safetyCol >= 0 ? parseNum(row[safetyCol]) : 0,
+      currentStock: currentCol >= 0 ? parseNum(row[currentCol]) : 0,
+      unshipped: unshipCol >= 0 ? parseNum(row[unshipCol]) : 0,
+    });
+  }
+
+  // 1반: Total 행 없는 카테고리는 sub-products 합산으로 합성
+  // (커플링플로이드·창상피복제·시린지는 시트에 카테고리 Total 행이 없음)
+  if (dept === '1반') {
+    const grouped = {};
+    for (const it of items) {
+      (grouped[it.category] = grouped[it.category] || {hasTotal: false, subs: []});
+      if (it.isTotal) grouped[it.category].hasTotal = true;
+      else grouped[it.category].subs.push(it);
+    }
+    for (const [cat, g] of Object.entries(grouped)) {
+      if (g.hasTotal || g.subs.length === 0) continue;
+      const weekData = {};
+      for (const mo of Object.keys(wmap)) {
+        weekData[mo] = {};
+        for (const wk of Object.keys(wmap[mo])) {
+          const w = {};
+          for (const me of METRICS) {
+            w[me] = g.subs.reduce((s, it) => s + (Number(it.weekData?.[mo]?.[wk]?.[me])||0), 0);
+          }
+          weekData[mo][wk] = w;
+        }
+      }
+      const monthlyPlan = {}, monthlyActual = {};
+      for (const mo of Object.keys(monthlyPlanCol)) {
+        const v = g.subs.reduce((s, it) => s + (Number(it.monthlyPlan?.[mo])||0), 0);
+        if (v > 0) monthlyPlan[mo] = v;
+      }
+      // 합성 합계에도 개별 품목의 월별 실적을 합산 — 누락 시 월 진척도에서 주간합 폴백만 쓰여
+      // 월별 합계 컬럼이 존재하는 시트에서 값이 과소 표시되던 문제 방지
+      for (const it of g.subs) {
+        for (const mo of Object.keys(it.monthlyActual || {})) {
+          monthlyActual[mo] = (monthlyActual[mo] || 0) + (Number(it.monthlyActual[mo]) || 0);
+        }
+      }
+      items.push({
+        model: `${cat} 합계`, spec: '', category: cat, subcategory: null,
+        weekData, monthlyPlan, monthlyActual, isTotal: true,
+        safetyStock: 0, currentStock: 0, unshipped: 0,
+      });
+    }
+  }
+
+  return { items, weeksByMonth: getWeeksByMonth(wmap) };
+}
+
+// 세부 품목군 (브랜드) — 커플링플로이드 하위에 텐텍/제이시스/비올/원텍/청우
+
+function detectSubcategory(cat, model) {
+  if (cat !== '커플링플로이드') return null;
+  const m = (model||'').toLowerCase();
+  if (m.includes('텐텍')) return '텐텍';
+  if (m.includes('j/s') || m.includes('제이시스')) return '제이시스';
+  if (m.includes('비올')) return '비올';
+  if (m.includes('원텍')) return '원텍';
+  if (m.includes('청우')) return '청우';
+  return null;
+}
+
+function getWeeksByMonth(wmap) {
+  const r = {};
+  for (const mo of Object.keys(wmap)) r[+mo] = Object.keys(wmap[mo]).map(Number).sort((a,b)=>a-b);
+  return r;
+}
+
+/* ============================================================
+   집계
+   ============================================================ */
+
+function findLatestWeek(allItems) {
+  let lm = -1, lw = -1;
+  for (const it of allItems || []) {
+    for (const mo of Object.keys(it.weekData || {})) {
+      for (const wk of Object.keys(it.weekData[mo] || {})) {
+        const w = it.weekData[mo][wk];
+        if ((w.수주 + w.생산 + w.출고 + w.불량) > 0) {
+          const moN = +mo, wkN = +wk;
+          if (moN > lm || (moN === lm && wkN > lw)) { lm = moN; lw = wkN; }
+        }
+      }
+    }
+  }
+  return lm < 0 ? null : { mo: lm, wk: lw };
+}
+
+function filterItems(items) {
+  const cats = getCats();
+  const subs = getSubs();
+  const sel = getItems();
+  const curData = getData();
+
+  // ── 부서별로 신뢰 가능한 집계 소스가 다름 ──
+  //  · 1반: 카테고리 '합계' 행이 일부 과소 입력(커플링플로이드 등) → 개별 품목 합산이 진실값.
+  //  · 2반: 2025 개별 품목(EPO Probe) 파싱 오류로 과대(개별 1.8M vs 합계 6,084) → 합계 행이 진실값.
+  //         (2026은 합계≈개별이라 합계 기준이 양년 모두 안전)
+  const totalBasis = (APP.dept === '2반');
+
+  // 카테고리 전체가 선택됐는지(= narrowing 아님) 판정 — 세부 drill-down 구분용
+  let fullCatSel = sel.size === 0;
+  if (!fullCatSel && cats.size > 0 && curData) {
+    const allInd = curData.items.filter(it => !it.isTotal && cats.has(it.category));
+    if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) fullCatSel = true;
+  }
+  // 2반: 전체/카테고리 단위 보기는 합계 행 기준. 세부 drill-down(부분 품목·세부품목군)만 개별.
+  // 1반: 항상 개별 품목 합산.
+  const useTotal = totalBasis && fullCatSel && subs.size === 0;
+  const selSubset = !fullCatSel; // 개별 품목을 '부분'만 선택한 경우
+  // 합계 모드에서 카테고리별로 합계 행 보유 여부 — 합계 있으면 합계 행, 없으면(2반 Duodeca) 개별 품목.
+  // (전부 합계 행만 모으면 Duodeca가 누락돼 선택해도 값이 안 변하는 버그 발생)
+  const totalCats = useTotal ? new Set(items.filter(it => it.isTotal).map(it => it.category)) : null;
+  // 2반 Duodeca(SM720)는 시트 EP 합계행에 이미 포함됨 → EP 합계가 집계에 들어가는 보기(전체·EP 포함)에서
+  // Duodeca 개별을 더하면 이중집계. EP 합계가 포함될 때만 Duodeca 제외(Duodeca 단독 보기는 유지).
+  const epInAgg = useTotal && (cats.size === 0 || cats.has('EP')) && items.some(it => it.isTotal && it.category === 'EP');
+
+  const filtered = items.filter(it => {
+    if (cats.size > 0 && !cats.has(it.category)) return false;
+    if (subs.size > 0 && it.subcategory && !subs.has(it.subcategory)) return false;
+    if (useTotal) {
+      if (epInAgg && it.category === 'Duodeca') return false; // EP 합계에 이미 포함 → 이중집계 방지
+      if (totalCats.has(it.category)) { if (!it.isTotal) return false; }
+      else { if (it.isTotal) return false; }
+    } else {
+      if (it.isTotal) return false;
+      if (selSubset && !sel.has(it.model)) return false;
+    }
+    return true;
+  });
+  // 폴백: 결과 없으면 반대 소스로 (드문 빈 데이터 방어)
+  // 단, 세부품목(subs)·부분품목으로 좁힌 상태의 빈 결과는 '실제 0'이므로 폴백 금지.
+  // (예: 25년에 없는 원텍/청우를 25년 동기간 비교하면, 폴백이 커플링플로이드 카테고리
+  //  합계 행을 대신 반환해 25년 수주가 0이 아니라 176,200처럼 부풀려지는 버그 방지)
+  if (filtered.length === 0 && subs.size === 0 && !selSubset) {
+    if (useTotal) {
+      return items.filter(it => !it.isTotal && (cats.size === 0 || cats.has(it.category)));
+    }
+    return items.filter(it => it.isTotal && (cats.size === 0 || cats.has(it.category)));
+  }
+  return filtered;
+}
+
+// 데이터 전체에서 마지막 실적 주(mo,wk) 찾기 — 빈 주차 트레일링 보정용
+
+function aggregateByWeek(items, months, globalItems) {
+  const out = [];
+  const weekFilter = APP.selectedWeeks;
+  // globalItems 가 있으면 빈 주차도 유지 (X축에 최근 날짜까지 노출). 없으면 합계 0 주차 드롭(기존 동작).
+  const keepEmpty = !!(globalItems && globalItems.length);
+  const ref = keepEmpty ? globalItems : items;
+  const latest = keepEmpty ? findLatestWeek(globalItems) : null;
+  for (const mo of months) {
+    // Why: 첫 품목(ref[0])만 보면 그 품목이 해당 월에 weekData가 없을 때 전 주차가 빠져
+    //      25년 비교 월합이 0이 되어 ∑ 옆 25년 배지가 누락됨. 전 품목의 주차를 합집합으로 사용.
+    const wkSet = new Set();
+    for (const it of ref) {
+      const wd = it.weekData?.[mo]; if (!wd) continue;
+      for (const k of Object.keys(wd)) wkSet.add(Number(k));
+    }
+    const wks = [...wkSet].sort((a,b)=>a-b);
+    for (const wk of wks) {
+      if (weekFilter.size > 0 && !weekFilter.has(wk)) continue;
+      if (latest && (mo > latest.mo || (mo === latest.mo && wk > latest.wk))) continue;
+      const sums = {};
+      for (const me of METRICS) sums[me] = 0;
+      for (const it of items) {
+        const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
+        for (const me of METRICS) sums[me] += w[me] || 0;
+      }
+      if (!keepEmpty && (sums.수주 + sums.생산 + sums.출고 + sums.불량) === 0) continue;
+      out.push({ label: `${mo}월${wk}주`, mo, wk, ...sums });
+    }
+  }
+  return out;
+}
+
+// 동기간 비교: 다른 연도 데이터에서 같은 mo/wk 추출
+
+function aggregateMonthlyPlanVsActual() {
+  const data = getData(); if (!data) return null;
+  const items = filterItems(data.items);
+  // 개별(leaf) 품목 — Total 행 주간 계획칸이 비어 있는 달(예: 5월) 보정용.
+  // 계획은 품목 단위로만 입력되므로 Total 행에 누락되는 경우가 있음.
+  const cats = getCats(), subs = getSubs(), sel = getItems();
+  const leaves = data.items.filter(it => {
+    if (it.isTotal) return false;
+    if (cats.size > 0 && !cats.has(it.category)) return false;
+    if (subs.size > 0 && it.subcategory && !subs.has(it.subcategory)) return false;
+    if (sel.size > 0 && !sel.has(it.model)) return false;
+    return true;
+  });
+  const latest = findLatestWeek(data.items); // 데이터가 들어온 최신 주차 (마감/진행중 판정 기준)
+  const monthsAll = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  const rows = [];
+  for (const mo of monthsAll) {
+    const wks = data.weeksByMonth[mo] || [];
+    let lastDoneWk = 0;
+    let plan = 0, actualFromMonthlyCol = 0;
+    for (const it of items) {
+      plan += it.monthlyPlan?.[mo] || 0;
+      actualFromMonthlyCol += it.monthlyActual?.[mo] || 0;
+    }
+    let weeklyPlanSum = 0, weeklyActualSum = 0, leafPlanSum = 0;
+    for (const wk of wks) {
+      let wkPlan = 0, wkActual = 0;
+      for (const it of items) {
+        const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
+        wkPlan += w.계획 || 0;
+        wkActual += w.생산 || 0;
+      }
+      for (const it of leaves) {
+        const w = it.weekData?.[mo]?.[wk]; if (!w) continue;
+        leafPlanSum += w.계획 || 0;
+      }
+      weeklyPlanSum += wkPlan;
+      weeklyActualSum += wkActual;
+      if (!latest || mo < latest.mo || (mo === latest.mo && wk <= latest.wk)) {
+        if (wkActual > 0 || wkPlan > 0) lastDoneWk = wk;
+      }
+    }
+    if (plan === 0) plan = weeklyPlanSum;
+    // 월별 합계 블록의 '생산' 컬럼을 우선 사용, 없으면 주간 합으로 폴백
+    const actual = actualFromMonthlyCol > 0 ? actualFromMonthlyCol : weeklyActualSum;
+    // Total 행 계획 누락 보정: 계획이 실적의 40% 미만으로 비현실적이면(달성률 250%↑)
+    // 개별 품목 계획 합으로 대체. (예: 5월 Total 계획 500 → 개별합 65,744)
+    if (leafPlanSum > plan && actual > 0 && plan < actual * 0.4) plan = leafPlanSum;
+    const planUntilNow = plan;
+    let status;
+    if (!latest) status = '예정';
+    else if (mo < latest.mo) status = '마감';
+    else if (mo === latest.mo) status = '진행중';
+    else status = '예정';
+    rows.push({ mo, plan, actual, planUntilNow, lastDoneWk, status, latestWk: latest?.wk });
+  }
+  return rows;
+}
+
+function holtForecast(series, h) {
+  const n = series.length;
+  if (n < 4) return null;
+  // 첫 두 점으로 초기 level/trend
+  function fit(alpha, beta) {
+    let L = series[0], T = series[1] - series[0];
+    const fitted = [L];
+    let sse = 0;
+    for (let t = 1; t < n; t++) {
+      const f = L + T;          // one-step-ahead 예측
+      fitted.push(f);
+      const e = series[t] - f;
+      sse += e * e;
+      L = alpha * series[t] + (1 - alpha) * (L + T);
+      T = beta * (L - fitted[fitted.length-1]) + (1 - beta) * T;
+      // 보정
+      T = beta * (series[t] - series[t-1]) + (1 - beta) * T;
+    }
+    return { L, T, sse, fitted };
+  }
+  // 그리드 탐색
+  let best = { sse: Infinity, alpha: 0.3, beta: 0.1 };
+  for (let a = 0.1; a <= 0.9; a += 0.1) {
+    for (let b = 0.05; b <= 0.5; b += 0.05) {
+      const r = fit(a, b);
+      if (r.sse < best.sse) best = { sse: r.sse, alpha: a, beta: b, L: r.L, T: r.T, fitted: r.fitted };
+    }
+  }
+  // 잔차 표준편차
+  const resid = series.map((y, i) => y - best.fitted[i]).slice(1);
+  const meanR = resid.reduce((a,b)=>a+b,0) / resid.length;
+  const sigma = Math.sqrt(resid.reduce((s,r)=>s+(r-meanR)*(r-meanR),0) / (resid.length-1 || 1));
+  // h 단계 예측
+  const forecasts = [];
+  for (let k = 1; k <= h; k++) {
+    const point = Math.max(0, best.L + k * best.T);
+    // 신뢰구간 폭은 sqrt(k)에 비례
+    const band = 1.96 * sigma * Math.sqrt(k);
+    forecasts.push({ point, lo: Math.max(0, point - band), hi: point + band });
+  }
+  return {
+    forecasts,
+    alpha: best.alpha, beta: best.beta, sigma,
+    rmse: Math.sqrt(best.sse / (n-1)),
+    accuracy: Math.max(0, 100 - (sigma / (series.reduce((a,b)=>a+b,0)/n || 1)) * 100), // 평균 대비 변동률
+  };
+}
+
+// 다음 주차 라벨 생성 (5주 단위 wrap)
+
+function nextWeekLabel(mo, wk) {
+  if (wk < 5) return { mo, wk: wk+1, label: `${mo}월${wk+1}주` };
+  const nm = mo === 12 ? 1 : mo+1;
+  return { mo: nm, wk: 1, label: `${nm}월1주` };
+}
+
+/* ═══════════ 집계 유틸 ═══════════ */
+const fmtN = n => Math.round(n).toLocaleString('ko-KR');
+const pct = (a,b) => b > 0 ? (a-b)/b*100 : null;
+
+function weeklySeries(year) {           // 전체 품목 주간 시계열 (dedup 적용)
+  const d = APP.data[year]?.[APP.dept]; if (!d) return [];
+  const months = Object.keys(d.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  return aggregateByWeek(filterItems(d.items), months, d.items);
+}
+function catCum(year, cat, metric, cutLatest) { // 품목군 동기간 누계 (2반 합계/1반 개별 기준)
+  const d = APP.data[year]?.[APP.dept]; if (!d) return 0;
+  const ci = d.items.filter(it => it.category === cat);
+  const inds = ci.filter(it => !it.isTotal), tots = ci.filter(it => it.isTotal);
+  const use = APP.dept === '2반' ? (tots.length ? tots : inds) : (inds.length ? inds : tots);
+  const months = Object.keys(d.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  return aggregateByWeek(use, months, cutLatest).reduce((s,r)=>s+(r[metric]||0), 0);
+}
+
+/* ═══════════ 인사이트 엔진 ═══════════ */
+const CAT_PALETTE = ['var(--gold)','var(--cyan)','var(--mint)','var(--amber)','var(--purple)','var(--red)'];
+function buildFacts() {
+  const d = getData(); if (!d) return null;
+  const prevYear = APP.year - 1;
+  const agg = weeklySeries(APP.year);
+  if (!agg.length) return null;
+  const cur = agg[agg.length-1], prev = agg[agg.length-2] || null;
+  const latest = findLatestWeek(d.items);
+
+  // 연속 추세 (수주 기준)
+  let streak = 0, dir = 0;
+  for (let i = agg.length-1; i > 0; i--) {
+    const df = agg[i].수주 - agg[i-1].수주, s = Math.sign(df);
+    if (s === 0) break;
+    if (dir === 0) { dir = s; streak = 1; }
+    else if (s === dir) streak++;
+    else break;
+  }
+
+  // 품목군 YoY (동기간)
+  const cats = [...new Set(d.items.map(it => it.category).filter(c => c && c !== 'Cable' && c !== '기타'))];
+  const catRows = cats.map((cat,i) => {
+    const o = catCum(APP.year, cat, '수주', d.items), o0 = catCum(prevYear, cat, '수주', d.items);
+    const p = catCum(APP.year, cat, '생산', d.items), p0 = catCum(prevYear, cat, '생산', d.items);
+    return { cat, o, o0, p, p0, gO: pct(o,o0), color: CAT_PALETTE[i%CAT_PALETTE.length] };
+  }).filter(r => r.o > 0 || r.o0 > 0);
+  const totO = (APP.dept==='2반' ? catRows.filter(r=>r.cat!=='Duodeca') : catRows).reduce((s,r)=>s+r.o,0);
+  const totO0 = (APP.dept==='2반' ? catRows.filter(r=>r.cat!=='Duodeca') : catRows).reduce((s,r)=>s+r.o0,0);
+
+  // 월 진척도 (현재 진행월)
+  const mp = (aggregateMonthlyPlanVsActual() || []);
+  const cm = mp.find(r => r.status === '진행중') || mp.filter(r=>r.status==='마감').slice(-1)[0] || null;
+
+  // 안전재고 (품목군 확보율)
+  const safety = {};
+  for (const it of d.items) {
+    if (it.isTotal || !it.category || it.category==='Cable') continue;
+    const s = (safety[it.category] = safety[it.category] || {need:0, have:0});
+    s.need += it.safetyStock || 0;
+    s.have += Math.max(0, (it.currentStock||0) - (it.pendingOrder||0));
+  }
+  const safetyRows = Object.entries(safety).filter(([,v])=>v.need>0)
+    .map(([cat,v])=>({cat, rate: v.have/v.need*100, gap: v.need-v.have})).sort((a,b)=>a.rate-b.rate);
+
+  // 다음 주 예측 (Holt)
+  const fc = agg.length >= 4 ? holtForecast(agg.map(r=>r.수주), 1) : null;
+
+  return { cur, prev, latest, streak: dir*streak, agg, catRows, totO, totO0, gTot: pct(totO, totO0),
+           month: cm, safetyRows, forecast: (fc && fc.forecasts && fc.forecasts.length) ? Math.max(0, Math.round(fc.forecasts[0].point)) : null, prevYear };
+}
+
+function buildInsights(F) {
+  const out = [];
+  // 1) 품목군 YoY 급변 (±15%)
+  const movers = F.catRows.filter(r => r.gO != null && Math.abs(r.gO) >= 15 && (r.o > F.totO*0.03 || r.o0 > F.totO0*0.03))
+                          .sort((a,b)=>Math.abs(b.o-b.o0)-Math.abs(a.o-a.o0));
+  for (const m of movers.slice(0,2)) {
+    const up = m.gO >= 0, diff = Math.abs(m.o - m.o0);
+    const share = Math.abs(F.totO - F.totO0) > 0 ? Math.min(999, diff/Math.abs(F.totO-F.totO0)*100) : null;
+    out.push({ sev: up ? 2 : 3, color: up ? 'var(--mint)' : 'var(--red)',
+      fact: `${m.cat} 수주 전년 동기 대비 <span class="fnum">${up?'▲':'▼'} ${Math.abs(m.gO).toFixed(1)}%</span>`,
+      so: `${F.prevYear}년 ${fmtN(m.o0)} → 올해 ${fmtN(m.o)}${share!=null && share>=25 ? ` — 전체 수주 ${F.gTot>=0?'증가':'감소'}분의 ${share.toFixed(0)}%를 설명` : ''}.`,
+      now: up ? `증가분의 생산능력·자재 선확보 여부 점검.` : `수요 감소인지 수주 이월인지 영업 확인 필요.` });
+  }
+  // 2) 월 진척도
+  if (F.month && F.month.status === '진행중' && F.month.plan > 0) {
+    const rate = F.month.actual / F.month.plan * 100;
+    const elapsed = F.latest ? (F.latest.wk / ((getData().weeksByMonth[F.month.mo]||[1,2,3,4]).length)) * 100 : null;
+    const behind = elapsed != null && rate < elapsed - 8;
+    out.push({ sev: behind ? 3 : 1, color: behind ? 'var(--amber)' : 'var(--cyan)',
+      fact: `${F.month.mo}월 생산 진척률 <span class="fnum">${rate.toFixed(1)}%</span> (계획 ${fmtN(F.month.plan)} / 실적 ${fmtN(F.month.actual)})`,
+      so: elapsed != null ? `경과 주차 기준 기대 진척 ${elapsed.toFixed(0)}% 대비 ${(rate-elapsed>=0?'+':'')}${(rate-elapsed).toFixed(1)}%p ${behind?'미달':'수준'}.` : `잔여 계획 ${fmtN(Math.max(0,F.month.plan-F.month.actual))}.`,
+      now: behind ? `잔여 ${fmtN(Math.max(0,F.month.plan-F.month.actual))} — 마감 전 만회 계획 필요.` : `현 추세 유지 시 월 마감 무난.` });
+  }
+  // 3) 수주 연속 추세
+  if (Math.abs(F.streak) >= 3) {
+    const up = F.streak > 0;
+    out.push({ sev: 2, color: up ? 'var(--mint)' : 'var(--red)',
+      fact: `수주 <span class="fnum">${Math.abs(F.streak)}주 연속 ${up?'상승':'하락'}</span>`,
+      so: `최근 ${Math.abs(F.streak)+1}주: ${F.agg.slice(-(Math.abs(F.streak)+1)).map(r=>fmtN(r.수주)).join(' → ')}.`,
+      now: up ? `납기 대응 여력(재고·인력) 사전 점검.` : `하락 원인 품목군 식별 및 대응 필요.` });
+  }
+  // 4) 안전재고
+  const short = F.safetyRows.filter(r => r.rate < 100);
+  if (short.length) {
+    const w = short[0];
+    out.push({ sev: 3, color: 'var(--red)',
+      fact: `${w.cat} 안전재고 확보율 <span class="fnum">${w.rate.toFixed(0)}%</span>${short.length>1?` 외 ${short.length-1}개 품목군 미달`:''}`,
+      so: `가용재고(현재고−미출오더)가 안전선 대비 ${fmtN(w.gap)} 부족.`,
+      now: `해당 품목군 생산 우선순위 상향 검토.` });
+  }
+  // 5) 생산-출고 균형
+  if (F.cur && F.cur.생산 > 0) {
+    const gap = pct(F.cur.출고, F.cur.생산);
+    if (gap != null && gap < -15) {
+      out.push({ sev: 2, color: 'var(--amber)',
+        fact: `최근주 출고가 생산 대비 <span class="fnum">${Math.abs(gap).toFixed(0)}% 낮음</span>`,
+        so: `생산 ${fmtN(F.cur.생산)} vs 출고 ${fmtN(F.cur.출고)} — 재고 적체 가능성.`,
+        now: `미출오더·출하 일정 확인.` });
+    }
+  }
+  out.sort((a,b)=>b.sev-a.sev);
+  if (!out.length) out.push({ sev:0, color:'var(--mint)', fact:'주요 지표 모두 정상 범위', so:'전주·전년 대비 급변 및 미달 항목이 감지되지 않았습니다.', now:'현 운영 기조 유지.' });
+  return out.slice(0, 4);
+}
+
+function buildHeadline(F, insights) {
+  const wk = F.latest ? `${F.latest.mo}월 ${F.latest.wk}주차` : '';
+  const pos = insights.find(i => i.color === 'var(--mint)');
+  const neg = insights.find(i => i.sev >= 3);
+  const strip = s => s.replace(/<[^>]+>/g,'').replace(/\s*\([^)]*\)/g,'');
+  let core;
+  if (pos && neg) core = `${strip(pos.fact)}, 단 ${strip(neg.fact)}`;
+  else if (neg) core = strip(neg.fact) + ' — 점검 필요';
+  else if (pos) core = strip(pos.fact);
+  else core = '주요 지표 안정 흐름 유지';
+  const g = F.prev ? pct(F.cur.수주, F.prev.수주) : null;
+  const kpi = g == null ? '' : ` 수주 <span class="${g>=0?'hl-up':'hl-down'}">${g>=0?'▲':'▼'}${Math.abs(g).toFixed(1)}%</span>.`;
+  return `<span class="hl-gold">${wk}</span> —${kpi} ${core}.`;
+}
+
+/* ═══════════ 렌더 ═══════════ */
+function spark(data, color) {
+  if (!data || data.length < 2) return '';
+  const w=110, h=34, mx=Math.max(...data), mn=Math.min(...data), r=mx-mn||1;
+  const pts = data.map((v,i)=>`${(i/(data.length-1)*w).toFixed(1)},${(h-4-(v-mn)/r*(h-8)).toFixed(1)}`).join(' ');
+  const last = pts.split(' ').pop().split(',');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" opacity="0.85"/><circle cx="${last[0]}" cy="${last[1]}" r="3" fill="${color}"/></svg>`;
+}
+function render() {
+  const F = buildFacts();
+  const el = id => document.getElementById(id);
+  el('dept1').classList.toggle('on', APP.dept==='1반');
+  el('dept2').classList.toggle('on', APP.dept==='2반');
+  el('dept1').style.display = APP.data[APP.year]?.['1반']?.items?.length ? '' : 'none';
+  el('dept2').style.display = APP.data[APP.year]?.['2반']?.items?.length ? '' : 'none';
+  if (!F) { el('headline').textContent = '데이터 없음 — 시트 연결을 확인해주세요.'; el('scores').innerHTML=''; el('insights').innerHTML=''; return; }
+
+  el('briefDate').textContent = `${APP.year} · ${APP.dept} · ${new Date().toLocaleDateString('ko-KR')} 생성`;
+  el('mastLabel').textContent = `생산${APP.dept} 주간 브리핑 · 데이터 기준 ${F.latest ? F.latest.mo+'월 '+F.latest.wk+'주차' : '—'}`;
+
+  const insights = buildInsights(F);
+  el('headline').innerHTML = buildHeadline(F, insights);
+  el('aiBadge').style.display = 'none';
+
+  // 스코어카드
+  const S = [['수주','var(--gold)'],['생산','var(--cyan)'],['출고','var(--mint)']];
+  el('scores').innerHTML = S.map(([m,c]) => {
+    const v = F.cur[m], p = F.prev?.[m], g = p > 0 ? pct(v,p) : null;
+    const y = (() => { const ys = weeklySeries(F.prevYear); const match = ys.find(r=>r.mo===F.cur.mo&&r.wk===F.cur.wk); return match ? pct(v, match[m]) : null; })();
+    const state = (g!=null&&g<-10)||(y!=null&&y<-10) ? 'var(--red)' : (g!=null&&g<0)||(y!=null&&y<0) ? 'var(--amber)' : 'var(--mint)';
+    return `<div class="score">
+      <div class="lab"><span class="dot" style="background:${state}"></span>최근주 ${m}</div>
+      <div class="val num" style="color:${c}">${fmtN(v)}</div>
+      <div class="delta">${g!=null?`전주 <b style="color:${g>=0?'var(--mint)':'var(--red)'}">${g>=0?'▲':'▼'}${Math.abs(g).toFixed(1)}%</b>`:'전주 —'}${y!=null?` · 전년 <b style="color:${y>=0?'var(--mint)':'var(--red)'}">${y>=0?'▲':'▼'}${Math.abs(y).toFixed(1)}%</b>`:''}</div>
+      ${spark(F.agg.slice(-6).map(r=>r[m]), c)}
+    </div>`;
+  }).join('');
+
+  // 인사이트 카드
+  el('insights').innerHTML = insights.map((n,i) => `
+    <div class="insight rise" style="--c:${n.color};animation-delay:${0.45+i*0.12}s">
+      <div class="fact">${n.fact}</div>
+      <div><div class="cell-h">SO WHAT</div><div class="body">${n.so}</div></div>
+      <div><div class="cell-h">NOW WHAT</div><div class="body">${n.now}</div></div>
+    </div>`).join('');
+
+  // 리스크
+  const risks = [];
+  for (const r of F.safetyRows.filter(r=>r.rate<100).slice(0,3)) risks.push(`<b>${r.cat}</b> 안전재고 ${r.rate.toFixed(0)}% (부족 ${fmtN(r.gap)})`);
+  if (F.month && F.month.status==='진행중' && F.month.plan>0 && F.month.actual/F.month.plan*100 < 85) risks.push(`<b>${F.month.mo}월 계획</b> 진척 ${(F.month.actual/F.month.plan*100).toFixed(0)}% — 미달 위험`);
+  el('riskBody').innerHTML = risks.length ? risks.join(' · ') : '이번 주 감지된 리스크 없음.';
+
+  // 관전 포인트
+  const watch = [];
+  if (F.month && F.month.status==='진행중') {
+    const remain = Math.max(0, F.month.plan - F.month.actual);
+    const wksLeft = Math.max(1, (getData().weeksByMonth[F.month.mo]||[1,2,3,4]).length - (F.latest?.wk||0));
+    if (remain > 0) {
+      const perWk = remain / wksLeft;
+      const need = F.cur.생산 > 0 ? perWk / F.cur.생산 * 100 - 100 : null;
+      watch.push(`${F.month.mo}월 마감까지 잔여 계획 <b>${fmtN(remain)}</b> — 주당 <b>${fmtN(perWk)}</b> 필요` +
+        (need == null ? '' : need > 0 ? ` (최근주 생산 대비 <b style="color:var(--amber)">+${need.toFixed(0)}%</b> 증산 필요)` : ` (현 생산 수준으로 달성 가능)`));
+    }
+  }
+  if (F.forecast != null) watch.push(`다음 주 수주 예측(지수평활) <b>${fmtN(F.forecast)}</b>`);
+  el('watchBody').innerHTML = watch.length ? watch.join(' · ') : '—';
+
+  window._F = F; window._insights = insights; // AI 요약 입력용
+  if (localStorage.getItem('exec_ai_key')) runAI();
+}
+
+function setDept(d) { APP.dept = d; render(); }
+
+/* ═══════════ AI 요약 (Anthropic API 직접 호출 — 키는 localStorage) ═══════════ */
+function openAI(){ document.getElementById('aiKey').value = localStorage.getItem('exec_ai_key')||''; document.getElementById('aiModal').style.display='flex'; }
+function closeAI(){ document.getElementById('aiModal').style.display='none'; }
+function clearAIKey(){ localStorage.removeItem('exec_ai_key'); closeAI(); render(); }
+function saveAIKey(){ const k = document.getElementById('aiKey').value.trim(); if(k) localStorage.setItem('exec_ai_key', k); closeAI(); if(k) runAI(); }
+
+async function runAI() {
+  const key = localStorage.getItem('exec_ai_key'); if (!key || !window._F) return;
+  const F = window._F;
+  const facts = {
+    부서: APP.dept, 기준주차: F.latest, 최근주: {수주:F.cur.수주, 생산:F.cur.생산, 출고:F.cur.출고},
+    전주: F.prev ? {수주:F.prev.수주, 생산:F.prev.생산, 출고:F.prev.출고} : null,
+    수주연속추세_주: F.streak,
+    품목군_동기간누계: F.catRows.map(r=>({품목군:r.cat, 올해수주:r.o, 작년수주:r.o0, 올해생산:r.p, 작년생산:r.p0})),
+    진행월: F.month, 안전재고미달: F.safetyRows.filter(r=>r.rate<100), 다음주수주예측: F.forecast,
+  };
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'x-api-key': key,
+                 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 1200, messages: [{ role:'user', content:
+`당신은 제조기업 생산부의 주간 임원 브리핑을 쓰는 전략 참모입니다. 아래 사실 데이터만 근거로, 대표이사가 30초에 읽을 요약을 한국어로 작성하세요. 수치를 지어내지 말고 제공된 값만 사용하세요.
+
+데이터:
+${JSON.stringify(facts, null, 1)}
+
+다음 JSON 형식으로만 응답 (마크다운·설명 금지):
+{"headline":"40자 이내 한 문장 헤드라인(가장 중요한 변화+리스크)","insights":[{"fact":"핵심 사실 한 줄(수치 포함)","so":"경영 관점 의미 1문장","now":"확인·조치 제안 1문장"}],"watch":"다음 주 관전 포인트 1문장"}
+insights는 중요도순 최대 4개.` }] })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error.message || 'API 오류');
+    const text = (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+    const j = JSON.parse(text.replace(/```json|```/g,'').trim());
+    if (j.headline) {
+      document.getElementById('headline').textContent = j.headline;
+      document.getElementById('aiBadge').style.display = 'inline-block';
+    }
+    if (Array.isArray(j.insights) && j.insights.length) {
+      const cols = window._insights.map(i=>i.color);
+      document.getElementById('insights').innerHTML = j.insights.slice(0,4).map((n,i)=>`
+        <div class="insight" style="--c:${cols[i]||'var(--gold)'}">
+          <div class="fact">${n.fact||''}</div>
+          <div><div class="cell-h">SO WHAT</div><div class="body">${n.so||''}</div></div>
+          <div><div class="cell-h">NOW WHAT</div><div class="body">${n.now||''}</div></div>
+        </div>`).join('');
+    }
+    if (j.watch) document.getElementById('watchBody').innerHTML = j.watch;
+  } catch(err) {
+    console.warn('AI 요약 실패 — 규칙 기반 유지:', err.message);
+  }
+}
+
+/* ═══════════ 초기화 ═══════════ */
+async function init() {
+  async function fetchGviz(sheetId, gid) {
+    const key = `wd_csv_${sheetId}_${gid}`, TTL = 5*60*1000;
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(key)||'null'); } catch(e) {}
+    if (cached && Date.now()-cached.t < TTL) return cached.text;
+    try {
+      const resp = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      if (text.length < 1500000) { try { localStorage.setItem(key, JSON.stringify({t:Date.now(), text})); } catch(e) {} }
+      return text;
+    } catch(err) { if (cached) return cached.text; throw err; }
+  }
+  try {
+    const [c26_1, c26_2, c25_1, c25_2] = await Promise.all([
+      fetchGviz(SHEET_ID_26, GIDS['1반']).catch(()=>null),
+      fetchGviz(SHEET_ID_26, GIDS['2반']).catch(()=>null),
+      fetchGviz(SHEET_ID_25, GIDS['1반']).catch(()=>null),
+      fetchGviz(SHEET_ID_25, GIDS['2반']).catch(()=>null),
+    ]);
+    APP.data[2026] = { '1반': c26_1 ? parseGeneric(c26_1, '1반', 0) : null, '2반': c26_2 ? parse2Ban26(c26_2) : null };
+    APP.data[2025] = { '1반': c25_1 ? parseGeneric(c25_1, '1반', 0) : null, '2반': c25_2 ? parseGeneric(c25_2, '2반', 0) : null };
+    if (!APP.data[2026]['1반']?.items?.length && APP.data[2026]['2반']?.items?.length) APP.dept = '2반';
+    else if (APP.data[2026]['1반']?.items?.length) APP.dept = '1반';
+    document.getElementById('overlay').style.display = 'none';
+    render();
+  } catch(err) {
+    document.getElementById('overlay').innerHTML = `<div class="t" style="color:var(--red)">데이터 로딩 실패</div>
+      <div style="font-size:12px;color:var(--ink-3)">${err.message}</div>
+      <button class="tbtn" onclick="location.reload()">↺ 다시 시도</button>`;
+  }
+}
+init();
+</script>
+</body>
+</html>

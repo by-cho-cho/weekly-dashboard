@@ -18,7 +18,7 @@
     --border: #243049;
     --text-primary: #EDF2FB;
     --text-secondary: #B8C2D9;
-    --text-muted: #6B7693;
+    --text-muted: #9FAAC8;
     --gold: #C9A961;
     --cyan: #4FC3F7;
     --mint: #00E5A0;
@@ -43,7 +43,7 @@
     --border: #E1E5EC;
     --text-primary: #161D29;
     --text-secondary: #3D4757;
-    --text-muted: #5B6473;
+    --text-muted: #454E5F;
     --gold: #936C12;
     --cyan: #1A6FB5;
     --mint: #087C5A;
@@ -127,7 +127,14 @@
   body.light .chip-cat:not(.active), body.light .chip-sub:not(.active), body.light .chip-item:not(.active) {
     opacity: 1; color: var(--text-secondary); border-color: var(--border); background: var(--wash);
   }
-  .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .kpi-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.08em; text-transform: uppercase; }
+  /* 섹션(카드) 제목 — D안: 아이콘 + 시안 포인트. 첫 키워드는 .sec-accent 로 강조 */
+  .sec-title {
+    font-size: 13.5px; font-weight: 800; color: var(--text-primary);
+    letter-spacing: 0.02em; line-height: 1.3;
+  }
+  .sec-title .sec-accent { color: var(--cyan); }
+  .sec-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
   .kpi-val { font-size: 28px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .kpi-sub { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
   .up   { color: var(--mint); }
@@ -142,7 +149,7 @@
   table.exec tbody tr:hover { background: var(--wash-3); }
   .filter-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:3px 0; }
   .filter-label { font-size:11px; font-weight:700; color:var(--text-muted); min-width:50px; }
-  .filter-grid { display:flex; flex-wrap:wrap; gap:4px; flex:1; user-select:none; -webkit-user-select:none; }
+  .filter-grid { display:flex; flex-wrap:wrap; gap:4px; flex:1; user-select:none; -webkit-user-select:none; touch-action:none; }
   .comment-box {
     background: linear-gradient(135deg, rgba(201,169,97,0.08), rgba(79,195,247,0.04));
     border: 1px solid rgba(201,169,97,0.25);
@@ -211,7 +218,7 @@
         생산<span id="deptTitle" style="color:var(--gold);">1반</span> <span style="color:var(--text-muted);font-size:14px;font-weight:600;">주간 변동 현황</span>
       </h1>
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
-        <span id="syncDate">—</span> 기준 · 드래그로 다중 선택
+        <span id="syncDate">—</span> 기준 · 드래그로 다중 선택<span id="dataWarn"></span>
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
@@ -243,7 +250,7 @@ function togglePresentMode() {
     zoomBar.style.display = 'flex';
     if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
   } else {
-    document.documentElement.style.zoom = '100%';
+    resetZoom();
     btn.classList.remove('active');
     btn.textContent = '🖥 발표 모드';
     zoomBar.style.display = 'none';
@@ -254,14 +261,31 @@ function setZoom(delta) {
   _zoom = Math.max(50, Math.min(_zoom + delta, 100));
   applyZoom();
 }
+// Firefox 는 CSS zoom 미지원 → transform: scale 폴백
+const _zoomSupported = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '1'));
 function applyZoom() {
-  document.documentElement.style.zoom = _zoom + '%';
+  if (_zoomSupported) {
+    document.documentElement.style.zoom = _zoom + '%';
+  } else {
+    document.body.style.transformOrigin = '0 0';
+    document.body.style.transform = `scale(${_zoom / 100})`;
+    document.body.style.width = (10000 / _zoom) + '%';
+  }
   document.getElementById('zoomLabel').textContent = _zoom + '%';
+}
+function resetZoom() {
+  if (_zoomSupported) {
+    document.documentElement.style.zoom = '100%';
+  } else {
+    document.body.style.transform = '';
+    document.body.style.transformOrigin = '';
+    document.body.style.width = '';
+  }
 }
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement && _presentMode) {
     _presentMode = false;
-    document.documentElement.style.zoom = '100%';
+    resetZoom();
     const btn = document.getElementById('presentBtn');
     if (btn) { btn.classList.remove('active'); btn.textContent = '🖥 발표 모드'; }
     const zoomBar = document.getElementById('zoomBar');
@@ -306,7 +330,7 @@ document.addEventListener('fullscreenchange', () => {
   </div>
 
   <div class="filter-row">
-    <span class="filter-label">주차</span>
+    <span class="filter-label" title="시트 입력 기준 월내 주차(1~5주) — 달력 ISO 주차와 다를 수 있습니다" style="cursor:help;border-bottom:1px dotted var(--text-muted);">주차</span>
     <div class="filter-grid" id="weekChips"></div>
     <button id="btnAllWeeks" class="btn" onclick="selectAllWeeks()" style="font-size:10px;padding:4px 10px;">전체</button>
   </div>
@@ -393,8 +417,8 @@ document.addEventListener('fullscreenchange', () => {
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
-        <div class="kpi-label">작년 대비 성장·하락 TOP 5</div>
-        <div id="growthSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
+        <div class="sec-title">📈 <span class="sec-accent">작년 대비</span> 성장·하락 TOP 5</div>
+        <div id="growthSub" class="sec-sub">—</div>
       </div>
     </div>
     <div id="growthBody" style="display:flex;gap:14px;flex-wrap:wrap;">분석 중…</div>
@@ -406,7 +430,7 @@ document.addEventListener('fullscreenchange', () => {
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
-        <div class="kpi-label">품목군별 구성 비중</div>
+        <div class="sec-title">🧩 <span class="sec-accent">품목군별</span> 구성 비중</div>
         <div id="shareSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
       </div>
     </div>
@@ -422,7 +446,7 @@ document.addEventListener('fullscreenchange', () => {
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
       <div>
-        <div class="kpi-label">월별 생산계획 대비 실적 진척도</div>
+        <div class="sec-title">📊 <span class="sec-accent">월별</span> 생산계획 대비 실적 진척도</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">마감월은 달성률, 진행중월은 주차 누적 실적 기준 진척률</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;">
@@ -441,7 +465,7 @@ document.addEventListener('fullscreenchange', () => {
       <div style="display:flex;align-items:center;gap:8px;">
         <button id="laggardToggle" class="btn" onclick="toggleLaggardTable()" style="font-size:10px;padding:4px 10px;">▸ 미진 품목 보기</button>
         <div>
-          <div class="kpi-label" id="laggardTitle">계획 미진 품목</div>
+          <div class="sec-title" id="laggardTitle">📉 <span class="sec-accent">계획 미진</span> 품목</div>
           <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">진척률 100% 미만 — 낮은 순 정렬</div>
         </div>
       </div>
@@ -454,7 +478,7 @@ document.addEventListener('fullscreenchange', () => {
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
-        <div class="kpi-label">안전재고 확보율(%)</div>
+        <div class="sec-title">🛡️ <span class="sec-accent">안전재고</span> 확보율(%)</div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군별 실가용재고(현재고−미출오더) vs 안전재고</div>
       </div>
     </div>
@@ -466,7 +490,7 @@ document.addEventListener('fullscreenchange', () => {
 <!-- 품목군별 현재고 조회 -->
 <section style="padding:14px 32px 44px;">
   <div class="card">
-    <div class="kpi-label">📦 품목군별 현재고 조회</div>
+    <div class="sec-title">📦 <span class="sec-accent">품목군별</span> 현재고 조회</div>
     <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군을 선택한 뒤 세부 품목을 고르면 현재고를 확인할 수 있습니다</div>
     <div style="font-size:11px;color:var(--text-muted);margin:12px 0 4px;">품목군 선택</div>
     <div id="stockPanelCats" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
@@ -790,6 +814,13 @@ function extractItems(rows, wmap, dept, opts) {
         const v = g.subs.reduce((s, it) => s + (Number(it.monthlyPlan?.[mo])||0), 0);
         if (v > 0) monthlyPlan[mo] = v;
       }
+      // 합성 합계에도 개별 품목의 월별 실적을 합산 — 누락 시 월 진척도에서 주간합 폴백만 쓰여
+      // 월별 합계 컬럼이 존재하는 시트에서 값이 과소 표시되던 문제 방지
+      for (const it of g.subs) {
+        for (const mo of Object.keys(it.monthlyActual || {})) {
+          monthlyActual[mo] = (monthlyActual[mo] || 0) + (Number(it.monthlyActual[mo]) || 0);
+        }
+      }
       items.push({
         model: `${cat} 합계`, spec: '', category: cat, subcategory: null,
         weekData, monthlyPlan, monthlyActual, isTotal: true,
@@ -1088,6 +1119,7 @@ function toggleMonthlyTable() {
   const btn = document.getElementById('mpToggle');
   btn.classList.toggle('active', mpShowClosed);
   btn.textContent = mpShowClosed ? '▾ 마감월 표 숨기기' : '▸ 마감월 표 보기';
+  _saveOpen('mp', mpShowClosed);
 }
 function toggleLaggardTable() {
   const tbl = document.getElementById('laggardTable');
@@ -1096,6 +1128,7 @@ function toggleLaggardTable() {
   tbl.style.display = hidden ? '' : 'none';
   btn.classList.toggle('active', hidden);
   btn.textContent = hidden ? '▾ 미진 품목 숨기기' : '▸ 미진 품목 보기';
+  _saveOpen('laggard', hidden);
 }
 function toggleWeekTable() {
   const tbl = document.getElementById('weekTable');
@@ -1104,6 +1137,7 @@ function toggleWeekTable() {
   tbl.style.display = hidden ? '' : 'none';
   btn.classList.toggle('active', hidden);
   btn.textContent = hidden ? '▾ 상세 숨기기' : '▸ 상세 보기';
+  _saveOpen('week', hidden);
 }
 function toggleComment() {
   const box = document.getElementById('commentBox');
@@ -1112,6 +1146,7 @@ function toggleComment() {
   box.style.display = hidden ? '' : 'none';
   btn.classList.toggle('active', hidden);
   btn.textContent = hidden ? '▾ 코멘트 숨기기' : '▸ 코멘트 보기';
+  _saveOpen('comment', hidden);
 }
 function toggleYoyTop() {
   const wrap = document.getElementById('yoyTopWrap');
@@ -1120,6 +1155,7 @@ function toggleYoyTop() {
   wrap.style.display = hidden ? '' : 'none';
   btn.classList.toggle('active', hidden);
   btn.textContent = hidden ? '▾ 전년 동기 비교 · 성장·하락 TOP5 숨기기' : '▸ 전년 동기 비교 · 성장·하락 TOP5 보기';
+  _saveOpen('yoyTop', hidden);
 }
 
 /* ============================================================
@@ -1311,8 +1347,9 @@ function chipUnderPoint(x, y) {
   const el = document.elementFromPoint(x, y);
   return (el && el.dataset && el.dataset.ftype) ? el : null;
 }
-document.addEventListener('mousedown', (e) => {
-  if (e.button !== 0) return;
+// pointer 이벤트 사용 — 마우스뿐 아니라 터치·펜(모바일/태블릿)에서도 드래그 선택 동작
+document.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return; // 터치/펜은 button=0 이므로 통과
   const el = e.target.closest('[data-ftype]');
   if (!el) return;
   DRAG.active = true;
@@ -1322,13 +1359,13 @@ document.addEventListener('mousedown', (e) => {
   applyChipDrag(el);
   e.preventDefault();
 });
-document.addEventListener('mousemove', (e) => {
+document.addEventListener('pointermove', (e) => {
   if (!DRAG.active) return;
   DRAG.moved = true;
   const el = chipUnderPoint(e.clientX, e.clientY);
   if (el) applyChipDrag(el);
 });
-document.addEventListener('mouseup', () => {
+function endChipDrag() {
   if (!DRAG.active) return;
   DRAG.active = false;
   DRAG.touched.clear();
@@ -1341,7 +1378,9 @@ document.addEventListener('mouseup', () => {
   }
   renderMonthChips(); renderWeekChips(); renderCatChips(); renderSubChips(); renderItemChips();
   renderBody();
-});
+}
+document.addEventListener('pointerup', endChipDrag);
+document.addEventListener('pointercancel', endChipDrag);
 
 /* ============================================================
    KPI / 코멘트 / 차트 / 표
@@ -2188,7 +2227,7 @@ function renderLaggardItems() {
   const data = getData(); if (!data) { tableEl.innerHTML = ''; return; }
   const rows = (aggregateMonthlyPlanVsActual() || []).filter(r => r.status !== '예정');
   const target = rows.find(r => r.status === '진행중') || [...rows].reverse().find(r => r.status === '마감');
-  if (!target) { titleEl.textContent = '계획 미진 품목'; tableEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">데이터 없음</div>'; return; }
+  if (!target) { titleEl.innerHTML = '📉 <span class="sec-accent">계획 미진</span> 품목'; tableEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">데이터 없음</div>'; return; }
 
   const mo = target.mo;
   const indiv = data.items.filter(it => !it.isTotal && it.category !== 'Cable');
@@ -2215,7 +2254,7 @@ function renderLaggardItems() {
   lagItems.sort((a, b) => a.rate - b.rate);
 
   const ctx = target.status === '진행중' ? `${target.latestWk}주차 시점` : '마감 기준';
-  titleEl.textContent = `📉 ${mo}월 계획 미진 품목 (${ctx}, ${lagItems.length}건)`;
+  titleEl.innerHTML = `📉 <span class="sec-accent">${mo}월 계획 미진</span> 품목 (${ctx}, ${lagItems.length}건)`;
 
   if (lagItems.length === 0) {
     tableEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--mint);font-weight:600;">✓ 미진 품목 없음</div>';
@@ -2835,7 +2874,65 @@ function renderCatYoySummary() {
   html += section('생산', 'p', 'p25', mapAccent('#4FC3F7'));
   box.innerHTML = html;
 }
-function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderCatYoySummary(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
+/* renderBody — 같은 프레임 내 중복 호출을 rAF 로 병합해 연속 필터 조작 시 5개 차트+표 전체 재렌더가 한 번만 실행되게 함 */
+let _rbPending = false;
+function renderBody() {
+  if (_rbPending) return;
+  _rbPending = true;
+  requestAnimationFrame(() => { _rbPending = false; _renderBodyNow(); });
+}
+function _renderBodyNow() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderCatYoySummary(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); saveFilters(); }
+
+/* ── 필터 상태 저장/복원 — 새로고침해도 선택한 부서·연도·월·품목군 유지 ── */
+function saveFilters() {
+  try {
+    localStorage.setItem('wd_filters_v1', JSON.stringify({
+      dept: APP.dept, year: APP.year, yoy: APP.yoyOn,
+      months: [...APP.selectedMonths], weeks: [...APP.selectedWeeks],
+      metrics: [...APP.activeMetrics],
+      cats:  { '1반': [...APP.selectedCats['1반']],  '2반': [...APP.selectedCats['2반']] },
+      subs:  { '1반': [...APP.selectedSubs['1반']],  '2반': [...APP.selectedSubs['2반']] },
+      items: { '1반': [...APP.selectedItems['1반']], '2반': [...APP.selectedItems['2반']] },
+    }));
+  } catch(e) {}
+}
+function restoreFilters() {
+  try {
+    const s = JSON.parse(localStorage.getItem('wd_filters_v1') || 'null');
+    if (!s) return false;
+    if (s.dept && (APP.data[2026]?.[s.dept]?.items?.length || APP.data[2025]?.[s.dept]?.items?.length)) APP.dept = s.dept;
+    if (s.year && APP.data[s.year]?.[APP.dept]?.items?.length) APP.year = s.year;
+    const data = getData(); if (!data) return false;
+    const validMonths = new Set(Object.keys(data.weeksByMonth).map(Number));
+    const months = (s.months || []).filter(m => validMonths.has(m));
+    if (!months.length) return false; // 저장된 월이 현재 데이터에 없으면 기본(최근 3개월)로
+    APP.selectedMonths = new Set(months);
+    APP.selectedWeeks = new Set((s.weeks && s.weeks.length) ? s.weeks : [1,2,3,4,5]);
+    for (const d of ['1반','2반']) {
+      APP.selectedCats[d]  = new Set(s.cats?.[d]  || []);
+      APP.selectedSubs[d]  = new Set(s.subs?.[d]  || []);
+      APP.selectedItems[d] = new Set(s.items?.[d] || []);
+    }
+    if (s.metrics && s.metrics.length) APP.activeMetrics = new Set(s.metrics.filter(m => METRICS.includes(m)));
+    if (APP.activeMetrics.size === 0) APP.activeMetrics = new Set(['수주']);
+    APP.yoyOn = !!s.yoy;
+    document.getElementById('yoyBtn')?.classList.toggle('active', APP.yoyOn);
+    document.getElementById('deptTitle').textContent = APP.dept;
+    return true;
+  } catch(e) { return false; }
+}
+
+/* ── 접이식 섹션(코멘트·상세·TOP5·미진품목·마감월표) 열림 상태 기억 ── */
+function _openState() { try { return JSON.parse(localStorage.getItem('wd_open_v1') || '{}'); } catch(e) { return {}; } }
+function _saveOpen(k, v) { try { const s = _openState(); s[k] = v; localStorage.setItem('wd_open_v1', JSON.stringify(s)); } catch(e) {} }
+function restoreOpenStates() {
+  const s = _openState();
+  if (s.comment) toggleComment();
+  if (s.week)    toggleWeekTable();
+  if (s.yoyTop)  toggleYoyTop();
+  if (s.laggard) toggleLaggardTable();
+  if (s.mp)      toggleMonthlyTable();
+}
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
@@ -2857,12 +2954,71 @@ window.addEventListener('resize', () => {
   APP.chartSafety && APP.chartSafety.resize();
 });
 
+/* ── 파싱 검증 — 카테고리 합계행 vs 개별 품목합 비교(±15% 초과 시 경고 배지)
+   시트 구조가 바뀌어 파싱이 어긋났을 때 조용히 틀린 숫자가 나가는 것을 조기 발견 ── */
+function validateParsedData() {
+  const warns = [];
+  for (const year of [2026, 2025]) {
+    for (const dept of ['1반', '2반']) {
+      const d = APP.data[year]?.[dept];
+      if (!d?.items?.length) continue;
+      const byCat = {};
+      for (const it of d.items) {
+        const g = (byCat[it.category] = byCat[it.category] || { tot: 0, ind: 0, hasTot: false });
+        let s = 0;
+        for (const mo of Object.keys(it.weekData || {})) {
+          for (const wk of Object.keys(it.weekData[mo] || {})) {
+            const w = it.weekData[mo][wk];
+            s += (w.수주||0) + (w.생산||0) + (w.출고||0);
+          }
+        }
+        if (it.isTotal) { g.tot += s; g.hasTot = true; } else g.ind += s;
+      }
+      // 2반 Duodeca(SM720)는 시트상 EP 합계행에 포함 → EP 개별합에 합산해 비교(허위 경고 방지)
+      if (dept === '2반' && byCat['Duodeca'] && byCat['EP']) {
+        byCat['EP'].ind += byCat['Duodeca'].ind;
+        delete byCat['Duodeca'];
+      }
+      for (const [cat, g] of Object.entries(byCat)) {
+        if (!g.hasTot || g.ind === 0 || g.tot === 0) continue;
+        const r = g.ind / g.tot;
+        if (r > 1.15 || r < 0.85) {
+          warns.push(`${year}년 ${dept} ${cat}: 합계행 ${Math.round(g.tot).toLocaleString()} vs 개별합 ${Math.round(g.ind).toLocaleString()}`);
+        }
+      }
+    }
+  }
+  const el = document.getElementById('dataWarn');
+  if (el) {
+    el.innerHTML = warns.length
+      ? ` · <span style="color:var(--amber);cursor:help;font-weight:700;" title="${warns.join('&#10;').replace(/"/g,'&quot;')}">⚠ 시트 합계·개별 불일치 ${warns.length}건</span>`
+      : '';
+  }
+}
+
 async function init() {
+  // 5분 TTL 캐시 — 재방문·새로고침 시 시트 4개 재요청 없이 즉시 표시.
+  // fetch 실패 시엔 TTL 무시하고 stale 캐시 폴백(오프라인/일시 장애 방어).
   async function fetchGviz(sheetId, gid) {
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.text();
+    const key = `wd_csv_${sheetId}_${gid}`;
+    const TTL = 5 * 60 * 1000;
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) {}
+    if (cached && (Date.now() - cached.t) < TTL) return cached.text;
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const text = await resp.text();
+      // localStorage 쿼터(약 5MB) 보호 — 과대 CSV는 캐시 생략
+      if (text.length < 1500000) {
+        try { localStorage.setItem(key, JSON.stringify({ t: Date.now(), text })); } catch(e) {}
+      }
+      return text;
+    } catch(err) {
+      if (cached) return cached.text;
+      throw err;
+    }
   }
   try {
     const [c26_1, c26_2, c25_1, c25_2] = await Promise.all([
@@ -2886,6 +3042,9 @@ async function init() {
       document.getElementById('deptTitle').textContent = '2반';
     }
 
+    validateParsedData();
+    const restored = restoreFilters(); // 저장된 필터(부서·연도·월·품목군 등) 복원
+
     const now = new Date();
     document.getElementById('syncDate').textContent =
       `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -2897,13 +3056,16 @@ async function init() {
     });
 
     document.getElementById('loadingOverlay').style.display = 'none';
+    restoreOpenStates(); // 접이식 섹션 열림 상태 복원
     renderYearChips(); renderWeekChips(); renderCatChips(); renderItemChips();
-    selectRecentMonths();
+    if (restored) { renderMonthChips(); renderBody(); }
+    else selectRecentMonths();
   } catch (err) {
     document.getElementById('loadingOverlay').innerHTML = `
       <div style="text-align:center;padding:40px;">
         <div style="font-size:18px;color:var(--red);font-weight:700;">데이터 로딩 실패</div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:14px;">${err.message}</div>
+        <button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;border-radius:10px;border:1px solid #C9A961;background:rgba(201,169,97,0.15);color:#C9A961;font-weight:700;font-size:13px;cursor:pointer;">↺ 다시 시도</button>
       </div>`;
   }
 }
