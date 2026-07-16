@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<!-- saved from url=(0042)file:///C:/Users/USER/Downloads/index.html -->
-<html lang="ko"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>생산부 주간 대시보드</title>
-<script src="./indexhtml_files/echarts.min.js.다운로드"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com/">
-<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
-<link href="./indexhtml_files/css2" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg-deep: #0A0E18;
@@ -195,10 +195,12 @@
 <body>
 
 <div id="loadingOverlay" style="position:fixed;inset:0;z-index:99999;background:rgba(10,14,24,0.97);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;">
-      <div style="text-align:center;padding:40px;">
-        <div style="font-size:18px;color:var(--red);font-weight:700;">데이터 로딩 실패</div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:14px;">데이터 없음</div>
-      </div></div>
+  <div style="font-size:18px;color:#C9A961;font-weight:700;letter-spacing:0.05em;">주간 데이터 로딩 중</div>
+  <div style="width:220px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;">
+    <div style="height:100%;background:linear-gradient(90deg,#C9A961,#4FC3F7);animation:ldbar 1.6s ease-in-out infinite;"></div>
+  </div>
+  <style>@keyframes ldbar{0%{transform:translateX(-100%)}50%{transform:translateX(60%)}100%{transform:translateX(220%)}}</style>
+</div>
 
 <header class="header">
   <div style="text-align:center;font-size:26px;font-weight:800;letter-spacing:0.06em;color:var(--gold);margin-bottom:10px;">주간 생산 현황</div>
@@ -221,8 +223,8 @@
         <button onclick="setZoom(+5)" style="padding:6px 9px;background:var(--wash-2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;">+</button>
       </div>
       <span style="font-size:10px;color:var(--text-muted);margin-left:6px;">부서</span>
-      <button class="btn active" data-dept="1반" onclick="switchDept(&#39;1반&#39;)">1반 (액상)</button>
-      <button class="btn" data-dept="2반" onclick="switchDept(&#39;2반&#39;)">2반 (카테터)</button>
+      <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반 (액상)</button>
+      <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반 (카테터)</button>
     </div>
   </div>
 <script>
@@ -326,7 +328,8 @@ document.addEventListener('fullscreenchange', () => {
   <div class="filter-row" id="itemRow" style="display:none;">
     <span class="filter-label">품목 <span id="itemCount" style="font-weight:400;color:var(--text-muted);font-size:10px;">—</span></span>
     <div class="filter-grid" id="itemChips" style="max-height:80px;overflow-y:auto;"></div>
-    <input id="itemSearch" placeholder="🔍 검색" oninput="renderItemChips()" style="background:var(--wash);border:1px solid var(--border);color:var(--text-primary);
+    <input id="itemSearch" placeholder="🔍 검색" oninput="renderItemChips()"
+      style="background:var(--wash);border:1px solid var(--border);color:var(--text-primary);
              border-radius:8px;padding:5px 10px;font-size:11px;width:160px;outline:none;">
     <button id="btnAllItems" class="btn" onclick="selectAllItems()" style="font-size:10px;padding:4px 10px;">전체</button>
     <button class="btn" onclick="clearItems()" style="font-size:10px;padding:4px 10px;">해제</button>
@@ -341,13 +344,16 @@ document.addEventListener('fullscreenchange', () => {
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
         <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--wash);border:1px solid var(--border);border-radius:8px;">
           <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
-          <span class="chip metric active" data-metric="수주" onclick="toggleMetric(&#39;수주&#39;)" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
-          <span class="chip metric" data-metric="생산" onclick="toggleMetric(&#39;생산&#39;)" style="color:#4FC3F7;border-color:var(--divider);background:transparent;opacity:0.35;">생산</span>
-          <span class="chip metric" data-metric="출고" onclick="toggleMetric(&#39;출고&#39;)" style="color:#00E5A0;border-color:var(--divider);background:transparent;opacity:0.35;">출고</span>
+          <span class="chip metric active" data-metric="수주" onclick="toggleMetric('수주')" style="color:#C9A961;border-color:rgba(201,169,97,0.4);background:rgba(201,169,97,0.15);">수주</span>
+          <span class="chip metric" data-metric="생산" onclick="toggleMetric('생산')" style="color:#4FC3F7;border-color:var(--divider);background:transparent;opacity:0.35;">생산</span>
+          <span class="chip metric" data-metric="출고" onclick="toggleMetric('출고')" style="color:#00E5A0;border-color:var(--divider);background:transparent;opacity:0.35;">출고</span>
         </div>
-        <button id="yoyBtn" onclick="toggleYoY()" class="btn" style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
-        <button id="forecastBtn" onclick="toggleForecast()" class="btn" style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
-        <button id="perItemBtn" onclick="togglePerItem()" class="btn" style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🧬 품목군별 트렌드</button>
+        <button id="yoyBtn" onclick="toggleYoY()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
+        <button id="forecastBtn" onclick="toggleForecast()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🔮 4주 예측</button>
+        <button id="perItemBtn" onclick="togglePerItem()" class="btn"
+          style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">🧬 품목군별 트렌드</button>
       </div>
     </div>
     <!-- 차트 -->
@@ -2906,6 +2912,5 @@ document.addEventListener('DOMContentLoaded', init);
 /* KPI 스트립은 헤더 상단 고정 배치로 이동 — 드래그/위치저장 제거 */
 try { localStorage.removeItem('weeklyDashboard.kpiStripPos'); localStorage.removeItem('weeklyDashboard.kpiStripPos.v2'); } catch(e){}
 </script>
-
-
-</body></html>
+</body>
+</html>
