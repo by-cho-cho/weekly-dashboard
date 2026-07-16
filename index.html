@@ -2942,6 +2942,13 @@ try { localStorage.removeItem('weeklyDashboard.kpiStripPos'); localStorage.remov
   #rptSheet .r-kpi .k-v { font-size:23px; font-weight:800; margin:2px 0; font-variant-numeric:tabular-nums; }
   #rptSheet .r-kpi .k-d { font-size:10.5px; color:#4B5563; }
   #rptSheet .r-sec { font-size:11px; font-weight:800; letter-spacing:0.14em; color:#1A6FB5; margin:14px 0 8px; }
+  #rptSheet table.r-cat { width:100%; border-collapse:collapse; margin-bottom:2px; }
+  #rptSheet table.r-cat th { font-size:9.5px; font-weight:800; letter-spacing:0.1em; color:#9CA3AF; text-align:right; padding:3px 8px; border-bottom:1.5px solid #D1D5DB; }
+  #rptSheet table.r-cat th:first-child { text-align:left; padding-left:2px; }
+  #rptSheet table.r-cat td { font-size:11px; padding:4px 8px; border-bottom:1px solid #F3F4F6; text-align:right; font-variant-numeric:tabular-nums; color:#374151; }
+  #rptSheet table.r-cat td:first-child { text-align:left; font-weight:700; color:#161D29; padding-left:2px; }
+  #rptSheet table.r-cat tr.tot td { font-weight:800; color:#161D29; background:#FAF6EC; border-bottom:1.5px solid #D1D5DB; }
+  #rptSheet .newb { color:#9CA3AF; font-size:9.5px; font-weight:700; }
   #rptSheet table.r-ins { width:100%; border-collapse:collapse; }
   #rptSheet table.r-ins td { border-top:1px solid #E5E7EB; padding:9px 10px 9px 0; font-size:12px; line-height:1.55; vertical-align:top; word-break:keep-all; }
   #rptSheet table.r-ins td.f { width:34%; font-weight:800; font-size:12.5px; padding-left:10px; border-left:3px solid var(--rc,#936C12); }
@@ -2997,10 +3004,13 @@ function rptFacts() {
   for (let i=agg.length-1; i>0; i--) { const s=Math.sign(agg[i].수주-agg[i-1].수주); if(!s)break;
     if(!dir){dir=s;streak=1;} else if(s===dir)streak++; else break; }
   const cats = [...new Set(data.items.map(it=>it.category).filter(c=>c&&c!=='Cable'&&c!=='기타'))];
-  const catRows = cats.map(cat=>({ cat, o:rptCatCum(APP.year,cat,'수주'), o0:rptCatCum(prevYear,cat,'수주') }))
-                      .filter(r=>r.o>0||r.o0>0).map(r=>({...r, g:rptPct(r.o,r.o0)}));
+  const catRows = cats.map(cat=>({ cat, o:rptCatCum(APP.year,cat,'수주'), o0:rptCatCum(prevYear,cat,'수주'),
+                                   p:rptCatCum(APP.year,cat,'생산'), p0:rptCatCum(prevYear,cat,'생산') }))
+                      .filter(r=>r.o>0||r.o0>0||r.p>0||r.p0>0)
+                      .map(r=>({...r, g:rptPct(r.o,r.o0), gp:rptPct(r.p,r.p0)}));
   const dedup = APP.dept==='2반' ? catRows.filter(r=>r.cat!=='Duodeca') : catRows;
   const totO = dedup.reduce((s,r)=>s+r.o,0), totO0 = dedup.reduce((s,r)=>s+r.o0,0);
+  const totP = dedup.reduce((s,r)=>s+r.p,0), totP0 = dedup.reduce((s,r)=>s+r.p0,0);
   const mp = (aggregateMonthlyPlanVsActual()||[]);
   const cm = mp.find(r=>r.status==='진행중') || mp.filter(r=>r.status==='마감').slice(-1)[0] || null;
   const safety = {};
@@ -3013,6 +3023,7 @@ function rptFacts() {
   if (agg.length>=4) { const f=holtForecast(agg.map(r=>r.수주),1);
     if (f&&f.forecasts&&f.forecasts.length) forecast=Math.max(0,Math.round(f.forecasts[0].point)); }
   return { cur, prev, latest, agg, streak:dir*streak, yoyCur, catRows, totO, totO0, gTot:rptPct(totO,totO0),
+           totP, totP0, gTotP:rptPct(totP,totP0),
            month:cm, safetyRows, forecast, prevYear, weeksInMonth: cm ? (data.weeksByMonth[cm.mo]||[1,2,3,4]).length : 4 };
 }
 function rptInsights(F) {
@@ -3087,6 +3098,21 @@ function openReport() {
       <div class="r-meta">${APP.year}년 · 전 품목군 기준 · ${new Date().toLocaleDateString('ko-KR')} 생성 · 주간 대시보드 자동 요약</div>
       <div class="r-head">${head}</div>
       <div class="r-kpis">${kpi('수주')}${kpi('생산')}${kpi('출고')}</div>
+      <div class="r-sec">품목군별 전년 동기 대비 (${F.prevYear}년 → ${APP.year}년, 동기간 누계)</div>
+      ${(() => {
+        const yo = v => v==null ? '<span class="newb">신규</span>'
+          : `<span class="${v>=0?'up-t':'dn-t'}">${v>=0?'▲':'▼'}${Math.abs(v).toFixed(1)}%</span>`;
+        const rows = F.catRows.slice().sort((a,b)=>b.o-a.o);
+        return `<table class="r-cat">
+          <tr><th>품목군</th><th>수주</th><th>YoY</th><th>생산</th><th>YoY</th></tr>
+          <tr class="tot"><td>전체${APP.dept==='2반'?' (Duodeca 포함)':''}</td>
+            <td>${fmtN(F.totO)}</td><td>${yo(F.gTot)}</td>
+            <td>${fmtN(F.totP)}</td><td>${yo(F.gTotP)}</td></tr>
+          ${rows.map(r=>`<tr><td>${r.cat}</td>
+            <td>${fmtN(r.o)}</td><td>${yo(r.g)}</td>
+            <td>${fmtN(r.p)}</td><td>${yo(r.gp)}</td></tr>`).join('')}
+        </table>`;
+      })()}
       <div class="r-sec">핵심 인사이트</div>
       <table class="r-ins">${ins.map(n=>`<tr>
         <td class="f" style="--rc:${n.rc}">${n.fact}</td>
