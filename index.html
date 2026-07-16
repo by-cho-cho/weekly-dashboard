@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -217,6 +218,7 @@
     <div style="display:flex;gap:8px;align-items:center;">
       <button class="btn" id="themeBtn" onclick="toggleTheme()" style="font-size:11px;" title="다크/화이트 전환">☀️ 화이트</button>
       <button id="presentBtn" class="btn no-print" onclick="togglePresentMode()" style="font-size:11px;" title="발표용 전체화면 확대">🖥 발표 모드</button>
+      <button class="btn no-print" onclick="openReport()" style="font-size:11px;border-color:var(--gold);color:var(--gold);" title="대표이사 보고용 1장 요약 생성">📋 대표 보고</button>
       <div id="zoomBar" class="no-print" style="display:none;align-items:center;gap:4px;">
         <button onclick="setZoom(-5)" style="padding:6px 9px;background:var(--wash-2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;">−</button>
         <span id="zoomLabel" style="font-size:11px;color:var(--text-muted);min-width:34px;text-align:center;">80%</span>
@@ -2490,13 +2492,12 @@ function renderShare() {
   const catsSel = getCats();
   let cats = (catsSel.size > 0 ? allCats.filter(c => catsSel.has(c)) : allCats);
 
-  // 2반 Duodeca(SM720)는 EP 합계행에 이미 포함 → EP 조각이 함께 표시되는 보기에서
-  // Duodeca를 개별 조각으로 또 더하면 이중집계(도넛만 추이차트보다 큼). filterItems의
-  // epInAgg 로직과 동일하게, EP가 함께 보일 때만 Duodeca 조각 제외. (Duodeca 단독 보기는 유지)
-  if (APP.dept === '2반' && cats.includes('EP') && cats.includes('Duodeca')
-      && data.items.some(it => it.isTotal && it.category === 'EP')) {
-    cats = cats.filter(c => c !== 'Duodeca');
-  }
+  // 2반 Duodeca(SM720)는 시트상 EP 합계행에 포함되어 있음.
+  // 예전에는 이중집계 방지를 위해 도넛에서 Duodeca 조각을 아예 제외했지만,
+  // 이제는 EP 조각에서 Duodeca 몫을 차감하고 Duodeca를 독립 조각으로 표시한다.
+  // (EP−Duo) + Duo = EP합계 이므로 총합·상단 누계 배지와의 정합성은 그대로 유지됨.
+  const duoSeparate = APP.dept === '2반' && cats.includes('EP') && cats.includes('Duodeca')
+      && data.items.some(it => it.isTotal && it.category === 'EP');
 
   // 개별 품목 '부분' 선택 판정 (renderChart perItemOn 블록과 동일 원칙)
   const selItems = getItems();
@@ -2552,7 +2553,14 @@ function renderShare() {
     const useItems = selSubset
       ? inds.filter(it => selItems.has(it.model))
       : (APP.dept === '2반' ? (totals.length>0?totals:inds) : (inds.length>0?inds:totals));
-    return sumOf(srcData, useItems);
+    let v = sumOf(srcData, useItems);
+    // Duodeca를 독립 조각으로 보일 때: EP 합계행에는 Duodeca가 포함돼 있으므로
+    // EP 조각 값에서 해당 연도의 Duodeca 개별 합을 차감 (이중집계 방지)
+    if (duoSeparate && !selSubset && name === 'EP' && totals.length > 0) {
+      const duo = srcData.items.filter(it => it.category === 'Duodeca' && !it.isTotal);
+      if (duo.length) v = Math.max(0, v - sumOf(srcData, duo));
+    }
+    return v;
   };
 
   const colorOf = (name, i) => mapAccent(mode === 'cat'
@@ -2911,6 +2919,191 @@ document.addEventListener('DOMContentLoaded', init);
 
 /* KPI 스트립은 헤더 상단 고정 배치로 이동 — 드래그/위치저장 제거 */
 try { localStorage.removeItem('weeklyDashboard.kpiStripPos'); localStorage.removeItem('weeklyDashboard.kpiStripPos.v2'); } catch(e){}
+</script>
+<!-- ═══════════ 대표 보고 (1장 요약) — 인사이트 엔진 + 인쇄/PDF ═══════════ -->
+<div id="rptOverlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,14,0.82);z-index:900;overflow:auto;padding:28px 0;">
+  <div style="max-width:820px;margin:0 auto;">
+    <div class="no-print" style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:10px;">
+      <button class="btn" onclick="window.print()" style="font-size:12px;border-color:var(--gold);color:var(--gold);">🖨 인쇄 / PDF 저장</button>
+      <button class="btn" onclick="closeReport()" style="font-size:12px;">✕ 닫기</button>
+    </div>
+    <div id="rptSheet"></div>
+  </div>
+</div>
+<style>
+  /* 보고서 시트 — 인쇄 전제라 항상 흰 배경 + 진한 글자 (테마 무관) */
+  #rptSheet { background:#FFFFFF; color:#161D29; border-radius:10px; padding:34px 40px; box-shadow:0 12px 40px rgba(0,0,0,0.5); font-family:'Pretendard','Noto Sans KR',sans-serif; }
+  #rptSheet .r-eyebrow { font-size:11px; font-weight:700; letter-spacing:0.18em; color:#936C12; text-transform:uppercase; }
+  #rptSheet h1 { font-size:21px; font-weight:900; margin:6px 0 2px; letter-spacing:-0.01em; }
+  #rptSheet .r-meta { font-size:11px; color:#6B7280; margin-bottom:14px; }
+  #rptSheet .r-head { font-size:15px; font-weight:800; line-height:1.5; word-break:keep-all; border-left:4px solid #936C12; padding:8px 12px; background:#FAF6EC; border-radius:0 8px 8px 0; margin-bottom:16px; }
+  #rptSheet .r-kpis { display:flex; gap:10px; margin-bottom:16px; }
+  #rptSheet .r-kpi { flex:1; border:1px solid #E5E7EB; border-radius:10px; padding:10px 14px; }
+  #rptSheet .r-kpi .k-l { font-size:10.5px; font-weight:700; color:#6B7280; letter-spacing:0.08em; }
+  #rptSheet .r-kpi .k-v { font-size:23px; font-weight:800; margin:2px 0; font-variant-numeric:tabular-nums; }
+  #rptSheet .r-kpi .k-d { font-size:10.5px; color:#4B5563; }
+  #rptSheet .r-sec { font-size:11px; font-weight:800; letter-spacing:0.14em; color:#1A6FB5; margin:14px 0 8px; }
+  #rptSheet table.r-ins { width:100%; border-collapse:collapse; }
+  #rptSheet table.r-ins td { border-top:1px solid #E5E7EB; padding:9px 10px 9px 0; font-size:12px; line-height:1.55; vertical-align:top; word-break:keep-all; }
+  #rptSheet table.r-ins td.f { width:34%; font-weight:800; font-size:12.5px; padding-left:10px; border-left:3px solid var(--rc,#936C12); }
+  #rptSheet table.r-ins td.s { width:38%; color:#374151; }
+  #rptSheet table.r-ins td.n { color:#374151; }
+  #rptSheet table.r-ins .lbl { display:block; font-size:9px; font-weight:800; letter-spacing:0.12em; color:#9CA3AF; margin-bottom:2px; }
+  #rptSheet .r-two { display:flex; gap:14px; margin-top:4px; }
+  #rptSheet .r-box { flex:1; border:1px solid #E5E7EB; border-radius:10px; padding:10px 14px; font-size:12px; line-height:1.6; color:#374151; word-break:keep-all; }
+  #rptSheet .r-box .bh { font-size:10.5px; font-weight:800; letter-spacing:0.12em; margin-bottom:4px; }
+  #rptSheet .r-foot { margin-top:14px; font-size:10px; color:#9CA3AF; display:flex; justify-content:space-between; }
+  .up-t { color:#087C5A; font-weight:800; } .dn-t { color:#C32330; font-weight:800; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body > *:not(#rptOverlay) { display:none !important; } /* 대시보드 본문 제거 → 빈 2페이지 방지 */
+    body { background:#FFFFFF !important; }
+    #rptOverlay { display:block !important; position:static; background:none; padding:0; overflow:visible; }
+    #rptSheet { box-shadow:none; border-radius:0; padding:0; }
+    .no-print { display:none !important; }
+  }
+</style>
+<script>
+/* 보고서용 팩트 수집 — 현재 부서/연도 기준, 화면 필터와 무관하게 '전체' 기준으로 계산 */
+function rptWithNoFilter(fn) {
+  const d = APP.dept;
+  const snap = { c: APP.selectedCats[d], s: APP.selectedSubs[d], i: APP.selectedItems[d], w: APP.selectedWeeks };
+  APP.selectedCats[d] = new Set(); APP.selectedSubs[d] = new Set(); APP.selectedItems[d] = new Set();
+  APP.selectedWeeks = new Set([1,2,3,4,5]);
+  try { return fn(); }
+  finally { APP.selectedCats[d]=snap.c; APP.selectedSubs[d]=snap.s; APP.selectedItems[d]=snap.i; APP.selectedWeeks=snap.w; }
+}
+function rptPct(a,b){ return b>0 ? (a-b)/b*100 : null; }
+function rptCatCum(year, cat, metric) {
+  const d = APP.data[year]?.[APP.dept]; if (!d) return 0;
+  const cur = getData(); if (!cur) return 0;
+  const ci = d.items.filter(it => it.category === cat);
+  const inds = ci.filter(it=>!it.isTotal), tots = ci.filter(it=>it.isTotal);
+  const use = APP.dept==='2반' ? (tots.length?tots:inds) : (inds.length?inds:tots);
+  const months = Object.keys(d.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  return aggregateByWeek(use, months, cur.items).reduce((s,r)=>s+(r[metric]||0),0);
+}
+function rptFacts() {
+  const data = getData(); if (!data) return null;
+  const prevYear = APP.year - 1;
+  const months = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  const agg = aggregateByWeek(filterItems(data.items), months, data.items);
+  if (!agg.length) return null;
+  const cur = agg[agg.length-1], prev = agg[agg.length-2] || null;
+  const latest = findLatestWeek(data.items);
+  const yoyAgg = (() => { const p = APP.data[prevYear]?.[APP.dept]; if (!p) return [];
+    return aggregateByWeek(filterItems(p.items), Object.keys(p.weeksByMonth).map(Number).sort((a,b)=>a-b), data.items); })();
+  const yoyCur = yoyAgg.find(r => latest && r.mo===latest.mo && r.wk===latest.wk) || null;
+  let streak=0, dir=0;
+  for (let i=agg.length-1; i>0; i--) { const s=Math.sign(agg[i].수주-agg[i-1].수주); if(!s)break;
+    if(!dir){dir=s;streak=1;} else if(s===dir)streak++; else break; }
+  const cats = [...new Set(data.items.map(it=>it.category).filter(c=>c&&c!=='Cable'&&c!=='기타'))];
+  const catRows = cats.map(cat=>({ cat, o:rptCatCum(APP.year,cat,'수주'), o0:rptCatCum(prevYear,cat,'수주') }))
+                      .filter(r=>r.o>0||r.o0>0).map(r=>({...r, g:rptPct(r.o,r.o0)}));
+  const dedup = APP.dept==='2반' ? catRows.filter(r=>r.cat!=='Duodeca') : catRows;
+  const totO = dedup.reduce((s,r)=>s+r.o,0), totO0 = dedup.reduce((s,r)=>s+r.o0,0);
+  const mp = (aggregateMonthlyPlanVsActual()||[]);
+  const cm = mp.find(r=>r.status==='진행중') || mp.filter(r=>r.status==='마감').slice(-1)[0] || null;
+  const safety = {};
+  for (const it of data.items) { if (it.isTotal||!it.category||it.category==='Cable') continue;
+    const s=(safety[it.category]=safety[it.category]||{need:0,have:0});
+    s.need += it.safetyStock||0; s.have += Math.max(0,(it.currentStock||0)-(it.pendingOrder||0)); }
+  const safetyRows = Object.entries(safety).filter(([,v])=>v.need>0)
+    .map(([cat,v])=>({cat,rate:v.have/v.need*100,gap:v.need-v.have})).sort((a,b)=>a.rate-b.rate);
+  let forecast=null;
+  if (agg.length>=4) { const f=holtForecast(agg.map(r=>r.수주),1);
+    if (f&&f.forecasts&&f.forecasts.length) forecast=Math.max(0,Math.round(f.forecasts[0].point)); }
+  return { cur, prev, latest, agg, streak:dir*streak, yoyCur, catRows, totO, totO0, gTot:rptPct(totO,totO0),
+           month:cm, safetyRows, forecast, prevYear, weeksInMonth: cm ? (data.weeksByMonth[cm.mo]||[1,2,3,4]).length : 4 };
+}
+function rptInsights(F) {
+  const out = [];
+  const movers = F.catRows.filter(r=>r.g!=null&&Math.abs(r.g)>=15&&(r.o>F.totO*0.03||r.o0>F.totO0*0.03))
+                          .sort((a,b)=>Math.abs(b.o-b.o0)-Math.abs(a.o-a.o0));
+  for (const m of movers.slice(0,2)) {
+    const up = m.g>=0, diff=Math.abs(m.o-m.o0);
+    const share = Math.abs(F.totO-F.totO0)>0 ? diff/Math.abs(F.totO-F.totO0)*100 : null;
+    out.push({ sev: up?2:3, rc: up?'#087C5A':'#C32330',
+      fact:`${m.cat} 수주 전년 동기 대비 <span class="${up?'up-t':'dn-t'}">${up?'▲':'▼'} ${Math.abs(m.g).toFixed(1)}%</span>`,
+      so:`${F.prevYear}년 ${fmtN(m.o0)} → 올해 ${fmtN(m.o)}${share!=null&&share>=25?` — 전체 수주 ${F.gTot>=0?'증가':'감소'}분의 ${share.toFixed(0)}% 설명`:''}.`,
+      now: up?'증가분 생산능력·자재 선확보 점검.':'수요 감소 vs 수주 이월 여부 영업 확인.' });
+  }
+  if (F.month && F.month.status==='진행중' && F.month.plan>0) {
+    const rate = F.month.actual/F.month.plan*100;
+    const elapsed = F.latest ? Math.min(100, F.latest.wk/F.weeksInMonth*100) : null;
+    const behind = elapsed!=null && rate < elapsed-8;
+    out.push({ sev: behind?3:1, rc: behind?'#9C6610':'#1A6FB5',
+      fact:`${F.month.mo}월 생산 진척률 <b>${rate.toFixed(1)}%</b>`,
+      so:`계획 ${fmtN(F.month.plan)} 중 ${fmtN(F.month.actual)} 완료${elapsed!=null?`, 경과 기준 기대치 대비 ${(rate-elapsed>=0?'+':'')}${(rate-elapsed).toFixed(1)}%p`:''}.`,
+      now: behind?`잔여 ${fmtN(Math.max(0,F.month.plan-F.month.actual))} — 마감 전 만회 계획 필요.`:'현 추세 유지 시 월 마감 무난.' });
+  }
+  if (Math.abs(F.streak)>=3) {
+    const up = F.streak>0;
+    out.push({ sev:2, rc: up?'#087C5A':'#C32330',
+      fact:`수주 <span class="${up?'up-t':'dn-t'}">${Math.abs(F.streak)}주 연속 ${up?'상승':'하락'}</span>`,
+      so:`최근 흐름: ${F.agg.slice(-(Math.abs(F.streak)+1)).map(r=>fmtN(r.수주)).join(' → ')}.`,
+      now: up?'납기 대응 여력 사전 점검.':'하락 주도 품목군 식별 필요.' });
+  }
+  const short = F.safetyRows.filter(r=>r.rate<100);
+  if (short.length) { const w = short[0];
+    out.push({ sev:3, rc:'#C32330',
+      fact:`${w.cat} 안전재고 확보율 <span class="dn-t">${w.rate.toFixed(0)}%</span>${short.length>1?` 외 ${short.length-1}건`:''}`,
+      so:`가용재고(현재고−미출오더)가 안전선 대비 ${fmtN(w.gap)} 부족.`,
+      now:'해당 품목군 생산 우선순위 상향 검토.' });
+  }
+  if (F.cur && F.cur.생산>0) { const gap = rptPct(F.cur.출고, F.cur.생산);
+    if (gap!=null && gap<-15) out.push({ sev:2, rc:'#9C6610',
+      fact:`최근주 출고, 생산 대비 <b>${Math.abs(gap).toFixed(0)}% 낮음</b>`,
+      so:`생산 ${fmtN(F.cur.생산)} vs 출고 ${fmtN(F.cur.출고)} — 재고 적체 가능성.`,
+      now:'미출오더·출하 일정 확인.' });
+  }
+  out.sort((a,b)=>b.sev-a.sev);
+  if (!out.length) out.push({ sev:0, rc:'#087C5A', fact:'주요 지표 모두 정상 범위', so:'전주·전년 대비 급변 및 미달 항목이 감지되지 않았습니다.', now:'현 운영 기조 유지.' });
+  return out.slice(0,4);
+}
+function openReport() {
+  const html = rptWithNoFilter(() => {
+    const F = rptFacts();
+    if (!F) return '<div style="padding:40px;text-align:center;color:#6B7280;">데이터가 없어 보고서를 만들 수 없습니다.</div>';
+    const ins = rptInsights(F);
+    const wkLabel = F.latest ? `${F.latest.mo}월 ${F.latest.wk}주차` : '';
+    const strip = s => s.replace(/<[^>]+>/g,'').replace(/\s*\([^)]*\)/g,'');
+    const pos = ins.find(i=>i.rc==='#087C5A'), neg = ins.find(i=>i.sev>=3);
+    const head = pos&&neg ? `${strip(pos.fact)}, 단 ${strip(neg.fact)}.` : neg ? `${strip(neg.fact)} — 점검 필요.` : pos ? `${strip(pos.fact)}.` : '주요 지표 안정 흐름 유지.';
+    const kpi = (m) => { const v=F.cur[m], p=F.prev?.[m], g=p>0?rptPct(v,p):null, y=F.yoyCur&&F.yoyCur[m]>0?rptPct(v,F.yoyCur[m]):null;
+      return `<div class="r-kpi"><div class="k-l">최근주 ${m}</div><div class="k-v">${fmtN(v)}</div>
+        <div class="k-d">${g!=null?`전주 <span class="${g>=0?'up-t':'dn-t'}">${g>=0?'▲':'▼'}${Math.abs(g).toFixed(1)}%</span>`:'전주 —'}${y!=null?` · 전년 <span class="${y>=0?'up-t':'dn-t'}">${y>=0?'▲':'▼'}${Math.abs(y).toFixed(1)}%</span>`:''}</div></div>`; };
+    const risks = [];
+    for (const r of F.safetyRows.filter(r=>r.rate<100).slice(0,3)) risks.push(`<b>${r.cat}</b> 안전재고 ${r.rate.toFixed(0)}% (부족 ${fmtN(r.gap)})`);
+    if (F.month&&F.month.status==='진행중'&&F.month.plan>0&&F.month.actual/F.month.plan*100<85) risks.push(`<b>${F.month.mo}월 계획</b> 진척 ${(F.month.actual/F.month.plan*100).toFixed(0)}% 미달 위험`);
+    const watch = [];
+    if (F.month&&F.month.status==='진행중') { const remain=Math.max(0,F.month.plan-F.month.actual);
+      const wl = Math.max(1, F.weeksInMonth-(F.latest?.wk||0));
+      if (remain>0) { const per=remain/wl, need=F.cur.생산>0?per/F.cur.생산*100-100:null;
+        watch.push(`${F.month.mo}월 잔여 계획 <b>${fmtN(remain)}</b> — 주당 <b>${fmtN(per)}</b> 필요${need==null?'':need>0?` (<span class="dn-t">+${need.toFixed(0)}% 증산</span> 필요)`:' (현 수준으로 달성 가능)'}`); } }
+    if (F.forecast!=null) watch.push(`다음 주 수주 예측 <b>${fmtN(F.forecast)}</b> (지수평활)`);
+    return `
+      <div class="r-eyebrow">Weekly Executive Report</div>
+      <h1>생산${APP.dept} 주간 보고 — ${wkLabel}</h1>
+      <div class="r-meta">${APP.year}년 · 전 품목군 기준 · ${new Date().toLocaleDateString('ko-KR')} 생성 · 주간 대시보드 자동 요약</div>
+      <div class="r-head">${head}</div>
+      <div class="r-kpis">${kpi('수주')}${kpi('생산')}${kpi('출고')}</div>
+      <div class="r-sec">핵심 인사이트</div>
+      <table class="r-ins">${ins.map(n=>`<tr>
+        <td class="f" style="--rc:${n.rc}">${n.fact}</td>
+        <td class="s"><span class="lbl">SO WHAT</span>${n.so}</td>
+        <td class="n"><span class="lbl">NOW WHAT</span>${n.now}</td></tr>`).join('')}</table>
+      <div class="r-two">
+        <div class="r-box"><div class="bh" style="color:#C32330;">⚠ 리스크</div>${risks.length?risks.join(' · '):'이번 주 감지된 리스크 없음.'}</div>
+        <div class="r-box"><div class="bh" style="color:#1A6FB5;">◎ 다음 주 관전 포인트</div>${watch.length?watch.join(' · '):'—'}</div>
+      </div>
+      <div class="r-foot"><span>생산부 주간 대시보드 기반 자동 생성</span><span>임계값: YoY ±15% · 진척 −8%p · 안전재고 100% 미만</span></div>`;
+  });
+  document.getElementById('rptSheet').innerHTML = html;
+  document.getElementById('rptOverlay').style.display = 'block';
+}
+function closeReport() { document.getElementById('rptOverlay').style.display = 'none'; }
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeReport(); });
 </script>
 </body>
 </html>
