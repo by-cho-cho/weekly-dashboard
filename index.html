@@ -92,8 +92,13 @@
   }
   .btn:hover { background: var(--wash-2); }
   .btn.active {
-    background: linear-gradient(135deg, rgba(201,169,97,0.22), rgba(201,169,97,0.08));
-    border-color: var(--gold); color: var(--gold);
+    background: linear-gradient(135deg, rgba(201,169,97,0.3), rgba(201,169,97,0.12));
+    border-color: var(--gold); color: var(--gold); font-weight: 800;
+  }
+  .btn-emph { font-size: 13px; padding: 8px 16px; letter-spacing: .1px; }
+  .btn-emph.active {
+    background: linear-gradient(135deg, rgba(201,169,97,0.38), rgba(201,169,97,0.16));
+    box-shadow: 0 0 0 1px rgba(201,169,97,0.35), 0 0 10px rgba(201,169,97,0.25);
   }
   .btn[data-dept="2반"].active {
     background: linear-gradient(135deg, rgba(230,57,70,0.22), rgba(230,57,70,0.08));
@@ -381,7 +386,7 @@ document.addEventListener('fullscreenchange', () => {
 
 <!-- 품목군별 수주·생산 전년 동기 대비 요약 + 성장·하락 TOP5 (기본 접힘 — 주간 변동 파악에는 부차적) -->
 <section style="padding:14px 32px 0;">
-  <button id="yoyTopToggle" class="btn" onclick="toggleYoyTop()" style="font-size:10px;padding:4px 10px;">▸ 전년 동기 비교 · 성장·하락 TOP5 보기</button>
+  <button id="yoyTopToggle" class="btn btn-emph" onclick="toggleYoyTop()">▸ 전년 동기 비교 · 성장·하락 TOP5 보기</button>
 </section>
 <div id="yoyTopWrap" style="display:none;">
 <section style="padding:14px 32px 0;">
