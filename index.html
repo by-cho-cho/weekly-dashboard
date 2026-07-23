@@ -490,13 +490,13 @@ const AVG_COLORS    = { '수주':'#FF6B9D', '생산':'#FFA94D', '출고':'#B57BF
 
 // 카테고리 정의 (1반은 행 범위, 2반은 헤더 키워드)
 const CAT_1BAN_ROWS = [
-  {cat:'Black Eye',     rows:[7,8,9,10,11]},
-  {cat:'Blue Eye',      rows:[13,14,15,16,17,18,19]},
-  {cat:'커플링플로이드',  rows:[21,22,23,24,25,26,27,28,29,30,31]},
-  {cat:'창상피복제',     rows:[33,34]},
-  {cat:'시린지',         rows:[36,37,38]},
-  {cat:'BE/벨라',       rows:[40,41]},
-  {cat:'IOT',           rows:[43]},
+  {cat:'Black Eye',     rows:[7,8,9,10,11,12]},
+  {cat:'Blue Eye',      rows:[13,14,15,16,17,18,19,20]},
+  {cat:'커플링플로이드',  rows:[21,22,23,24,25,26,27,28,29,30,31,32]},
+  {cat:'창상피복제',     rows:[33,34,35]},
+  {cat:'시린지',         rows:[36,37,38,39]},
+  {cat:'BE/벨라',       rows:[40,41,42]},
+  {cat:'IOT',           rows:[43,44]},
 ];
 
 const APP = {
@@ -673,8 +673,12 @@ function extractItems(rows, wmap, dept, opts) {
     // SEPIA 컬러칩(코드 패턴 "101 10MC" 등)·"SEPIA"/"OEM" 헤더는 1반 미관리 → 제외.
     getCategory = (rIdx, model) => {
       const m = (model||'').toLowerCase().trim();
+      // 이름이 명확히 매칭되는 품목(스토케어/창상피복제 포함)은 SEPIA 컬러칩/OEM 코드
+      // 제외 규칙보다 항상 우선 — 코드가 숫자로 시작하는 창상피복제 품목이 잘못 제외되는 것 방지.
+      const named = byName(model);
+      if (named) return named;
       if (m.includes('sepia') || /^\d{3}\s+/.test(model||'')) return null;
-      return byName(model) || rowToCat[rIdx+1] || null;
+      return rowToCat[rIdx+1] || null;
     };
   } else {
     // 2반: 카테고리 헤더 행이 카테고리 합계를 보유 — 헤더만 집계 단위로 사용
@@ -710,7 +714,7 @@ function extractItems(rows, wmap, dept, opts) {
       const spec = (row[3]||'').trim();
       isTotal = /^total$/i.test(model) ||
                 (!spec && cat && cat !== '기타' && cat !== 'Cable' && model === cat);
-      if (!cat || cat === '기타' || cat === 'Cable') continue;
+      if (!cat || cat === '기타' || cat === 'Cable' || cat === '시린지') continue;
     } else {
       // 2반: 헤더(EP/ENBD/EPO Probe/Cable Total) 또는 개별 품목
       if (/^(item|품명|품목|spec|규격|전품목|total)$/i.test(model) && !getCategory(r, model)) continue;
