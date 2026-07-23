@@ -751,7 +751,10 @@ function extractItems(rows, wmap, dept, opts) {
       const v = parseNum(row[monthlyActualCol[mo]]);
       if (v > 0) { monthlyActual[mo] = v; hasAny = true; }
     }
-    if (!hasAny) continue;
+    // 1반: 아직 실적이 0인 신규 품목(예: 스토케어)도 목록에 노출되어야 하므로
+    // 전주기 데이터가 전부 0이어도 제외하지 않음 (월간 대시보드와 동일 동작).
+    // 2반은 기존과 동일하게 활동 데이터가 없는 행은 제외.
+    if (!hasAny && dept !== '1반') continue;
     const displayModel = isTotal ? `${cat} 합계` : model;
     items.push({
       model: displayModel,
