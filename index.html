@@ -399,11 +399,23 @@ document.addEventListener('fullscreenchange', () => {
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
-        <div class="kpi-label">작년 대비 성장·하락 TOP 8</div>
+        <div class="kpi-label">작년 대비 성장·하락 TOP 8 (수량 기준)</div>
         <div id="growthSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
       </div>
     </div>
     <div id="growthBody" style="display:flex;gap:14px;flex-wrap:wrap;">분석 중…</div>
+  </div>
+</section>
+
+<section style="padding:14px 32px 0;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div>
+        <div class="kpi-label">작년 대비 성장·하락 TOP 8 (비율 기준)</div>
+        <div id="growthPctSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
+      </div>
+    </div>
+    <div id="growthPctBody" style="display:flex;gap:14px;flex-wrap:wrap;">분석 중…</div>
   </div>
 </section>
 </div>
@@ -1254,6 +1266,7 @@ function toggleMetric(m) {
   paintMetricChips();
   renderChart();
   renderGrowth();
+  renderGrowthPct();
   renderShare();
 }
 // 지표 칩 색 — 테마(다크/화이트)에 맞춰 강조색 매핑 적용
@@ -2403,14 +2416,13 @@ function toggleTheme() {
    · 현재 활성 지표·선택 월 기준, 작년은 올해 최신 주차에 맞춘 동기간 합
    · 순위는 절대 증감(EA) 기준(볼륨 영향), % 병기
    ============================================================ */
-function renderGrowth() {
-  const body = document.getElementById('growthBody');
-  const subEl = document.getElementById('growthSub');
-  if (!body) return;
+// 성장·하락 순위 계산 공통 로직 — EA기준(renderGrowth)·%기준(renderGrowthPct)이 공유.
+// 전체(모든 품목군 선택/미선택)=품목군 단위, 특정 품목군 선택=선택 품목군 내 개별 품목 단위.
+function computeGrowthEntities() {
   const data = getData();
-  if (!data) { body.innerHTML = ''; if (subEl) subEl.textContent = '—'; return; }
   const prevYear = APP.year === 2026 ? 2025 : 2026;
   const prevData = APP.data[prevYear]?.[APP.dept];
+  if (!data) return { entities:[], unit:'품목군', periodLabel:'', prevYear, hasPrev:false };
 
   const metric = METRICS.find(m => APP.activeMetrics.has(m)) || '수주';
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
@@ -2455,51 +2467,74 @@ function renderGrowth() {
   const periodLabel = months.length
     ? (months.length === 1 ? months[0]+'월' : months[0]+'~'+months[months.length-1]+'월')
     : '전체기간';
-  if (subEl) subEl.textContent =
-    `${APP.year}년 vs ${prevYear}년 · ${APP.dept} · ${periodLabel} · ${metric} 기준 · ${unit} 단위`
+  const subText = `${APP.year}년 vs ${prevYear}년 · ${APP.dept} · ${periodLabel} · ${metric} 기준 · ${unit} 단위`
     + (isAll ? '' : ` (${selCats.join('·')} 내)`);
 
-  if (!prevData || !prevData.items?.length) {
+  return { entities, unit, periodLabel, prevYear, subText, hasPrev: !!(prevData && prevData.items?.length) };
+}
+// 순위 행 하나 렌더 — mode='ea'면 EA 증감을 크게·%를 작게, mode='pct'면 반대.
+// (prev=0 → "신규", cur=0 → "중단"인 경우는 %기준에서는 애초에 목록 제외)
+function growthRowHTML(e, rank, up, prevYear, mode) {
+  const accent = up ? 'var(--mint)' : 'var(--red)';
+  const rateText = e.prev === 0 ? '신규' : e.cur === 0 ? '중단'
+    : `${up?'▲':'▼'} ${Math.abs(e.rate).toFixed(1)}%`;
+  const deltaText = `${e.delta >= 0 ? '+' : '−'}${fmtN(Math.abs(e.delta))}`;
+  const big = mode === 'pct'
+    ? `<div style="font-size:15px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${rateText}</div>
+       <div style="font-size:11px;font-weight:700;color:${accent};">${deltaText} EA</div>`
+    : `<div style="font-size:15px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${deltaText}<span style="font-size:10px;font-weight:600;color:var(--text-muted);"> EA</span></div>
+       <div style="font-size:11px;font-weight:700;color:${accent};">${rateText}</div>`;
+  return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-top:1px solid var(--divider);">
+    <span style="flex:0 0 20px;height:20px;line-height:20px;text-align:center;border-radius:5px;background:${accent};color:#0F1520;font-weight:800;font-size:11px;">${rank}</span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(e.name)}">${e.name}</div>
+      <div style="font-size:10px;color:var(--text-muted);">${APP.year} ${fmtN(e.cur)} ← ${prevYear} ${fmtN(e.prev)}</div>
+    </div>
+    <div style="flex:0 0 auto;text-align:right;">${big}</div>
+  </div>`;
+}
+function growthColumnHTML(list, up, unit, prevYear, mode) {
+  const accent = up ? 'var(--mint)' : 'var(--red)';
+  const icon = up ? '🚀' : '📉';
+  const head = up ? `성장 TOP ${list.length}` : `하락 TOP ${list.length}`;
+  const rows = list.length
+    ? list.map((e,i)=> growthRowHTML(e, i+1, up, prevYear, mode)).join('')
+    : `<div style="color:var(--text-muted);padding:12px 4px;font-size:12px;">해당 ${unit} 없음</div>`;
+  return `<div style="flex:1 1 340px;min-width:300px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:12px 14px;">
+    <div style="font-size:12px;font-weight:800;color:${accent};margin-bottom:4px;letter-spacing:0.03em;">${icon} ${head}</div>
+    ${rows}
+  </div>`;
+}
+// EA(수량) 기준 성장·하락 TOP8 — 신규/중단 품목도 EA 임팩트가 있으니 포함
+function renderGrowth() {
+  const body = document.getElementById('growthBody');
+  const subEl = document.getElementById('growthSub');
+  if (!body) return;
+  const { entities, unit, prevYear, subText, hasPrev } = computeGrowthEntities();
+  if (subEl) subEl.textContent = subText || '—';
+  if (!hasPrev) {
     body.innerHTML = `<div style="color:var(--text-muted);padding:10px 4px;">비교할 ${prevYear}년 데이터가 없습니다.</div>`;
     return;
   }
-
   const grown = entities.filter(e => e.delta > 0).sort((a,b)=> b.delta - a.delta).slice(0, 8);
   const declined = entities.filter(e => e.delta < 0).sort((a,b)=> a.delta - b.delta).slice(0, 8);
-
-  // 순위 행 — 순번·이름·(올해←작년)·증감 EA·증감률
-  const row = (e, rank, up) => {
-    const accent = up ? 'var(--mint)' : 'var(--red)';
-    const rateText = e.prev === 0 ? '신규' : e.cur === 0 ? '중단'
-      : `${up?'▲':'▼'} ${Math.abs(e.rate).toFixed(1)}%`;
-    const deltaText = `${e.delta >= 0 ? '+' : '−'}${fmtN(Math.abs(e.delta))}`;
-    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-top:1px solid var(--divider);">
-      <span style="flex:0 0 20px;height:20px;line-height:20px;text-align:center;border-radius:5px;background:${accent};color:#0F1520;font-weight:800;font-size:11px;">${rank}</span>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(e.name)}">${e.name}</div>
-        <div style="font-size:10px;color:var(--text-muted);">${APP.year} ${fmtN(e.cur)} ← ${prevYear} ${fmtN(e.prev)}</div>
-      </div>
-      <div style="flex:0 0 auto;text-align:right;">
-        <div style="font-size:15px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${deltaText}<span style="font-size:10px;font-weight:600;color:var(--text-muted);"> EA</span></div>
-        <div style="font-size:11px;font-weight:700;color:${accent};">${rateText}</div>
-      </div>
-    </div>`;
-  };
-
-  const column = (list, up) => {
-    const accent = up ? 'var(--mint)' : 'var(--red)';
-    const icon = up ? '🚀' : '📉';
-    const head = up ? `성장 TOP ${list.length}` : `하락 TOP ${list.length}`;
-    const rows = list.length
-      ? list.map((e,i)=> row(e, i+1, up)).join('')
-      : `<div style="color:var(--text-muted);padding:12px 4px;font-size:12px;">해당 ${unit} 없음</div>`;
-    return `<div style="flex:1 1 340px;min-width:300px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:12px 14px;">
-      <div style="font-size:12px;font-weight:800;color:${accent};margin-bottom:4px;letter-spacing:0.03em;">${icon} ${head}</div>
-      ${rows}
-    </div>`;
-  };
-
-  body.innerHTML = column(grown, true) + column(declined, false);
+  body.innerHTML = growthColumnHTML(grown, true, unit, prevYear, 'ea') + growthColumnHTML(declined, false, unit, prevYear, 'ea');
+}
+// %(비율) 기준 성장·하락 TOP8 — 전년 실적 0인 신규/중단 품목은 비율이 무의미하므로 제외
+function renderGrowthPct() {
+  const body = document.getElementById('growthPctBody');
+  const subEl = document.getElementById('growthPctSub');
+  if (!body) return;
+  const { entities, unit, prevYear, subText, hasPrev } = computeGrowthEntities();
+  if (subEl) subEl.textContent = subText || '—';
+  if (!hasPrev) {
+    body.innerHTML = `<div style="color:var(--text-muted);padding:10px 4px;">비교할 ${prevYear}년 데이터가 없습니다.</div>`;
+    return;
+  }
+  const rated = entities.filter(e => e.rate != null);
+  const grown = rated.filter(e => e.rate > 0).sort((a,b)=> b.rate - a.rate).slice(0, 8);
+  const declined = rated.filter(e => e.rate < 0).sort((a,b)=> a.rate - b.rate).slice(0, 8);
+  body.innerHTML = growthColumnHTML(grown, true, unit, prevYear, 'pct') + growthColumnHTML(declined, false, unit, prevYear, 'pct');
 }
 
 /* ============================================================
@@ -2869,7 +2904,7 @@ function renderCatYoySummary() {
   html += section('생산', 'p', 'p25', mapAccent('#4FC3F7'));
   box.innerHTML = html;
 }
-function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderCatYoySummary(); renderGrowth(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
+function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderCatYoySummary(); renderGrowth(); renderGrowthPct(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
