@@ -760,10 +760,14 @@ function extractItems(rows, wmap, dept, opts) {
     // 전주기 데이터가 전부 0이어도 제외하지 않음 (월간 대시보드와 동일 동작).
     // 2반은 기존과 동일하게 활동 데이터가 없는 행은 제외.
     if (!hasAny && dept !== '1반') continue;
-    const displayModel = isTotal ? `${cat} 합계` : model;
+    const specVal = (row[specCol]||'').trim();
+    // Black Eye/Blue Eye: 같은 품목명에 용량(SPEC)이 다른 행이 여러 개 있어 합쳐지던 것을
+    // 방지하기 위해 품목명에 SPEC을 포함시켜 별도 품목으로 구분 (예: "Blue Eye™ 미주향 5ml"/"10ml").
+    const mergeSpec = dept === '1반' && !isTotal && (cat === 'Black Eye' || cat === 'Blue Eye') && specVal;
+    const displayModel = isTotal ? `${cat} 합계` : (mergeSpec ? `${model} ${specVal}` : model);
     items.push({
       model: displayModel,
-      spec: (row[specCol]||'').trim(),
+      spec: mergeSpec ? '' : specVal,
       category: cat,
       subcategory: detectSubcategory(cat, model),
       weekData,
