@@ -2474,7 +2474,9 @@ function computeGrowthEntities() {
 }
 // 순위 행 하나 렌더 — mode='ea'면 EA 증감을 크게·%를 작게, mode='pct'면 반대.
 // (prev=0 → "신규", cur=0 → "중단"인 경우는 %기준에서는 애초에 목록 제외)
-function growthRowHTML(e, rank, up, prevYear, mode) {
+// totalCur가 있으면 이 품목(e) 하나가 전체(entities 합계) 매출수량 중 차지하는 비중을 함께 표기 —
+// 품목별 개별 비중이라 목록 내 항목들의 비중 합이 100%일 필요는 없음.
+function growthRowHTML(e, rank, up, prevYear, mode, totalCur) {
   const accent = up ? 'var(--mint)' : 'var(--red)';
   const rateText = e.prev === 0 ? '신규' : e.cur === 0 ? '중단'
     : `${up?'▲':'▼'} ${Math.abs(e.rate).toFixed(1)}%`;
@@ -2484,11 +2486,12 @@ function growthRowHTML(e, rank, up, prevYear, mode) {
        <div style="font-size:11px;font-weight:700;color:${accent};">${deltaText} EA</div>`
     : `<div style="font-size:15px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${deltaText}<span style="font-size:10px;font-weight:600;color:var(--text-muted);"> EA</span></div>
        <div style="font-size:11px;font-weight:700;color:${accent};">${rateText}</div>`;
+  const shareTxt = totalCur > 0 ? ` · 전체 비중 ${(e.cur / totalCur * 100).toFixed(1)}%` : '';
   return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-top:1px solid var(--divider);">
     <span style="flex:0 0 20px;height:20px;line-height:20px;text-align:center;border-radius:5px;background:${accent};color:#0F1520;font-weight:800;font-size:11px;">${rank}</span>
     <div style="flex:1;min-width:0;">
       <div style="font-size:13px;font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeAttr(e.name)}">${e.name}</div>
-      <div style="font-size:10px;color:var(--text-muted);">${APP.year} ${fmtN(e.cur)} ← ${prevYear} ${fmtN(e.prev)}</div>
+      <div style="font-size:10px;color:var(--text-muted);">${APP.year} ${fmtN(e.cur)} ← ${prevYear} ${fmtN(e.prev)}${shareTxt}</div>
     </div>
     <div style="flex:0 0 auto;text-align:right;">${big}</div>
   </div>`;
@@ -2496,12 +2499,9 @@ function growthRowHTML(e, rank, up, prevYear, mode) {
 function growthColumnHTML(list, up, unit, prevYear, mode, totalCur) {
   const accent = up ? 'var(--mint)' : 'var(--red)';
   const icon = up ? '🚀' : '📉';
-  // 이 TOP 목록이 (올해 실적 기준) 전체 물량 중 차지하는 비중 — 임팩트 크기 참고용
-  const shareTxt = (list.length && totalCur > 0)
-    ? ` (${(list.reduce((s,e)=>s+e.cur,0) / totalCur * 100).toFixed(1)}%)` : '';
-  const head = (up ? `성장 TOP ${list.length}` : `하락 TOP ${list.length}`) + shareTxt;
+  const head = up ? `성장 TOP ${list.length}` : `하락 TOP ${list.length}`;
   const rows = list.length
-    ? list.map((e,i)=> growthRowHTML(e, i+1, up, prevYear, mode)).join('')
+    ? list.map((e,i)=> growthRowHTML(e, i+1, up, prevYear, mode, totalCur)).join('')
     : `<div style="color:var(--text-muted);padding:12px 4px;font-size:12px;">해당 ${unit} 없음</div>`;
   return `<div style="flex:1 1 340px;min-width:300px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${accent};border-radius:10px;padding:12px 14px;">
     <div style="font-size:12px;font-weight:800;color:${accent};margin-bottom:4px;letter-spacing:0.03em;">${icon} ${head}</div>
