@@ -384,9 +384,9 @@ document.addEventListener('fullscreenchange', () => {
   </div>
 </section>
 
-<!-- 품목군별 수주·생산 전년 동기 대비 요약 + 성장·하락 TOP5 (기본 접힘 — 주간 변동 파악에는 부차적) -->
+<!-- 품목군별 수주·생산 전년 동기 대비 요약 + 성장·하락 TOP8 (기본 접힘 — 주간 변동 파악에는 부차적) -->
 <section style="padding:14px 32px 0;">
-  <button id="yoyTopToggle" class="btn btn-emph" onclick="toggleYoyTop()">▸ 전년 동기 비교 · 성장·하락 TOP5 보기</button>
+  <button id="yoyTopToggle" class="btn btn-emph" onclick="toggleYoyTop()">▸ 전년 동기 비교 · 성장·하락 TOP8 보기</button>
 </section>
 <div id="yoyTopWrap" style="display:none;">
 <section style="padding:14px 32px 0;">
@@ -399,7 +399,7 @@ document.addEventListener('fullscreenchange', () => {
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
-        <div class="kpi-label">작년 대비 성장·하락 TOP 5</div>
+        <div class="kpi-label">작년 대비 성장·하락 TOP 8</div>
         <div id="growthSub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
       </div>
     </div>
@@ -1146,7 +1146,7 @@ function toggleYoyTop() {
   const hidden = wrap.style.display === 'none';
   wrap.style.display = hidden ? '' : 'none';
   btn.classList.toggle('active', hidden);
-  btn.textContent = hidden ? '▾ 전년 동기 비교 · 성장·하락 TOP5 숨기기' : '▸ 전년 동기 비교 · 성장·하락 TOP5 보기';
+  btn.textContent = hidden ? '▾ 전년 동기 비교 · 성장·하락 TOP8 숨기기' : '▸ 전년 동기 비교 · 성장·하락 TOP8 보기';
 }
 
 /* ============================================================
@@ -2464,8 +2464,8 @@ function renderGrowth() {
     return;
   }
 
-  const grown = entities.filter(e => e.delta > 0).sort((a,b)=> b.delta - a.delta).slice(0, 5);
-  const declined = entities.filter(e => e.delta < 0).sort((a,b)=> a.delta - b.delta).slice(0, 5);
+  const grown = entities.filter(e => e.delta > 0).sort((a,b)=> b.delta - a.delta).slice(0, 8);
+  const declined = entities.filter(e => e.delta < 0).sort((a,b)=> a.delta - b.delta).slice(0, 8);
 
   // 순위 행 — 순번·이름·(올해←작년)·증감 EA·증감률
   const row = (e, rank, up) => {
