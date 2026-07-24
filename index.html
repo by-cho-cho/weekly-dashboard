@@ -2493,10 +2493,13 @@ function growthRowHTML(e, rank, up, prevYear, mode) {
     <div style="flex:0 0 auto;text-align:right;">${big}</div>
   </div>`;
 }
-function growthColumnHTML(list, up, unit, prevYear, mode) {
+function growthColumnHTML(list, up, unit, prevYear, mode, totalCur) {
   const accent = up ? 'var(--mint)' : 'var(--red)';
   const icon = up ? '🚀' : '📉';
-  const head = up ? `성장 TOP ${list.length}` : `하락 TOP ${list.length}`;
+  // 이 TOP 목록이 (올해 실적 기준) 전체 물량 중 차지하는 비중 — 임팩트 크기 참고용
+  const shareTxt = (list.length && totalCur > 0)
+    ? ` (${(list.reduce((s,e)=>s+e.cur,0) / totalCur * 100).toFixed(1)}%)` : '';
+  const head = (up ? `성장 TOP ${list.length}` : `하락 TOP ${list.length}`) + shareTxt;
   const rows = list.length
     ? list.map((e,i)=> growthRowHTML(e, i+1, up, prevYear, mode)).join('')
     : `<div style="color:var(--text-muted);padding:12px 4px;font-size:12px;">해당 ${unit} 없음</div>`;
@@ -2518,7 +2521,8 @@ function renderGrowth() {
   }
   const grown = entities.filter(e => e.delta > 0).sort((a,b)=> b.delta - a.delta).slice(0, 8);
   const declined = entities.filter(e => e.delta < 0).sort((a,b)=> a.delta - b.delta).slice(0, 8);
-  body.innerHTML = growthColumnHTML(grown, true, unit, prevYear, 'ea') + growthColumnHTML(declined, false, unit, prevYear, 'ea');
+  const totalCur = entities.reduce((s,e)=>s+e.cur, 0);
+  body.innerHTML = growthColumnHTML(grown, true, unit, prevYear, 'ea', totalCur) + growthColumnHTML(declined, false, unit, prevYear, 'ea', totalCur);
 }
 // %(비율) 기준 성장·하락 TOP8 — 전년 실적 0인 신규/중단 품목은 비율이 무의미하므로 제외
 function renderGrowthPct() {
@@ -2534,7 +2538,8 @@ function renderGrowthPct() {
   const rated = entities.filter(e => e.rate != null);
   const grown = rated.filter(e => e.rate > 0).sort((a,b)=> b.rate - a.rate).slice(0, 8);
   const declined = rated.filter(e => e.rate < 0).sort((a,b)=> a.rate - b.rate).slice(0, 8);
-  body.innerHTML = growthColumnHTML(grown, true, unit, prevYear, 'pct') + growthColumnHTML(declined, false, unit, prevYear, 'pct');
+  const totalCur = entities.reduce((s,e)=>s+e.cur, 0);
+  body.innerHTML = growthColumnHTML(grown, true, unit, prevYear, 'pct', totalCur) + growthColumnHTML(declined, false, unit, prevYear, 'pct', totalCur);
 }
 
 /* ============================================================
