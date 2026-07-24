@@ -967,13 +967,23 @@ function renderYearChips() {
   }).join('');
 }
 
+// 동기화 시점(실적이 들어온 마지막 월) — 그 이후 월은 아직 데이터가 없으므로 선택 불가 처리
+function getSyncMonth(data) {
+  const months = Object.keys(data.weeksByMonth).map(Number);
+  const latest = findLatestWeek(data.items);
+  return latest ? latest.mo : Math.max(...months, 0);
+}
+
 function renderMonthChips() {
   const data = getData(); if (!data) return;
   const months = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
-  document.getElementById('monthChips').innerHTML = months.map(m =>
-    `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" data-ftype="month" data-fval="${m}">${m}월</span>`
-  ).join('');
-  document.getElementById('btnAllMonths')?.classList.toggle('active', APP.selectedMonths.size === months.length && months.length > 0);
+  const syncMo = getSyncMonth(data);
+  const selectable = months.filter(m => m <= syncMo);
+  document.getElementById('monthChips').innerHTML = months.map(m => {
+    const dis = m > syncMo;
+    return `<span class="chip chip-month ${APP.selectedMonths.has(m)?'active':''}" ${dis ? 'style="opacity:0.35;pointer-events:none;"' : ''} data-ftype="month" data-fval="${m}">${m}월</span>`;
+  }).join('');
+  document.getElementById('btnAllMonths')?.classList.toggle('active', APP.selectedMonths.size === selectable.length && selectable.length > 0);
   // 최근 3개월 하이라이트: 선택된 월이 데이터 있는 최근 3개월과 정확히 일치
   const aggAll = aggregateByWeek(data.items, months);
   const monthsWithData = [...new Set(aggAll.map(r => r.mo))].sort((a,b)=>b-a).slice(0, 3);
@@ -1197,7 +1207,8 @@ function nextWeekLabel(mo, wk) {
 
 function selectAllMonths() {
   const data = getData(); if (!data) return;
-  APP.selectedMonths = new Set(Object.keys(data.weeksByMonth).map(Number));
+  const syncMo = getSyncMonth(data);
+  APP.selectedMonths = new Set(Object.keys(data.weeksByMonth).map(Number).filter(m => m <= syncMo));
   renderMonthChips(); renderBody();
 }
 function selectRecentMonths() {
