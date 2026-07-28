@@ -1597,9 +1597,10 @@ function renderChart() {
       if (prv > 0) {
         const diff = cur - prv, rate = diff / prv * 100, up = diff >= 0;
         const rc = up ? '#00E5A0' : '#E63946', rtc = up ? '#0F1520' : '#FFFFFF';
+        const diffText = `${up?'+':'−'}${Math.abs(diff).toLocaleString()}`;
         yoyHtml =
           `<span style="color:${prvTc};font-weight:800;font-size:11px;background:${prvBg};border:1px solid ${prvBd};border-radius:4px;padding:2px 7px;">${yoyTag} ${prv.toLocaleString()}</span>`
-        + `<span style="color:${rtc};font-weight:800;font-size:11px;background:${rc};border-radius:4px;padding:2px 6px;">${up?'▲':'▼'} ${Math.abs(rate).toFixed(1)}%</span>`;
+        + `<span style="color:${rtc};font-weight:800;font-size:11px;background:${rc};border-radius:4px;padding:2px 6px;">${up?'▲':'▼'} ${Math.abs(rate).toFixed(1)}% (${diffText})</span>`;
       }
       rows.push(
         `<div style="display:flex;gap:5px;align-items:center;background:${boxBg};backdrop-filter:blur(6px);border:1px solid var(--border);border-left:3px solid ${vcol};border-radius:7px;padding:5px 9px;box-shadow:${boxSh};">`
