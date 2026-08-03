@@ -679,7 +679,7 @@ function extractItems(rows, wmap, dept, opts) {
       const m = (model||'').toLowerCase().trim();
       if (/^iot/.test(m) || m.includes('iot pro')) return 'IOT';
       if (/^black\s*eye/.test(m) || m.startsWith('black_')) return 'Black Eye';
-      if (/^blue/.test(m)) return 'Blue Eye';
+      if (/^blue\s*(eye|_steris)/.test(m)) return 'Blue Eye';
       if (m.includes('c/f') || m.includes('커플링') || m.includes('청우')) return '커플링플로이드';
       if (m.includes('벨라') || m.includes('be/벨라') || /^be\b/.test(m)) return 'BE/벨라';
       if (m.includes('muco') || m.includes('창상') || m.includes('스토케어')) return '창상피복제';
