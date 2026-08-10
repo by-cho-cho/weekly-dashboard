@@ -228,6 +228,9 @@
         <span id="zoomLabel" style="font-size:11px;color:var(--text-muted);min-width:34px;text-align:center;">80%</span>
         <button onclick="setZoom(+5)" style="padding:6px 9px;background:var(--wash-2);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);cursor:pointer;font-size:12px;">+</button>
       </div>
+      <span style="font-size:10px;color:var(--text-muted);margin-left:6px;">보기</span>
+      <button class="btn active" id="viewWeekBtn" onclick="setGranularity('week')" title="주차 단위로 보기">주간</button>
+      <button class="btn" id="viewMonthBtn" onclick="setGranularity('month')" title="월 단위로 합산해서 보기">월간</button>
       <span style="font-size:10px;color:var(--text-muted);margin-left:6px;">부서</span>
       <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반 (액상)</button>
       <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반 (카테터)</button>
@@ -287,21 +290,21 @@ document.addEventListener('fullscreenchange', () => {
     <div class="kpi-strip" id="kpiStrip" style="margin-left:24px;">
       <div class="kpi-cell" style="--accent:var(--gold);">
         <div>
-          <div class="kpi-label">최근주 수주</div>
+          <div class="kpi-label" id="kpiOrderLbl">최근주 수주</div>
           <div class="kpi-sub" id="kpiOrderSub">—</div>
         </div>
         <div class="kpi-val" id="kpiOrder">—</div>
       </div>
       <div class="kpi-cell" style="--accent:var(--cyan);">
         <div>
-          <div class="kpi-label">최근주 생산</div>
+          <div class="kpi-label" id="kpiProdLbl">최근주 생산</div>
           <div class="kpi-sub" id="kpiProdSub">—</div>
         </div>
         <div class="kpi-val" id="kpiProd">—</div>
       </div>
       <div class="kpi-cell" style="--accent:var(--mint);">
         <div>
-          <div class="kpi-label">최근주 출고</div>
+          <div class="kpi-label" id="kpiShipLbl">최근주 출고</div>
           <div class="kpi-sub" id="kpiShipSub">—</div>
         </div>
         <div class="kpi-val" id="kpiShip">—</div>
@@ -311,7 +314,7 @@ document.addEventListener('fullscreenchange', () => {
     <button id="btnRecentMonths" class="btn" onclick="selectRecentMonths()" style="font-size:10px;padding:4px 10px;">최근 3개월</button>
   </div>
 
-  <div class="filter-row">
+  <div class="filter-row" id="weekFilterRow">
     <span class="filter-label">주차</span>
     <div class="filter-grid" id="weekChips"></div>
     <button id="btnAllWeeks" class="btn" onclick="selectAllWeeks()" style="font-size:10px;padding:4px 10px;">전체</button>
@@ -375,7 +378,7 @@ document.addEventListener('fullscreenchange', () => {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <button id="weekTableToggle" class="btn" onclick="toggleWeekTable()" style="font-size:10px;padding:4px 10px;">▸ 상세 보기</button>
-          <div class="kpi-label" style="font-size:11px;">주차별 상세 — 전주 대비 · 동기간 비교</div>
+          <div class="kpi-label" style="font-size:11px;" id="weekTableCaption">주차별 상세 — 전주 대비 · 동기간 비교</div>
         </div>
         <div style="font-size:10px;color:var(--text-muted);">최근 주차 상단</div>
       </div>
@@ -519,6 +522,7 @@ const CAT_1BAN_ROWS = [
 const APP = {
   dept: '1반',
   year: 2026,
+  granularity: 'week', // 'week' | 'month' — 주간/월간 보기 토글
   yoyOn: false,
   forecastOn: false,
   perItemOn: false,
@@ -968,6 +972,59 @@ function aggregateYoY(items, months, year) {
   return aggregateByWeek(filterItems(data.items), months, data.items);
 }
 
+// 월간 보기: 주차 구분 없이 월 단위로 합산 (주차 필터 무시 — 월 전체 합)
+function aggregateByMonth(items, months, globalItems) {
+  const out = [];
+  const keepEmpty = !!(globalItems && globalItems.length);
+  const latest = keepEmpty ? findLatestWeek(globalItems) : null;
+  for (const mo of months) {
+    if (latest && mo > latest.mo) continue;
+    const sums = {};
+    for (const me of METRICS) sums[me] = 0;
+    let hasWeek = false;
+    for (const it of items) {
+      const wd = it.weekData?.[mo]; if (!wd) continue;
+      for (const wk of Object.keys(wd)) {
+        hasWeek = true;
+        const w = wd[wk];
+        for (const me of METRICS) sums[me] += w[me] || 0;
+      }
+    }
+    if (!keepEmpty && !hasWeek) continue;
+    if (!keepEmpty && (sums.수주 + sums.생산 + sums.출고 + sums.불량) === 0) continue;
+    out.push({ label: `${mo}월`, mo, ...sums });
+  }
+  return out;
+}
+function aggregateYoYMonth(items, months, year) {
+  const data = APP.data[year]?.[APP.dept];
+  if (!data) return null;
+  return aggregateByMonth(filterItems(data.items), months, data.items);
+}
+// 현재 보기 모드(주간/월간)에 맞춰 집계 — renderKPI/renderComment/renderChart/renderTable 공용
+function curAgg(items, months, globalItems) {
+  return APP.granularity === 'month' ? aggregateByMonth(items, months, globalItems) : aggregateByWeek(items, months, globalItems);
+}
+function curYoY(items, months, year) {
+  return APP.granularity === 'month' ? aggregateYoYMonth(items, months, year) : aggregateYoY(items, months, year);
+}
+
+function setGranularity(g) {
+  if (APP.granularity === g) return;
+  APP.granularity = g;
+  document.getElementById('viewWeekBtn')?.classList.toggle('active', g === 'week');
+  document.getElementById('viewMonthBtn')?.classList.toggle('active', g === 'month');
+  const weekRow = document.getElementById('weekFilterRow');
+  if (weekRow) weekRow.style.display = g === 'month' ? 'none' : '';
+  const fcBtn = document.getElementById('forecastBtn');
+  if (fcBtn) fcBtn.style.display = g === 'month' ? 'none' : '';
+  if (g === 'month' && APP.forecastOn) {
+    APP.forecastOn = false;
+    document.getElementById('forecastBtn')?.classList.remove('active');
+  }
+  renderBody();
+}
+
 /* ============================================================
    렌더링 - 칩
    ============================================================ */
@@ -1389,9 +1446,15 @@ document.addEventListener('mouseup', () => {
    ============================================================ */
 function renderKPI() {
   const data = getData(); if (!data) return;
+  const isMonth = APP.granularity === 'month';
+  const prevLbl = isMonth ? '전월' : '전주';
+  const recentLbl = isMonth ? '최근월' : '최근주';
+  document.getElementById('kpiOrderLbl').textContent = `${recentLbl} 수주`;
+  document.getElementById('kpiProdLbl').textContent = `${recentLbl} 생산`;
+  document.getElementById('kpiShipLbl').textContent = `${recentLbl} 출고`;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
-  const agg = aggregateByWeek(filterItems(data.items), months);
-  const yoy = APP.yoyOn ? aggregateYoY(filterItems(data.items), months, APP.year === 2026 ? 2025 : 2026) : null;
+  const agg = curAgg(filterItems(data.items), months);
+  const yoy = APP.yoyOn ? curYoY(filterItems(data.items), months, APP.year === 2026 ? 2025 : 2026) : null;
   const ids = {수주:['kpiOrder','kpiOrderSub'], 생산:['kpiProd','kpiProdSub'], 출고:['kpiShip','kpiShipSub']};
   if (agg.length === 0) {
     for (const m of Object.keys(ids)) {
@@ -1402,15 +1465,15 @@ function renderKPI() {
   }
   const cur = agg[agg.length-1];
   const prev = agg[agg.length-2];
-  const yoyMatch = yoy?.find(r => r.mo === cur.mo && r.wk === cur.wk);
+  const yoyMatch = isMonth ? yoy?.find(r => r.mo === cur.mo) : yoy?.find(r => r.mo === cur.mo && r.wk === cur.wk);
   Object.keys(ids).forEach(me => {
     document.getElementById(ids[me][0]).textContent = fmtN(cur[me]);
     let html = `<div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:3px;">${cur.label}</div>`;
     if (prev?.[me] != null && prev[me] > 0) {
       const d = cur[me] - prev[me], r = d/prev[me]*100;
       const cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
-      html += `<span class="${cls}">${sign} ${Math.abs(r).toFixed(1)}%</span> 전주 ${fmtN(prev[me])}`;
-    } else html += `<span style="color:var(--text-muted);">전주 없음</span>`;
+      html += `<span class="${cls}">${sign} ${Math.abs(r).toFixed(1)}%</span> ${prevLbl} ${fmtN(prev[me])}`;
+    } else html += `<span style="color:var(--text-muted);">${prevLbl} 없음</span>`;
     if (yoyMatch && yoyMatch[me] > 0) {
       const otherYear = APP.year === 2026 ? '25' : '26';
       const d = cur[me] - yoyMatch[me], r = d/yoyMatch[me]*100;
@@ -1424,16 +1487,20 @@ function renderKPI() {
 function renderComment() {
   const box = document.getElementById('commentBox');
   const data = getData(); if (!data) { box.textContent = '데이터 없음'; return; }
+  const isMonth = APP.granularity === 'month';
+  const prevLbl = isMonth ? '전월' : '전주';
+  const unitCnt = isMonth ? '개월' : '개 주차';
+  const nextLbl = isMonth ? '다음달' : '다음주';
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
-  const agg = aggregateByWeek(items, months);
-  const yoy = APP.yoyOn ? aggregateYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
+  const agg = curAgg(items, months);
+  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
   if (agg.length < 2) {
-    box.innerHTML = '<span style="color:var(--text-muted);">전주 비교를 위해 최소 2개 주차가 필요합니다.</span>';
+    box.innerHTML = `<span style="color:var(--text-muted);">${prevLbl} 비교를 위해 최소 2${unitCnt}가 필요합니다.</span>`;
     return;
   }
   const cur = agg[agg.length-1], prev = agg[agg.length-2];
-  const yoyMatch = yoy?.find(r => r.mo === cur.mo && r.wk === cur.wk);
+  const yoyMatch = isMonth ? yoy?.find(r => r.mo === cur.mo) : yoy?.find(r => r.mo === cur.mo && r.wk === cur.wk);
   const lines = [];
 
   const catCnt = getCats().size, itemCnt = getItems().size;
@@ -1441,11 +1508,11 @@ function renderComment() {
   lines.push(`<b style="color:var(--gold);">${APP.year}년 ${cur.label}</b> 실적 — ${scope} 기준`);
 
   const tone = (cur, prev) => {
-    if (prev == null || prev === 0) return `<span style="color:var(--text-muted);">전주 미실적</span>`;
+    if (prev == null || prev === 0) return `<span style="color:var(--text-muted);">${prevLbl} 미실적</span>`;
     const d = cur - prev, r = d/prev*100;
     return d >= 0
-      ? `<span class="up">${fmtN(cur)}개 (전주比 ▲${r.toFixed(1)}%, +${fmtN(d)})</span>`
-      : `<span class="down">${fmtN(cur)}개 (전주比 ▼${Math.abs(r).toFixed(1)}%, ${fmtN(d)})</span>`;
+      ? `<span class="up">${fmtN(cur)}개 (${prevLbl}比 ▲${r.toFixed(1)}%, +${fmtN(d)})</span>`
+      : `<span class="down">${fmtN(cur)}개 (${prevLbl}比 ▼${Math.abs(r).toFixed(1)}%, ${fmtN(d)})</span>`;
   };
   lines.push(`▶ 수주 ${tone(cur.수주, prev.수주)}, 생산 ${tone(cur.생산, prev.생산)}, 출고 ${tone(cur.출고, prev.출고)}.`);
 
@@ -1460,8 +1527,8 @@ function renderComment() {
     if (defRateP != null) {
       const dr = defRate - defRateP;
       cmp = dr >= 0
-        ? ` (전주 ${defRateP.toFixed(2)}% → <span class="down">+${dr.toFixed(2)}%p</span>)`
-        : ` (전주 ${defRateP.toFixed(2)}% → <span class="up">${dr.toFixed(2)}%p</span>)`;
+        ? ` (${prevLbl} ${defRateP.toFixed(2)}% → <span class="down">+${dr.toFixed(2)}%p</span>)`
+        : ` (${prevLbl} ${defRateP.toFixed(2)}% → <span class="up">${dr.toFixed(2)}%p</span>)`;
     }
     lines.push(`▶ 품질 ${qual} — 불량율 <b>${defRate.toFixed(2)}%</b>${cmp}.`);
   }
@@ -1482,7 +1549,7 @@ function renderComment() {
   const downCnt = ['수주','생산','출고'].filter(me => prev[me] > 0 && cur[me] < prev[me]).length;
   let verdict;
   if (upCnt >= 2 && (defRate == null || defRate <= 1))
-    verdict = `<span class="up">📈 전반적 상승세 — 추세 유지 시 다음주 호조 예상.</span>`;
+    verdict = `<span class="up">📈 전반적 상승세 — 추세 유지 시 ${nextLbl} 호조 예상.</span>`;
   else if (downCnt >= 2)
     verdict = `<span class="down">📉 전반적 하락 — 수주 파이프라인 점검 필요.</span>`;
   else if (defRate != null && defRate > 2)
@@ -1499,13 +1566,14 @@ function renderChart() {
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
   // 빈 주차도 X축에 노출 — data.items 전체를 기준으로 최신 주까지 유지
-  const agg = aggregateByWeek(items, months, data.items);
-  const yoy = APP.yoyOn ? aggregateYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
+  const isMonth = APP.granularity === 'month';
+  const agg = curAgg(items, months, data.items);
+  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
   const xData = agg.map(r => r.label);
 
-  // 예측 모드: 미래 4주 라벨 추가
+  // 예측 모드: 미래 4주 라벨 추가 (월간 보기에서는 지원하지 않음)
   let futureLabels = [], forecastMap = null;
-  if (APP.forecastOn && agg.length >= 4) {
+  if (!isMonth && APP.forecastOn && agg.length >= 4) {
     let last = { mo: agg[agg.length-1].mo, wk: agg[agg.length-1].wk };
     for (let k = 0; k < APP.forecastH; k++) {
       const nxt = nextWeekLabel(last.mo, last.wk);
@@ -1522,13 +1590,15 @@ function renderChart() {
   }
   const xDataAll = [...xData, ...futureLabels];
 
-  // YoY를 같은 mo/wk로 매핑
+  // YoY를 같은 mo/wk로 매핑 (월간 모드는 wk가 없어 mo만으로 자연히 매칭됨)
   const yoyMap = yoy ? new Map(yoy.map(r => [`${r.mo}-${r.wk}`, r])) : null;
 
-  // 월 경계 인덱스 (첫 등장 위치)
+  // 월 경계 인덱스 (첫 등장 위치) — 월간 보기는 점 하나가 곧 한 달이라 구분선 불필요
   const monthBoundaries = [];
-  for (let i = 1; i < agg.length; i++) {
-    if (agg[i].mo !== agg[i-1].mo) monthBoundaries.push(agg[i].label);
+  if (!isMonth) {
+    for (let i = 1; i < agg.length; i++) {
+      if (agg[i].mo !== agg[i-1].mo) monthBoundaries.push(agg[i].label);
+    }
   }
   const MONTH_COLORS = {
     1:'#C9A961', 2:'#4FC3F7', 3:'#00E5A0', 4:'#E63946', 5:'#AB8FE0', 6:'#FFB547',
@@ -1565,14 +1635,14 @@ function renderChart() {
   const ytdLatest = findLatestWeek(data.items);
   const ytdLastMo = ytdLatest ? ytdLatest.mo : lastMo;
   const ytdMonths = ytdLatest ? Array.from({length: ytdLatest.mo}, (_,i)=>i+1) : (months.length ? months : []);
-  const ytdAggCur = ytdMonths.length ? aggregateByWeek(items, ytdMonths, data.items) : [];
+  const ytdAggCur = ytdMonths.length ? curAgg(items, ytdMonths, data.items) : [];
   const ytdAggYoy = (() => {
     if (!APP.yoyOn || !ytdMonths.length) return null;
     const prevYear = APP.year === 2026 ? 2025 : 2026;
     const prev = APP.data[prevYear]?.[APP.dept];
     if (!prev) return null;
     // 전년 데이터를 합산하되, 컷오프는 현재 연도의 동기화 시점(data.items 기준)을 사용
-    return aggregateByWeek(filterItems(prev.items), ytdMonths, data.items);
+    return curAgg(filterItems(prev.items), ytdMonths, data.items);
   })();
 
   // 동기간 누계 — 차트 우상단 HTML 오버레이 (활성 지표별 1줄)
@@ -1744,7 +1814,7 @@ function renderChart() {
         : (APP.dept === '2반'
             ? (totals.length > 0 ? totals : inds)
             : (inds.length > 0 ? inds : totals));
-      const catAgg = aggregateByWeek(useItems, months, data.items);
+      const catAgg = curAgg(useItems, months, data.items);
       const labelToVal = new Map(catAgg.map(r => [r.label, r[metric]]));
       const color = mapAccent(PALETTE[ci % PALETTE.length]);
       series.push({
@@ -1943,21 +2013,26 @@ function renderChart() {
     fcLabel = ` · 🔮 ${APP.forecastH}주 예측 (정확도 ${accAvg.toFixed(0)}%, Holt's α/β 자동최적)`;
   }
   document.getElementById('trendSub').textContent =
-    `${APP.year}년 · ${months.join('월·')}월 · ${catLabel}${itemLabel} · ${agg.length}개 주차${yoyLabel}${fcLabel}`;
+    `${APP.year}년 · ${months.join('월·')}월 · ${catLabel}${itemLabel} · ${agg.length}${isMonth ? '개월' : '개 주차'}${yoyLabel}${fcLabel}`;
 }
 
 function renderTable() {
   const data = getData(); if (!data) return;
+  const isMonth = APP.granularity === 'month';
+  const unitTh = isMonth ? '월' : '주차';
+  const deltaTh = isMonth ? 'Δ월' : 'Δ주';
+  const caption = document.getElementById('weekTableCaption');
+  if (caption) caption.textContent = isMonth ? '월별 상세 — 전월 대비 · 동기간 비교' : '주차별 상세 — 전주 대비 · 동기간 비교';
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
-  const agg = aggregateByWeek(items, months, data.items);
-  const yoy = APP.yoyOn ? aggregateYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
+  const agg = curAgg(items, months, data.items);
+  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
   const yoyMap = yoy ? new Map(yoy.map(r => [`${r.mo}-${r.wk}`, r])) : null;
 
-  let cols = `<th>주차</th>
-    <th style="text-align:right">수주</th><th style="text-align:right">Δ주</th>
-    <th style="text-align:right">생산</th><th style="text-align:right">Δ주</th>
-    <th style="text-align:right">출고</th><th style="text-align:right">Δ주</th>`;
+  let cols = `<th>${unitTh}</th>
+    <th style="text-align:right">수주</th><th style="text-align:right">${deltaTh}</th>
+    <th style="text-align:right">생산</th><th style="text-align:right">${deltaTh}</th>
+    <th style="text-align:right">출고</th><th style="text-align:right">${deltaTh}</th>`;
   if (yoyMap) cols += `<th style="text-align:right;color:var(--purple);">동기간 생산</th><th style="text-align:right;color:var(--purple);">YoY</th>`;
 
   let html = `<table class="exec" style="width:100%;border-collapse:collapse;"><thead><tr>${cols}</tr></thead><tbody>`;
@@ -1994,7 +2069,7 @@ function renderTable() {
   });
   html += rowsHtml.reverse().join('');
   html += '</tbody></table>';
-  if (agg.length === 0) html = '<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 조건에 주간 데이터가 없습니다.</div>';
+  if (agg.length === 0) html = `<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 조건에 ${isMonth ? '월간' : '주간'} 데이터가 없습니다.</div>`;
   document.getElementById('weekTable').innerHTML = html;
 }
 
