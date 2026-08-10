@@ -985,6 +985,9 @@ function aggregateByMonth(items, months, globalItems) {
     for (const it of items) {
       const wd = it.weekData?.[mo]; if (!wd) continue;
       for (const wk of Object.keys(wd)) {
+        // 진행중인 월(latest.mo)은 아직 실적이 없는 주차가 존재 — 비교 연도 쪽도 동일 주차까지만 합산해야
+        // "이번달 부분실적 vs 작년 그달 전체실적"처럼 불공정한 비교가 되는 걸 막음(aggregateByWeek와 동일 원칙).
+        if (latest && mo === latest.mo && Number(wk) > latest.wk) continue;
         hasWeek = true;
         const w = wd[wk];
         for (const me of METRICS) sums[me] += w[me] || 0;
@@ -996,17 +999,19 @@ function aggregateByMonth(items, months, globalItems) {
   }
   return out;
 }
-function aggregateYoYMonth(items, months, year) {
+// curGlobal: 현재(비교 기준) 연도의 items — 진행중 월의 주차 컷오프는 항상 이 기준을 따라야 함.
+// 생략 시 비교 연도 자체의 마지막 주차로 컷오프돼(대개 완료연도라 연말) 진행중 월 절삭이 무력화되므로 항상 넘길 것.
+function aggregateYoYMonth(items, months, year, curGlobal) {
   const data = APP.data[year]?.[APP.dept];
   if (!data) return null;
-  return aggregateByMonth(filterItems(data.items), months, data.items);
+  return aggregateByMonth(filterItems(data.items), months, curGlobal || data.items);
 }
 // 현재 보기 모드(주간/월간)에 맞춰 집계 — renderKPI/renderComment/renderChart/renderTable 공용
 function curAgg(items, months, globalItems) {
   return APP.granularity === 'month' ? aggregateByMonth(items, months, globalItems) : aggregateByWeek(items, months, globalItems);
 }
-function curYoY(items, months, year) {
-  return APP.granularity === 'month' ? aggregateYoYMonth(items, months, year) : aggregateYoY(items, months, year);
+function curYoY(items, months, year, curGlobal) {
+  return APP.granularity === 'month' ? aggregateYoYMonth(items, months, year, curGlobal) : aggregateYoY(items, months, year);
 }
 
 function setGranularity(g) {
@@ -1454,7 +1459,7 @@ function renderKPI() {
   document.getElementById('kpiShipLbl').textContent = `${recentLbl} 출고`;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const agg = curAgg(filterItems(data.items), months);
-  const yoy = APP.yoyOn ? curYoY(filterItems(data.items), months, APP.year === 2026 ? 2025 : 2026) : null;
+  const yoy = APP.yoyOn ? curYoY(filterItems(data.items), months, APP.year === 2026 ? 2025 : 2026, data.items) : null;
   const ids = {수주:['kpiOrder','kpiOrderSub'], 생산:['kpiProd','kpiProdSub'], 출고:['kpiShip','kpiShipSub']};
   if (agg.length === 0) {
     for (const m of Object.keys(ids)) {
@@ -1494,7 +1499,7 @@ function renderComment() {
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
   const agg = curAgg(items, months);
-  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
+  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026, data.items) : null;
   if (agg.length < 2) {
     box.innerHTML = `<span style="color:var(--text-muted);">${prevLbl} 비교를 위해 최소 2${unitCnt}가 필요합니다.</span>`;
     return;
@@ -1568,7 +1573,7 @@ function renderChart() {
   // 빈 주차도 X축에 노출 — data.items 전체를 기준으로 최신 주까지 유지
   const isMonth = APP.granularity === 'month';
   const agg = curAgg(items, months, data.items);
-  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
+  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026, data.items) : null;
   const xData = agg.map(r => r.label);
 
   // 예측 모드: 미래 4주 라벨 추가 (월간 보기에서는 지원하지 않음)
@@ -2026,7 +2031,7 @@ function renderTable() {
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
   const agg = curAgg(items, months, data.items);
-  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026) : null;
+  const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026, data.items) : null;
   const yoyMap = yoy ? new Map(yoy.map(r => [`${r.mo}-${r.wk}`, r])) : null;
 
   let cols = `<th>${unitTh}</th>
@@ -2931,7 +2936,10 @@ function renderCatYoySummary() {
   if (!data) { box.innerHTML = ''; return; }
   const prevYear = APP.year === 2026 ? 2025 : 2026;
   const prevData = APP.data[prevYear]?.[APP.dept];
-  const months = [...APP.selectedMonths].sort((a, b) => a - b);
+  // 월 필터 선택과 무관하게 1월~동기화월까지 고정 — 차트 우상단 "동기간 누계" 배지와 동일 기준
+  // (예전엔 APP.selectedMonths를 썼는데, 필터가 부분월을 포함/제외하느냐에 따라 배지와 다른 결과가 나와 혼동을 줬음)
+  const ytdLatest = findLatestWeek(data.items);
+  const months = ytdLatest ? Array.from({length: ytdLatest.mo}, (_, i) => i + 1) : [...APP.selectedMonths].sort((a, b) => a - b);
   const curGlobal = data.items;  // 작년을 올해 최신 주차 기준으로 컷(동기간 공정 비교)
   const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A'];
   const sumM = (srcData, its, metric) => (srcData && its.length) ? aggregateByWeek(its, months, curGlobal).reduce((s, r) => s + (r[metric] || 0), 0) : 0;
