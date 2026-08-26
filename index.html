@@ -476,7 +476,7 @@ document.addEventListener('fullscreenchange', () => {
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
         <div class="kpi-label">안전재고 확보율(%)</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군별 실가용재고(현재고−미출오더) vs 안전재고</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">품목군별 실가용재고(현재고−미출오더+멸균전) vs 안전재고</div>
       </div>
     </div>
     <div id="chartSafety" style="height:380px;"></div>
@@ -504,6 +504,8 @@ const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
 const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
 const GIDS = { '1반': '2145094968', '2반': '680125344' };
 const METRICS = ['수주','생산','출고','불량','계획'];
+// 2반 시트 K열 = 멸균전 수량 (0-indexed 10). 헤더 탐지 실패 시 폴백으로만 사용.
+const STERIL_COL_2BAN = 10;
 const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946', '계획':'#8A9BBF' };
 // 평균선 색상 — 본선과 시각적으로 구분되는 보색/대비 팔레트
 const AVG_COLORS    = { '수주':'#FF6B9D', '생산':'#FFA94D', '출고':'#B57BFF', '불량':'#4FC3F7', '계획':'#FFB547' };
@@ -610,7 +612,7 @@ function parse2Ban26(csvText) {
   const wmap = {};
   const monthlyPlanCol = {};
   const monthlyActualCol = {};
-  let safetyCol = -1, currentCol = -1, unshipCol = -1;
+  let safetyCol = -1, currentCol = -1, unshipCol = -1, sterilCol = -1;
   for (let i = 0; i < headers.length; i++) {
     const h = (headers[i]||'').trim();
     const m = h.match(/^(\d{1,2})-(\d)\s*수주$/);
@@ -632,8 +634,11 @@ function parse2Ban26(csvText) {
     if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
     if (currentCol < 0 && h.includes('현재고')) currentCol = i;
     if (unshipCol < 0 && h.includes('미출오더')) unshipCol = i;
+    // 멸균전 수량(K열) — 멸균 대기 중인 완성품. 실가용재고 산정에 가산.
+    if (sterilCol < 0 && h.replace(/\s/g,'').includes('멸균전')) sterilCol = i;
   }
-  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, unshipCol, monthlyPlanCol, monthlyActualCol });
+  if (sterilCol < 0) sterilCol = STERIL_COL_2BAN; // 헤더 병합/누락 대비 고정 위치 폴백(K열)
+  return extractItems(rows, wmap, '2반', { safetyCol, currentCol, unshipCol, sterilCol, monthlyPlanCol, monthlyActualCol });
 }
 
 // 1반 2026 / 2반 2025 / 1반 2025 — 위치 기반
@@ -644,7 +649,7 @@ function parseGeneric(csvText, dept, headerRowIdx) {
   const { wmap, monthlyPlanCol } = detectWeeklyColumns(headers, 150, dept);
   if (Object.keys(wmap).length === 0) return null;
   // 안전재고/현재고 컬럼 탐지 — 헤더 행 + 직전/직후 행(병합 헤더 대응)
-  let safetyCol = -1, currentCol = -1, unshipCol = -1;
+  let safetyCol = -1, currentCol = -1, unshipCol = -1, sterilCol = -1;
   const scanRows = [headers, rows[headerRowIdx+1] || [], rows[headerRowIdx-1] || []];
   for (const r of scanRows) {
     for (let i = 0; i < r.length; i++) {
@@ -652,8 +657,11 @@ function parseGeneric(csvText, dept, headerRowIdx) {
       if (safetyCol < 0 && h.includes('안전재고')) safetyCol = i;
       if (currentCol < 0 && h.includes('현재고')) currentCol = i;
       if (unshipCol < 0 && h.includes('미출오더')) unshipCol = i;
+      if (sterilCol < 0 && h.replace(/\s/g,'').includes('멸균전')) sterilCol = i;
     }
   }
+  // 2반 시트는 K열이 멸균전 수량 — 헤더 텍스트가 병합으로 빠질 때 고정 위치 폴백
+  if (dept === '2반' && sterilCol < 0) sterilCol = STERIL_COL_2BAN;
   // 1반 시트는 헤더가 병합 셀이라 gviz CSV에 텍스트가 빠짐 — 고정 위치 폴백
   // 컬럼 매핑(0-indexed): C=2(model) D=3(SPEC) E=4(안전재고) ... J=9(현재고) L=11(미출오더) — 월간 대시보드와 동일
   if (dept === '1반') {
@@ -661,7 +669,7 @@ function parseGeneric(csvText, dept, headerRowIdx) {
     if (currentCol < 0) currentCol = 9;
     if (unshipCol < 0)  unshipCol = 11;
   }
-  return extractItems(rows, wmap, dept, { safetyCol, currentCol, unshipCol, monthlyPlanCol });
+  return extractItems(rows, wmap, dept, { safetyCol, currentCol, unshipCol, sterilCol, monthlyPlanCol });
 }
 
 function extractItems(rows, wmap, dept, opts) {
@@ -670,6 +678,7 @@ function extractItems(rows, wmap, dept, opts) {
   const safetyCol = opts?.safetyCol ?? -1;
   const currentCol = opts?.currentCol ?? -1;
   const unshipCol = opts?.unshipCol ?? -1;
+  const sterilCol = opts?.sterilCol ?? -1;
   const monthlyPlanCol = opts?.monthlyPlanCol || {};
   const monthlyActualCol = opts?.monthlyActualCol || {};
 
@@ -793,6 +802,7 @@ function extractItems(rows, wmap, dept, opts) {
       safetyStock: safetyCol >= 0 ? parseNum(row[safetyCol]) : 0,
       currentStock: currentCol >= 0 ? parseNum(row[currentCol]) : 0,
       unshipped: unshipCol >= 0 ? parseNum(row[unshipCol]) : 0,
+      preSteril: sterilCol >= 0 ? parseNum(row[sterilCol]) : 0,
     });
   }
 
@@ -826,7 +836,7 @@ function extractItems(rows, wmap, dept, opts) {
       items.push({
         model: `${cat} 합계`, spec: '', category: cat, subcategory: null,
         weekData, monthlyPlan, monthlyActual, isTotal: true,
-        safetyStock: 0, currentStock: 0, unshipped: 0,
+        safetyStock: 0, currentStock: 0, unshipped: 0, preSteril: 0,
       });
     }
   }
@@ -2375,20 +2385,23 @@ function renderSafety() {
   // 카테고리별 집계
   // Why: 현재고 조회 패널·품목 상세는 실가용재고(현재고-미출오더) 기준으로 부족을 판정하는데
   // 이 게이지만 현재고 그대로 써서 같은 화면 안에서 "충족/부족" 판정이 엇갈리던 문제 수정.
+  // 멸균전 수량(시트 K열)은 품목별 값을 품목군 단위로 합산해 실가용재고에 가산.
   const groups = {};
   for (const it of items) {
-    if (!groups[it.category]) groups[it.category] = { safety: 0, current: 0, unshipped: 0 };
+    if (!groups[it.category]) groups[it.category] = { safety: 0, current: 0, unshipped: 0, preSteril: 0 };
     groups[it.category].safety += it.safetyStock || 0;
     groups[it.category].current += it.currentStock || 0;
     groups[it.category].unshipped += it.unshipped || 0;
+    groups[it.category].preSteril += it.preSteril || 0;
   }
   // EPO Probe 는 대표이사 대시보드에서 제외 (안전재고 미관리)
-  const cats = Object.keys(groups).filter(c => c !== 'EPO Probe' && (groups[c].safety > 0 || groups[c].current > 0));
+  const cats = Object.keys(groups).filter(c => c !== 'EPO Probe' && (groups[c].safety > 0 || groups[c].current > 0 || groups[c].preSteril > 0));
   if (!cats.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
 
   const safetyArr  = cats.map(c => groups[c].safety);
-  const currentArr = cats.map(c => Math.max(0, groups[c].current - groups[c].unshipped)); // 실가용재고
+  // 실가용재고 = 현재고 − 미출오더 + 멸균전 수량(K열 품목별 합)
+  const currentArr = cats.map(c => Math.max(0, groups[c].current - groups[c].unshipped + groups[c].preSteril));
   const rateArr    = cats.map((c,i) => groups[c].safety > 0 ? +(currentArr[i] / groups[c].safety * 100).toFixed(1) : 0);
 
   // 부족 분석 (실가용재고 기준)
@@ -2424,7 +2437,20 @@ function renderSafety() {
   const T = chartTheme();
   ch.setOption({
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis', backgroundColor:T.tipBg, borderColor:T.tipBorder, textStyle:{color:T.tipText}, axisPointer:{type:'shadow'} },
+    tooltip: { trigger: 'axis', backgroundColor:T.tipBg, borderColor:T.tipBorder, textStyle:{color:T.tipText}, axisPointer:{type:'shadow'},
+      formatter: (ps) => {
+        if (!ps || !ps.length) return '';
+        const cat = ps[0].axisValue; const g = groups[cat]; const i = cats.indexOf(cat);
+        const row = (k, v, c) => `<div style="display:flex;justify-content:space-between;gap:14px;"><span>${k}</span><b style="color:${c||'inherit'}">${v}</b></div>`;
+        return `<div style="font-weight:700;margin-bottom:6px;">${cat}</div>`
+          + row('안전재고', fmtN(g.safety), '#C9A961')
+          + row('현재고', fmtN(g.current))
+          + row('미출오더', '−' + fmtN(g.unshipped), '#FFB547')
+          + row('멸균전', '+' + fmtN(g.preSteril), '#00E5A0')
+          + `<div style="border-top:1px dashed rgba(128,128,128,.4);margin:5px 0 4px;"></div>`
+          + row('실가용재고', fmtN(currentArr[i]), '#E63946')
+          + row('확보율', rateArr[i].toFixed(1) + '%', '#4FC3F7');
+      } },
     legend: { data:['안전재고','실가용재고','확보율'], textStyle:{color:T.axisText}, top: 6 },
     grid: { left: 60, right: 60, top: 50, bottom: 30 },
     xAxis: { type:'category', data: cats, axisLine:{lineStyle:{color:T.axisLine}}, axisLabel:{color:T.axisText} },
@@ -3167,7 +3193,8 @@ function rptFacts() {
   const safety = {};
   for (const it of data.items) { if (it.isTotal||!it.category||it.category==='Cable') continue;
     const s=(safety[it.category]=safety[it.category]||{need:0,have:0});
-    s.need += it.safetyStock||0; s.have += Math.max(0,(it.currentStock||0)-(it.pendingOrder||0)); }
+    // 차트(renderSafety)와 동일 산식: 현재고 − 미출오더 + 멸균전
+    s.need += it.safetyStock||0; s.have += Math.max(0,(it.currentStock||0)-(it.unshipped||0)+(it.preSteril||0)); }
   const safetyRows = Object.entries(safety).filter(([,v])=>v.need>0)
     .map(([cat,v])=>({cat,rate:v.have/v.need*100,gap:v.need-v.have})).sort((a,b)=>a.rate-b.rate);
   let forecast=null;
@@ -3209,7 +3236,7 @@ function rptInsights(F) {
   if (short.length) { const w = short[0];
     out.push({ sev:3, rc:'#C32330',
       fact:`${w.cat} 안전재고 확보율 <span class="dn-t">${w.rate.toFixed(0)}%</span>${short.length>1?` 외 ${short.length-1}건`:''}`,
-      so:`가용재고(현재고−미출오더)가 안전선 대비 ${fmtN(w.gap)} 부족.`,
+      so:`가용재고(현재고−미출오더+멸균전)가 안전선 대비 ${fmtN(w.gap)} 부족.`,
       now:'해당 품목군 생산 우선순위 상향 검토.' });
   }
   if (F.cur && F.cur.생산>0) { const gap = rptPct(F.cur.출고, F.cur.생산);
