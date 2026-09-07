@@ -212,7 +212,6 @@
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
     <div>
       <a href="https://by-cho-cho.github.io/monthly-dashboard/july-report.html" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--gold);text-decoration:none;border:1px solid var(--border);background:var(--wash);border-radius:8px;padding:4px 10px;margin-bottom:8px;" title="생산부 7월간 보고로 이동">📋 생산부 7월간 보고 →</a>
-      <a href="https://by-cho-cho.github.io/monthly-dashboard/august-report.html" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--gold);text-decoration:none;border:1px solid var(--border);background:var(--wash);border-radius:8px;padding:4px 10px;margin-bottom:8px;margin-left:6px;" title="생산부 8월간 보고로 이동">📋 생산부 8월간 보고 →</a>
       <h1 style="font-size:20px;font-weight:800;margin:0;letter-spacing:-0.01em;">
         생산<span id="deptTitle" style="color:var(--gold);">1반</span> <span style="color:var(--text-muted);font-size:14px;font-weight:600;">변동 현황</span>
       </h1>
@@ -3195,7 +3194,7 @@ try { localStorage.removeItem('weeklyDashboard.kpiStripPos'); localStorage.remov
   #rptSheet .r-kpi .k-d { font-size:10.5px; color:#4B5563; }
   #rptSheet .r-sec { font-size:11px; font-weight:800; letter-spacing:0.14em; color:#1A6FB5; margin:14px 0 8px; }
   #rptSheet table.r-cat { width:100%; border-collapse:collapse; margin-bottom:2px; }
-  #rptSheet table.r-cat th { font-size:9.5px; font-weight:800; letter-spacing:0.02em; color:#9CA3AF; text-align:right; padding:3px 8px; border-bottom:1.5px solid #D1D5DB; white-space:nowrap; }
+  #rptSheet table.r-cat th { font-size:9.5px; font-weight:800; letter-spacing:0.1em; color:#9CA3AF; text-align:right; padding:3px 8px; border-bottom:1.5px solid #D1D5DB; }
   #rptSheet table.r-cat th:first-child { text-align:left; padding-left:2px; }
   #rptSheet table.r-cat td { font-size:11px; padding:4px 8px; border-bottom:1px solid #F3F4F6; text-align:right; font-variant-numeric:tabular-nums; color:#374151; }
   #rptSheet table.r-cat td:first-child { text-align:left; font-weight:700; color:#161D29; padding-left:2px; }
@@ -3294,20 +3293,10 @@ function rptInsights(F) {
     const rate = F.month.actual/F.month.plan*100;
     const elapsed = F.latest ? Math.min(100, F.latest.wk/F.weeksInMonth*100) : null;
     const behind = elapsed!=null && rate < elapsed-8;
-    // 진척률이 200%를 넘는 등 비정상적으로 크면 "초과 달성"보다 계획값 자체가
-    // 아직 최신화 전일 가능성이 높음 — 현실성 있게 그 가능성을 짚어줌.
-    const overshoot = rate >= 200;
-    out.push(overshoot ? {
-      sev: 2, rc: '#9C6610',
-      fact: `${F.month.mo}월 생산, 계획 대비 <b>${(rate/100).toFixed(1)}배</b> 초과`,
-      so: `계획 ${fmtN(F.month.plan)} 중 ${fmtN(F.month.actual)} 완료 — 계획 수립 이후 물량이 크게 늘었거나, 계획값이 아직 최신화되지 않았을 수 있습니다.`,
-      now: '이번 달 계획 수치가 최신 상태인지 확인 필요.'
-    } : {
-      sev: behind?3:1, rc: behind?'#9C6610':'#1A6FB5',
+    out.push({ sev: behind?3:1, rc: behind?'#9C6610':'#1A6FB5',
       fact:`${F.month.mo}월 생산 진척률 <b>${rate.toFixed(1)}%</b>`,
       so:`계획 ${fmtN(F.month.plan)} 중 ${fmtN(F.month.actual)} 완료${elapsed!=null?`, 경과 기준 기대치 대비 ${(rate-elapsed>=0?'+':'')}${(rate-elapsed).toFixed(1)}%p`:''}.`,
-      now: behind?`잔여 ${fmtN(Math.max(0,F.month.plan-F.month.actual))} — 마감 전 만회 계획 필요.`:'현 추세 유지 시 월 마감 무난.'
-    });
+      now: behind?`잔여 ${fmtN(Math.max(0,F.month.plan-F.month.actual))} — 마감 전 만회 계획 필요.`:'현 추세 유지 시 월 마감 무난.' });
   }
   if (Math.abs(F.streak)>=3) {
     const up = F.streak>0;
@@ -3341,14 +3330,7 @@ function openReport() {
     const wkLabel = F.latest ? `${F.latest.mo}월 ${F.latest.wk}주차` : '';
     const strip = s => s.replace(/<[^>]+>/g,'').replace(/\s*\([^)]*\)/g,'');
     const pos = ins.find(i=>i.rc==='#087C5A'), neg = ins.find(i=>i.sev>=3);
-    // 이전엔 pos/neg 색상 매칭에 실패하면(예: 진척률처럼 녹색도 빨강도 아닌 항목) 실제 인사이트가
-    // 있어도 "주요 지표 안정 흐름 유지"라는 무의미한 문구로 대체되던 문제 — 항상 최우선 인사이트를 헤드라인으로 사용.
-    const top = ins[0] && ins[0].sev > 0 ? ins[0] : null;
-    const head = pos&&neg&&pos!==neg ? `${strip(pos.fact)}, 단 ${strip(neg.fact)}.`
-      : neg ? `${strip(neg.fact)} — 점검 필요.`
-      : pos ? `${strip(pos.fact)}.`
-      : top ? `${strip(top.fact)}.`
-      : '주요 지표 안정 흐름 유지.';
+    const head = pos&&neg ? `${strip(pos.fact)}, 단 ${strip(neg.fact)}.` : neg ? `${strip(neg.fact)} — 점검 필요.` : pos ? `${strip(pos.fact)}.` : '주요 지표 안정 흐름 유지.';
     const kpi = (m) => { const v=F.cur[m], p=F.prev?.[m], g=p>0?rptPct(v,p):null, y=F.yoyCur&&F.yoyCur[m]>0?rptPct(v,F.yoyCur[m]):null;
       return `<div class="r-kpi"><div class="k-l">최근주 ${m}</div><div class="k-v">${fmtN(v)}</div>
         <div class="k-d">${g!=null?`전주 <span class="${g>=0?'up-t':'dn-t'}">${g>=0?'▲':'▼'}${Math.abs(g).toFixed(1)}%</span>`:'전주 —'}${y!=null?` · 전년 <span class="${y>=0?'up-t':'dn-t'}">${y>=0?'▲':'▼'}${Math.abs(y).toFixed(1)}%</span>`:''}</div></div>`; };
@@ -3360,9 +3342,9 @@ function openReport() {
       const wl = Math.max(1, F.weeksInMonth-(F.latest?.wk||0));
       if (remain>0) { const per=remain/wl, need=F.cur.생산>0?per/F.cur.생산*100-100:null;
         watch.push(`${F.month.mo}월 잔여 계획 <b>${fmtN(remain)}</b> — 주당 <b>${fmtN(per)}</b> 필요${need==null?'':need>0?` (<span class="dn-t">+${need.toFixed(0)}% 증산</span> 필요)`:' (현 수준으로 달성 가능)'}`); } }
-    if (F.forecast!=null) watch.push(`다음 주 수주 예측 <b>${fmtN(F.forecast)}</b> (최근 추세 기반)`);
+    if (F.forecast!=null) watch.push(`다음 주 수주 예측 <b>${fmtN(F.forecast)}</b> (지수평활)`);
     return `
-      <div class="r-eyebrow">주간 경영 요약</div>
+      <div class="r-eyebrow">Weekly Executive Report</div>
       <h1>생산${APP.dept} 주간 보고 — ${wkLabel}</h1>
       <div class="r-meta">${APP.year}년 · 전 품목군 기준 · ${new Date().toLocaleDateString('ko-KR')} 생성 · 주간 대시보드 자동 요약</div>
       <div class="r-head">${head}</div>
@@ -3373,7 +3355,7 @@ function openReport() {
           : `<span class="${v>=0?'up-t':'dn-t'}">${v>=0?'▲':'▼'}${Math.abs(v).toFixed(1)}%</span>`;
         const rows = F.catRows.slice().sort((a,b)=>b.o-a.o);
         return `<table class="r-cat">
-          <tr><th>품목군</th><th>수주</th><th>전년동기대비</th><th>생산</th><th>전년동기대비</th></tr>
+          <tr><th>품목군</th><th>수주</th><th>YoY</th><th>생산</th><th>YoY</th></tr>
           <tr class="tot"><td>전체${APP.dept==='2반'?' (Duodeca 포함)':''}</td>
             <td>${fmtN(F.totO)}</td><td>${yo(F.gTot)}</td>
             <td>${fmtN(F.totP)}</td><td>${yo(F.gTotP)}</td></tr>
@@ -3385,13 +3367,13 @@ function openReport() {
       <div class="r-sec">핵심 인사이트</div>
       <table class="r-ins">${ins.map(n=>`<tr>
         <td class="f" style="--rc:${n.rc}">${n.fact}</td>
-        <td class="s"><span class="lbl">왜 중요한가</span>${n.so}</td>
-        <td class="n"><span class="lbl">어떻게 할까</span>${n.now}</td></tr>`).join('')}</table>
+        <td class="s"><span class="lbl">SO WHAT</span>${n.so}</td>
+        <td class="n"><span class="lbl">NOW WHAT</span>${n.now}</td></tr>`).join('')}</table>
       <div class="r-two">
         <div class="r-box"><div class="bh" style="color:#C32330;">⚠ 리스크</div>${risks.length?risks.join(' · '):'이번 주 감지된 리스크 없음.'}</div>
         <div class="r-box"><div class="bh" style="color:#1A6FB5;">◎ 다음 주 관전 포인트</div>${watch.length?watch.join(' · '):'—'}</div>
       </div>
-      <div class="r-foot"><span>생산부 주간 대시보드 기반 자동 생성</span><span>인사이트 기준: 전년동기대비 ±15% · 진척 −8%p · 안전재고 100% 미만</span></div>`;
+      <div class="r-foot"><span>생산부 주간 대시보드 기반 자동 생성</span><span>임계값: YoY ±15% · 진척 −8%p · 안전재고 100% 미만</span></div>`;
   });
   document.getElementById('rptSheet').innerHTML = html;
   document.getElementById('rptOverlay').style.display = 'block';
