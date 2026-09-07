@@ -231,6 +231,7 @@
       <span style="font-size:10px;color:var(--text-muted);margin-left:6px;">보기</span>
       <button class="btn active" id="viewWeekBtn" onclick="setGranularity('week')" title="주차 단위로 보기">주간</button>
       <button class="btn" id="viewMonthBtn" onclick="setGranularity('month')" title="월 단위로 합산해서 보기">월간</button>
+      <button class="btn" id="viewQuarterBtn" onclick="setGranularity('quarter')" title="분기 단위로 합산해서 보기 (1~3월=1Q)">분기</button>
       <span style="font-size:10px;color:var(--text-muted);margin-left:6px;">부서</span>
       <button class="btn active" data-dept="1반" onclick="switchDept('1반')">1반 (액상)</button>
       <button class="btn" data-dept="2반" onclick="switchDept('2반')">2반 (카테터)</button>
@@ -529,7 +530,7 @@ const CAT_1BAN_ROWS = [
 const APP = {
   dept: '1반',
   year: 2026,
-  granularity: 'week', // 'week' | 'month' — 주간/월간 보기 토글
+  granularity: 'week', // 'week' | 'month' | 'quarter' — 주간/월간/분기 보기 토글
   ytdScope: 'selected', // 'selected' | 'ytd' — 동기간 누계 산정 범위(선택 필터 기준 / 연초부터 현재까지)
   yoyOn: false,
   forecastOn: false,
@@ -973,11 +974,13 @@ function aggregateByWeek(items, months, globalItems) {
 }
 
 // 동기간 비교: 다른 연도 데이터에서 같은 mo/wk 추출
-function aggregateYoY(items, months, year) {
+// curGlobal: 현재(비교 기준) 연도의 items. 생략하면 비교 연도 자체의 마지막 주차(대개 연말)로
+// 컷오프돼 진행중 월이 통째로 들어가므로, 진행중 월 절삭이 무력화됨 → 항상 넘길 것.
+function aggregateYoY(items, months, year, curGlobal) {
   const data = APP.data[year]?.[APP.dept];
   if (!data) return null;
   // filterItems 로직 동일 적용 (isTotal 처리 포함)
-  return aggregateByWeek(filterItems(data.items), months, data.items);
+  return aggregateByWeek(filterItems(data.items), months, curGlobal || data.items);
 }
 
 // 월간 보기: 주차 구분 없이 월 단위로 합산 (주차 필터 무시 — 월 전체 합)
@@ -1014,12 +1017,68 @@ function aggregateYoYMonth(items, months, year, curGlobal) {
   if (!data) return null;
   return aggregateByMonth(filterItems(data.items), months, curGlobal || data.items);
 }
-// 현재 보기 모드(주간/월간)에 맞춰 집계 — renderKPI/renderComment/renderChart/renderTable 공용
+// 분기 보기: 역년 기준(1~3월=1Q) 3개월 묶음 합산 — 월간과 동일하게 주차 필터는 무시
+const quarterOf = mo => Math.floor((mo - 1) / 3) + 1;
+function aggregateByQuarter(items, months, globalItems) {
+  const keepEmpty = !!(globalItems && globalItems.length);
+  const latest = keepEmpty ? findLatestWeek(globalItems) : null;
+  const byQ = new Map();
+  for (const mo of months) {
+    if (latest && mo > latest.mo) continue;
+    const q = quarterOf(mo);
+    if (!byQ.has(q)) {
+      const s = {}; for (const me of METRICS) s[me] = 0;
+      // 대표 mo = 그 분기에 선택된 가장 이른 달. months 배열만으로 결정되므로
+      // 비교 연도도 반드시 같은 값이 나옴(YoY 매칭·∑ 배지 위치가 어긋나지 않게).
+      byQ.set(q, { q, mo, sums: s, hasWeek: false });
+    }
+    const rec = byQ.get(q);
+    rec.mo = Math.min(rec.mo, mo);
+    for (const it of items) {
+      const wd = it.weekData?.[mo]; if (!wd) continue;
+      for (const wk of Object.keys(wd)) {
+        // 진행중 월은 올해 최신 주차까지만 — aggregateByMonth와 동일 원칙
+        if (latest && mo === latest.mo && Number(wk) > latest.wk) continue;
+        rec.hasWeek = true;
+        const w = wd[wk];
+        for (const me of METRICS) rec.sums[me] += w[me] || 0;
+      }
+    }
+  }
+  const out = [];
+  for (const q of [...byQ.keys()].sort((a,b)=>a-b)) {
+    const rec = byQ.get(q);
+    if (!keepEmpty && !rec.hasWeek) continue;
+    if (!keepEmpty && (rec.sums.수주 + rec.sums.생산 + rec.sums.출고 + rec.sums.불량) === 0) continue;
+    out.push({ label: `${q}Q`, q, mo: rec.mo, ...rec.sums });
+  }
+  return out;
+}
+function aggregateYoYQuarter(items, months, year, curGlobal) {
+  const data = APP.data[year]?.[APP.dept];
+  if (!data) return null;
+  return aggregateByQuarter(filterItems(data.items), months, curGlobal || data.items);
+}
+
+// 보기 단위별 표기 — 주간/월간/분기 공용
+const GRAN_LABEL = {
+  week:    { prev:'전주',   recent:'최근주',   unit:'개 주차', next:'다음주',   th:'주차', delta:'Δ주',   detail:'주차별', data:'주간' },
+  month:   { prev:'전월',   recent:'최근월',   unit:'개월',    next:'다음달',   th:'월',   delta:'Δ월',   detail:'월별',   data:'월간' },
+  quarter: { prev:'전분기', recent:'최근분기', unit:'개 분기', next:'다음분기', th:'분기', delta:'Δ분기', detail:'분기별', data:'분기' },
+};
+const gl = () => GRAN_LABEL[APP.granularity] || GRAN_LABEL.week;
+// 같은 구간(주차/월/분기)끼리 YoY 매칭하기 위한 키
+const bucketKey = r => APP.granularity === 'week' ? `${r.mo}-${r.wk}`
+  : APP.granularity === 'quarter' ? `Q${r.q}` : `M${r.mo}`;
+
+// 현재 보기 모드(주간/월간/분기)에 맞춰 집계 — renderKPI/renderComment/renderChart/renderTable 공용
 function curAgg(items, months, globalItems) {
+  if (APP.granularity === 'quarter') return aggregateByQuarter(items, months, globalItems);
   return APP.granularity === 'month' ? aggregateByMonth(items, months, globalItems) : aggregateByWeek(items, months, globalItems);
 }
 function curYoY(items, months, year, curGlobal) {
-  return APP.granularity === 'month' ? aggregateYoYMonth(items, months, year, curGlobal) : aggregateYoY(items, months, year);
+  if (APP.granularity === 'quarter') return aggregateYoYQuarter(items, months, year, curGlobal);
+  return APP.granularity === 'month' ? aggregateYoYMonth(items, months, year, curGlobal) : aggregateYoY(items, months, year, curGlobal);
 }
 
 function setYtdScope(s) {
@@ -1035,11 +1094,14 @@ function setGranularity(g) {
   APP.granularity = g;
   document.getElementById('viewWeekBtn')?.classList.toggle('active', g === 'week');
   document.getElementById('viewMonthBtn')?.classList.toggle('active', g === 'month');
+  document.getElementById('viewQuarterBtn')?.classList.toggle('active', g === 'quarter');
+  // 주간이 아닌 보기(월간·분기)는 주차 필터·주 단위 예측이 의미 없음
+  const isWeek = g === 'week';
   const weekRow = document.getElementById('weekFilterRow');
-  if (weekRow) weekRow.style.display = g === 'month' ? 'none' : '';
+  if (weekRow) weekRow.style.display = isWeek ? '' : 'none';
   const fcBtn = document.getElementById('forecastBtn');
-  if (fcBtn) fcBtn.style.display = g === 'month' ? 'none' : '';
-  if (g === 'month' && APP.forecastOn) {
+  if (fcBtn) fcBtn.style.display = isWeek ? '' : 'none';
+  if (!isWeek && APP.forecastOn) {
     APP.forecastOn = false;
     document.getElementById('forecastBtn')?.classList.remove('active');
   }
@@ -1467,9 +1529,8 @@ document.addEventListener('mouseup', () => {
    ============================================================ */
 function renderKPI() {
   const data = getData(); if (!data) return;
-  const isMonth = APP.granularity === 'month';
-  const prevLbl = isMonth ? '전월' : '전주';
-  const recentLbl = isMonth ? '최근월' : '최근주';
+  const prevLbl = gl().prev;
+  const recentLbl = gl().recent;
   document.getElementById('kpiOrderLbl').textContent = `${recentLbl} 수주`;
   document.getElementById('kpiProdLbl').textContent = `${recentLbl} 생산`;
   document.getElementById('kpiShipLbl').textContent = `${recentLbl} 출고`;
@@ -1486,7 +1547,7 @@ function renderKPI() {
   }
   const cur = agg[agg.length-1];
   const prev = agg[agg.length-2];
-  const yoyMatch = isMonth ? yoy?.find(r => r.mo === cur.mo) : yoy?.find(r => r.mo === cur.mo && r.wk === cur.wk);
+  const yoyMatch = yoy?.find(r => bucketKey(r) === bucketKey(cur));
   Object.keys(ids).forEach(me => {
     document.getElementById(ids[me][0]).textContent = fmtN(cur[me]);
     let html = `<div style="font-size:11px;font-weight:700;color:var(--text-secondary);margin-bottom:3px;">${cur.label}</div>`;
@@ -1508,10 +1569,9 @@ function renderKPI() {
 function renderComment() {
   const box = document.getElementById('commentBox');
   const data = getData(); if (!data) { box.textContent = '데이터 없음'; return; }
-  const isMonth = APP.granularity === 'month';
-  const prevLbl = isMonth ? '전월' : '전주';
-  const unitCnt = isMonth ? '개월' : '개 주차';
-  const nextLbl = isMonth ? '다음달' : '다음주';
+  const prevLbl = gl().prev;
+  const unitCnt = gl().unit;
+  const nextLbl = gl().next;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
   const agg = curAgg(items, months);
@@ -1521,7 +1581,7 @@ function renderComment() {
     return;
   }
   const cur = agg[agg.length-1], prev = agg[agg.length-2];
-  const yoyMatch = isMonth ? yoy?.find(r => r.mo === cur.mo) : yoy?.find(r => r.mo === cur.mo && r.wk === cur.wk);
+  const yoyMatch = yoy?.find(r => bucketKey(r) === bucketKey(cur));
   const lines = [];
 
   const catCnt = getCats().size, itemCnt = getItems().size;
@@ -1587,14 +1647,14 @@ function renderChart() {
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
   // 빈 주차도 X축에 노출 — data.items 전체를 기준으로 최신 주까지 유지
-  const isMonth = APP.granularity === 'month';
+  const isWeek = APP.granularity === 'week';
   const agg = curAgg(items, months, data.items);
   const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026, data.items) : null;
   const xData = agg.map(r => r.label);
 
   // 예측 모드: 미래 4주 라벨 추가 (월간 보기에서는 지원하지 않음)
   let futureLabels = [], forecastMap = null;
-  if (!isMonth && APP.forecastOn && agg.length >= 4) {
+  if (isWeek && APP.forecastOn && agg.length >= 4) {
     let last = { mo: agg[agg.length-1].mo, wk: agg[agg.length-1].wk };
     for (let k = 0; k < APP.forecastH; k++) {
       const nxt = nextWeekLabel(last.mo, last.wk);
@@ -1612,11 +1672,11 @@ function renderChart() {
   const xDataAll = [...xData, ...futureLabels];
 
   // YoY를 같은 mo/wk로 매핑 (월간 모드는 wk가 없어 mo만으로 자연히 매칭됨)
-  const yoyMap = yoy ? new Map(yoy.map(r => [`${r.mo}-${r.wk}`, r])) : null;
+  const yoyMap = yoy ? new Map(yoy.map(r => [bucketKey(r), r])) : null;
 
-  // 월 경계 인덱스 (첫 등장 위치) — 월간 보기는 점 하나가 곧 한 달이라 구분선 불필요
+  // 월 경계 인덱스 (첫 등장 위치) — 월간·분기 보기는 점 하나가 곧 한 구간이라 구분선 불필요
   const monthBoundaries = [];
-  if (!isMonth) {
+  if (isWeek) {
     for (let i = 1; i < agg.length; i++) {
       if (agg[i].mo !== agg[i-1].mo) monthBoundaries.push(agg[i].label);
     }
@@ -1679,7 +1739,7 @@ function renderChart() {
       ? `${ytdMonths[0]}월`
       : `${ytdMonths[0]}~${ytdMonths[ytdMonths.length-1]}월`;
     const wks = [...APP.selectedWeeks].sort((a,b)=>a-b);
-    const wLabel = (APP.granularity === 'month' || wks.length === 0 || wks.length >= 5)
+    const wLabel = (APP.granularity !== 'week' || wks.length === 0 || wks.length >= 5)
       ? '' : ` ${wks.join('·')}주`;
     return mLabel + wLabel;
   })();
@@ -2000,7 +2060,7 @@ function renderChart() {
         name: yoyName,
         type: m === '불량' ? 'bar' : 'line',
         smooth: true, symbol:'emptyCircle', symbolSize:5,
-        data: padFuture(agg.map(r => yoyMap.get(`${r.mo}-${r.wk}`)?.[m] ?? null)),
+        data: padFuture(agg.map(r => yoyMap.get(bucketKey(r))?.[m] ?? null)),
         yAxisIndex: m === '불량' ? 1 : 0,
         lineStyle: { color: mapAccent(METRIC_COLORS[m]), width: 1.5, type: 'dashed', opacity: 0.6 },
         itemStyle: { color: mapAccent(METRIC_COLORS[m]), opacity: 0.6 },
@@ -2052,21 +2112,20 @@ function renderChart() {
     fcLabel = ` · 🔮 ${APP.forecastH}주 예측 (정확도 ${accAvg.toFixed(0)}%, Holt's α/β 자동최적)`;
   }
   document.getElementById('trendSub').textContent =
-    `${APP.year}년 · ${months.join('월·')}월 · ${catLabel}${itemLabel} · ${agg.length}${isMonth ? '개월' : '개 주차'}${yoyLabel}${fcLabel}`;
+    `${APP.year}년 · ${months.join('월·')}월 · ${catLabel}${itemLabel} · ${agg.length}${gl().unit}${yoyLabel}${fcLabel}`;
 }
 
 function renderTable() {
   const data = getData(); if (!data) return;
-  const isMonth = APP.granularity === 'month';
-  const unitTh = isMonth ? '월' : '주차';
-  const deltaTh = isMonth ? 'Δ월' : 'Δ주';
+  const unitTh = gl().th;
+  const deltaTh = gl().delta;
   const caption = document.getElementById('weekTableCaption');
-  if (caption) caption.textContent = isMonth ? '월별 상세 — 전월 대비 · 동기간 비교' : '주차별 상세 — 전주 대비 · 동기간 비교';
+  if (caption) caption.textContent = `${gl().detail} 상세 — ${gl().prev} 대비 · 동기간 비교`;
   const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   const items = filterItems(data.items);
   const agg = curAgg(items, months, data.items);
   const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026, data.items) : null;
-  const yoyMap = yoy ? new Map(yoy.map(r => [`${r.mo}-${r.wk}`, r])) : null;
+  const yoyMap = yoy ? new Map(yoy.map(r => [bucketKey(r), r])) : null;
 
   let cols = `<th>${unitTh}</th>
     <th style="text-align:right">수주</th><th style="text-align:right">${deltaTh}</th>
@@ -2085,7 +2144,7 @@ function renderTable() {
     };
     let yoyCells = '';
     if (yoyMap) {
-      const y = yoyMap.get(`${r.mo}-${r.wk}`);
+      const y = yoyMap.get(bucketKey(r));
       if (y && y.생산 > 0) {
         const d = r.생산 - y.생산, rate = d/y.생산*100;
         const cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
@@ -2108,7 +2167,7 @@ function renderTable() {
   });
   html += rowsHtml.reverse().join('');
   html += '</tbody></table>';
-  if (agg.length === 0) html = `<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 조건에 ${isMonth ? '월간' : '주간'} 데이터가 없습니다.</div>`;
+  if (agg.length === 0) html = `<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 조건에 ${gl().data} 데이터가 없습니다.</div>`;
   document.getElementById('weekTable').innerHTML = html;
 }
 
@@ -3010,7 +3069,7 @@ function renderCatYoySummary() {
     const base = months.length ? (months.length === 1 ? months[0] + '월' : months[0] + '~' + months[months.length - 1] + '월') : '전체기간';
     if (APP.ytdScope === 'ytd') return base + ' 누적';
     const wks = [...APP.selectedWeeks].sort((a, b) => a - b);
-    return (wks.length === 0 || wks.length >= 5) ? base : `${base} ${wks.join('·')}주`;
+    return (APP.granularity !== 'week' || wks.length === 0 || wks.length >= 5) ? base : `${base} ${wks.join('·')}주`;
   })();
   const chip = (label, val, g, color, strong) => {
     const gHtml = g == null ? '<span style="color:var(--text-muted);font-size:10px;">신규</span>'
