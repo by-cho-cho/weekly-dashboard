@@ -510,6 +510,11 @@ document.addEventListener('fullscreenchange', () => {
 const SHEET_ID_26 = '1SX8ZOh2i4LrH9X7HSQ3RhrxREeGl7Vl6qcu42Uf8qro';
 const SHEET_ID_25 = '1k3k3BB4kLIXPGvdl2X84-aCzKT-nyltOb93AU5VexY4';
 const GIDS = { '1반': '2145094968', '2반': '680125344' };
+// 2반_생산일지 — Duodeca 월별 실적이 6월부터 본 시트와 어긋나 사용자 요청으로 이 LOT 단위
+// 생산일지를 대신 집계해 실적으로 씀(계획은 기존 시트 값 그대로, 6월 이후 실적만 교체).
+const SHEET_ID_DUODECA_LOG = '1r35WnvOsJZQ9jzdyhZNrGQGS7q68xjqZDxxMU2mwMBs';
+const GID_DUODECA_LOG = '99814603';
+const DUODECA_LOG_OVERRIDE_FROM_MONTH = 6;
 const METRICS = ['수주','생산','출고','불량','계획'];
 const METRIC_COLORS = { '수주':'#C9A961', '생산':'#4FC3F7', '출고':'#00E5A0', '불량':'#E63946', '계획':'#8A9BBF' };
 // 평균선 색상 — 본선과 시각적으로 구분되는 보색/대비 팔레트
@@ -564,6 +569,25 @@ const parseNum = v => {
   const n = Number(String(v).replace(/,/g, '').trim());
   return isFinite(n) ? n : 0;
 };
+
+// 2반_생산일지 파서 — LOT 단위 행(제품군/제품명/LOT/…/생산완료 수량/리드타임/비고)에서
+// 제품군==='DUO DECA' 행만 골라 "생산일지 DATE" 월별로 생산완료 수량을 합산.
+// 열 구조는 고정폭(공정·수량 6쌍)이라 항상 index 0=날짜, 1=제품군, 18=생산완료 수량.
+function parseDuodecaLog(csvText) {
+  const rows = parseCSV(csvText);
+  const byMonth = {};
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]; if (!r || r.length < 19) continue;
+    if ((r[1] || '').trim() !== 'DUO DECA') continue;
+    const dateStr = (r[0] || '').trim();
+    const parts = dateStr.split('.').map(s => s.trim()).filter(Boolean);
+    if (parts.length < 2) continue;
+    const mo = parseInt(parts[1], 10);
+    if (!mo || mo < 1 || mo > 12) continue;
+    byMonth[mo] = (byMonth[mo] || 0) + parseNum(r[18]);
+  }
+  return byMonth;
+}
 const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
 
 // 행1 마커 스캔 (위치 기반) — 1반·2반·2025 공통
@@ -1553,13 +1577,13 @@ function renderKPI() {
     if (prev?.[me] != null && prev[me] > 0) {
       const d = cur[me] - prev[me], r = d/prev[me]*100;
       const cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
-      html += `<span class="${cls}">${sign} ${Math.abs(r).toFixed(1)}%</span> ${prevLbl} ${fmtN(prev[me])}`;
+      html += `<span class="${cls}">${sign} ${Math.abs(r).toFixed(0)}%</span> ${prevLbl} ${fmtN(prev[me])}`;
     } else html += `<span style="color:var(--text-muted);">${prevLbl} 없음</span>`;
     if (yoyMatch && yoyMatch[me] > 0) {
       const otherYear = APP.year === 2026 ? '25' : '26';
       const d = cur[me] - yoyMatch[me], r = d/yoyMatch[me]*100;
       const cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
-      html += `<br><span>${otherYear}동기 ${fmtN(yoyMatch[me])} <span class="${cls}">${sign} ${Math.abs(r).toFixed(1)}%</span></span>`;
+      html += `<br><span>${otherYear}동기 ${fmtN(yoyMatch[me])} <span class="${cls}">${sign} ${Math.abs(r).toFixed(0)}%</span></span>`;
     }
     document.getElementById(ids[me][1]).innerHTML = html;
   });
@@ -1591,8 +1615,8 @@ function renderComment() {
     if (prev == null || prev === 0) return `<span style="color:var(--text-muted);">${prevLbl} 미실적</span>`;
     const d = cur - prev, r = d/prev*100;
     return d >= 0
-      ? `<span class="up">${fmtN(cur)}개 (${prevLbl}比 ▲${r.toFixed(1)}%, +${fmtN(d)})</span>`
-      : `<span class="down">${fmtN(cur)}개 (${prevLbl}比 ▼${Math.abs(r).toFixed(1)}%, ${fmtN(d)})</span>`;
+      ? `<span class="up">${fmtN(cur)}개 (${prevLbl}比 ▲${r.toFixed(0)}%, +${fmtN(d)})</span>`
+      : `<span class="down">${fmtN(cur)}개 (${prevLbl}比 ▼${Math.abs(r).toFixed(0)}%, ${fmtN(d)})</span>`;
   };
   lines.push(`▶ 수주 ${tone(cur.수주, prev.수주)}, 생산 ${tone(cur.생산, prev.생산)}, 출고 ${tone(cur.출고, prev.출고)}.`);
 
@@ -1619,7 +1643,7 @@ function renderComment() {
     const yoyDelta = (cur, p) => {
       if (p == null || p === 0) return `<span style="color:var(--text-muted);">${otherYear}년 미실적</span>`;
       const d = cur - p, r = d/p*100;
-      return d >= 0 ? `<span class="up">▲${r.toFixed(1)}%</span>` : `<span class="down">▼${Math.abs(r).toFixed(1)}%</span>`;
+      return d >= 0 ? `<span class="up">▲${r.toFixed(0)}%</span>` : `<span class="down">▼${Math.abs(r).toFixed(0)}%</span>`;
     };
     lines.push(`▶ <b style="color:var(--purple);">동기간 비교 (${otherYear}년 ${cur.label})</b>: 수주 ${yoyDelta(cur.수주, yoyMatch.수주)}, 생산 ${yoyDelta(cur.생산, yoyMatch.생산)}, 출고 ${yoyDelta(cur.출고, yoyMatch.출고)}.`);
   }
@@ -1765,15 +1789,15 @@ function renderChart() {
       if (prv > 0) {
         const diff = cur - prv, rate = diff / prv * 100, up = diff >= 0;
         const rc = up ? '#00E5A0' : '#E63946', rtc = up ? '#0F1520' : '#FFFFFF';
-        const diffText = `${up?'+':'−'}${Math.abs(diff).toLocaleString()}`;
+        const diffText = `${up?'+':'−'}${Math.round(Math.abs(diff)).toLocaleString()}`;
         yoyHtml =
-          `<span style="color:${prvTc};font-weight:800;font-size:11px;background:${prvBg};border:1px solid ${prvBd};border-radius:4px;padding:2px 7px;">${yoyTag} ${prv.toLocaleString()}</span>`
-        + `<span style="color:${rtc};font-weight:800;font-size:11px;background:${rc};border-radius:4px;padding:2px 6px;">${up?'▲':'▼'} ${Math.abs(rate).toFixed(1)}% (${diffText})</span>`;
+          `<span style="color:${prvTc};font-weight:800;font-size:11px;background:${prvBg};border:1px solid ${prvBd};border-radius:4px;padding:2px 7px;">${yoyTag} ${Math.round(prv).toLocaleString()}</span>`
+        + `<span style="color:${rtc};font-weight:800;font-size:11px;background:${rc};border-radius:4px;padding:2px 6px;">${up?'▲':'▼'} ${Math.abs(rate).toFixed(0)}% (${diffText})</span>`;
       }
       rows.push(
         `<div style="display:flex;gap:5px;align-items:center;background:${boxBg};backdrop-filter:blur(6px);border:1px solid var(--border);border-left:3px solid ${vcol};border-radius:7px;padding:5px 9px;box-shadow:${boxSh};">`
         + `<span style="color:#0F1520;font-weight:800;font-size:10px;background:${color};border-radius:4px;padding:2px 6px;">${ytdScopeLabel} 누계 · ${m}</span>`
-        + `<span style="color:${vcol};font-weight:800;font-size:13px;font-family:'IBM Plex Sans',sans-serif;">${cur.toLocaleString()}</span>`
+        + `<span style="color:${vcol};font-weight:800;font-size:13px;font-family:'IBM Plex Sans',sans-serif;">${Math.round(cur).toLocaleString()}</span>`
         + yoyHtml + `</div>`
       );
     });
@@ -1830,7 +1854,7 @@ function renderChart() {
         formatter: p => {
           // 동기간 누계 블록 — 차트 상단에 별도 markPoint로 띄움 (∑와 겹침 방지)
           if (p.data.isYtd) {
-            const lines = [`{ytdLbl|동기간 누계} {ytdCur|${Number(p.value).toLocaleString()}}`];
+            const lines = [`{ytdLbl|동기간 누계} {ytdCur|${Math.round(Number(p.value)).toLocaleString()}}`];
             const prv = p.data.ytdYoy;
             if (prv > 0) {
               const diff = p.value - prv;
@@ -1838,15 +1862,15 @@ function renderChart() {
               const up = diff >= 0;
               const arrow = up ? '▲' : '▼';
               const rateKey = up ? 'rateUp' : 'rateDn';
-              lines.push(`{ytdYoyLbl|${yoyTag}} {ytdYoy|${prv.toLocaleString()}} {${rateKey}|${arrow} ${Math.abs(rate).toFixed(1)}%}`);
+              lines.push(`{ytdYoyLbl|${yoyTag}} {ytdYoy|${Math.round(prv).toLocaleString()}} {${rateKey}|${arrow} ${Math.abs(rate).toFixed(0)}%}`);
             }
             return lines.join('\n');
           }
           // 월별 합계 ∑(현재년) + 25년 동기간 — 넓으면 가로, 좁으면 세로 2단(겹침 방지)
           const y = p.data.yoy;
-          const cur = `{cur|∑ ${Number(p.value).toLocaleString()}}`;
+          const cur = `{cur|∑ ${Math.round(Number(p.value)).toLocaleString()}}`;
           if (y == null) return cur;
-          const yoyChip = `{yoy|${yoyTag} ${y.toLocaleString()}}`;
+          const yoyChip = `{yoy|${yoyTag} ${Math.round(y).toLocaleString()}}`;
           return stackYtd ? `${cur}\n${yoyChip}` : `${cur}{gap| }${yoyChip}`;
         },
         backgroundColor: 'transparent', padding: 0, borderWidth: 0,
@@ -1960,7 +1984,7 @@ function renderChart() {
         const r = (avg - avg25) / avg25 * 100;
         const sign = r >= 0 ? '▲' : '▼';
         const prevYear = APP.year === 2026 ? 2025 : 2026;
-        cmp = `  (${String(prevYear).slice(2)}년比 ${sign}${Math.abs(r).toFixed(1)}%)`;
+        cmp = `  (${String(prevYear).slice(2)}년比 ${sign}${Math.abs(r).toFixed(0)}%)`;
       }
       mlData.push({
         yAxis: avg,
@@ -2085,7 +2109,7 @@ function renderChart() {
           h += `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
             <span style="width:8px;height:8px;border-radius:50%;background:${p.color};display:inline-block;"></span>
             <span>${p.seriesName}:</span>
-            <b style="margin-left:auto;padding-left:12px;">${Number(p.value).toLocaleString()}</b></div>`;
+            <b style="margin-left:auto;padding-left:12px;">${Math.round(Number(p.value)).toLocaleString()}</b></div>`;
         });
         return h;
       }
@@ -2148,7 +2172,7 @@ function renderTable() {
         const d = r.생산 - y.생산, rate = d/y.생산*100;
         const cls = d >= 0 ? 'up' : 'down', sign = d >= 0 ? '▲' : '▼';
         yoyCells = `<td style="text-align:right;color:var(--text-secondary);" class="num">${fmtN(y.생산)}</td>
-          <td style="text-align:right;" class="num"><span class="${cls}" style="font-weight:700;">${sign} ${Math.abs(rate).toFixed(1)}%</span></td>`;
+          <td style="text-align:right;" class="num"><span class="${cls}" style="font-weight:700;">${sign} ${Math.abs(rate).toFixed(0)}%</span></td>`;
       } else {
         yoyCells = `<td style="text-align:right;color:var(--text-muted);">—</td><td style="text-align:right;color:var(--text-muted);">—</td>`;
       }
@@ -2244,7 +2268,7 @@ function renderMonthlyProgress() {
   }
 
   const validRates = rows.map(r => r.plan > 0 ? r.actual / r.plan * 100 : null).filter(v => v != null);
-  const avgRate = validRates.length ? +(validRates.reduce((a,b)=>a+b,0) / validRates.length).toFixed(1) : null;
+  const avgRate = validRates.length ? +(validRates.reduce((a,b)=>a+b,0) / validRates.length).toFixed(0) : null;
   const avgPlan = rows.length ? Math.round(rows.reduce((a,r)=>a+r.plan,0) / rows.length) : 0;
   const avgActual = rows.length ? Math.round(rows.reduce((a,r)=>a+r.actual,0) / rows.length) : 0;
 
@@ -2265,7 +2289,7 @@ function renderMonthlyProgress() {
   }));
   const rateData = rows.map(r => {
     if (!r.plan || r.plan <= 0) return null;
-    return +(r.actual / r.plan * 100).toFixed(1);
+    return +(r.actual / r.plan * 100).toFixed(0);
   });
 
   // 2반 전용 — 월별 Duodeca 품목 계획 대비 실적 메모를 막대 위에 표기
@@ -2287,6 +2311,11 @@ function renderMonthlyProgress() {
         }
         if (plan === 0) plan = wp;
         if (actual === 0) actual = wa;
+        // 6월부터는 기존 시트 실적 대신 2반_생산일지(LOT 단위) 집계를 실적으로 사용 — 사용자 요청
+        // (본 시트 실적이 6월 이후 어긋나 재설정 필요했음). 계획은 그대로 시트 값 유지.
+        if (mo >= DUODECA_LOG_OVERRIDE_FROM_MONTH && APP.duodecaLogActual && APP.duodecaLogActual[mo] != null) {
+          actual = APP.duodecaLogActual[mo];
+        }
         if (plan === 0 && actual === 0) return null;
         const rate = plan > 0 ? Math.round(actual / plan * 100) : null;
         return { coord: [`${mo}월`, mpAnchorY], plan, actual, rate };
@@ -2298,7 +2327,7 @@ function renderMonthlyProgress() {
             show: true, position: 'top', distance: 10,
             formatter: p => {
               const rt = p.data.rate == null ? '—' : p.data.rate + '%';
-              return `{t|Duodeca}\n{p|계 ${p.data.plan.toLocaleString()}}\n{a|실 ${p.data.actual.toLocaleString()}}\n{r|달성 ${rt}}`;
+              return `{t|Duodeca}\n{p|계 ${Math.round(p.data.plan).toLocaleString()}}\n{a|실 ${Math.round(p.data.actual).toLocaleString()}}\n{r|달성 ${rt}}`;
             },
             backgroundColor: 'rgba(15,20,32,0.9)', borderColor: '#FFB547', borderWidth: 1,
             borderRadius: 5, padding: [4, 7], lineHeight: 15,
@@ -2326,7 +2355,7 @@ function renderMonthlyProgress() {
       formatter: (params) => {
         const idx = params[0].dataIndex;
         const r = rows[idx];
-        const rate = r.plan > 0 ? (r.actual/r.plan*100).toFixed(1) : '—';
+        const rate = r.plan > 0 ? (r.actual/r.plan*100).toFixed(0) : '—';
         const label = r.status === '진행중'
           ? `진행중 (${r.latestWk}주차까지)`
           : r.status === '마감' ? '마감' : '예정';
@@ -2339,7 +2368,7 @@ function renderMonthlyProgress() {
     grid: { left: 60, right: 50, top: duodecaMP ? 112 : 30, bottom: 30 },
     xAxis: { type:'category', data: months, axisLine:{lineStyle:{color:T.axisLine}}, axisLabel:{color:T.axisText, fontWeight:600} },
     yAxis: [
-      { type:'value', name:'수량(EA)', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:T.split}} },
+      { type:'value', name:'수량(EA)', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter: v => Math.round(v).toLocaleString()}, splitLine:{lineStyle:{color:T.split}} },
       { type:'value', name:'달성%', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter:'{value}%'}, splitLine:{show:false},
         max: Math.max(120, Math.ceil(Math.max(...rateData.filter(v=>v!=null), 100) * 1.15 / 10) * 10) },
     ],
@@ -2388,7 +2417,7 @@ function renderMonthlyProgress() {
       <td style="text-align:right;color:var(--text-muted);font-weight:600;" class="num">${fmtN(r.plan)}</td>
       <td style="text-align:right;color:var(--cyan);font-weight:600;" class="num">${fmtN(r.actual)}</td>
       <td style="text-align:right;" class="num">${diffCell}</td>
-      <td style="text-align:right;font-weight:700;color:${rateColor};" class="num">${rate == null ? '—' : rate.toFixed(1) + '%'}</td>
+      <td style="text-align:right;font-weight:700;color:${rateColor};" class="num">${rate == null ? '—' : rate.toFixed(0) + '%'}</td>
     </tr>`;
   }
   tableHtml += '</tbody></table>';
@@ -2451,7 +2480,7 @@ function renderLaggardItems() {
       <td style="text-align:right;color:var(--text-muted);" class="num">${fmtN(l.plan)}</td>
       <td style="text-align:right;color:var(--cyan);" class="num">${fmtN(l.actual)}</td>
       <td style="text-align:right;color:var(--red);font-weight:700;" class="num">${fmtN(l.shortage)}</td>
-      <td style="text-align:right;color:${sev};font-weight:700;" class="num">${l.rate.toFixed(1)}%</td>
+      <td style="text-align:right;color:${sev};font-weight:700;" class="num">${l.rate.toFixed(0)}%</td>
     </tr>`;
   }
   html += '</tbody></table>';
@@ -2481,7 +2510,7 @@ function renderSafety() {
 
   const safetyArr  = cats.map(c => groups[c].safety);
   const currentArr = cats.map(c => Math.max(0, groups[c].current - groups[c].unshipped)); // 실가용재고
-  const rateArr    = cats.map((c,i) => groups[c].safety > 0 ? +(currentArr[i] / groups[c].safety * 100).toFixed(1) : 0);
+  const rateArr    = cats.map((c,i) => groups[c].safety > 0 ? +(currentArr[i] / groups[c].safety * 100).toFixed(0) : 0);
 
   // 부족 분석 (실가용재고 기준)
   const shortages = [];
@@ -2503,7 +2532,7 @@ function renderSafety() {
       const col = s.rate < 50 ? '#E63946' : s.rate < 80 ? '#FFB547' : '#C9A961';
       html += `<div style="margin:4px 0;padding:6px 8px;background:var(--wash-3);border-radius:4px;">
         <span style="font-weight:700;color:var(--text-primary);">${s.cat}</span> ·
-        <span style="color:${col};font-weight:700;">${s.rate.toFixed(1)}%</span> ${sev}
+        <span style="color:${col};font-weight:700;">${s.rate.toFixed(0)}%</span> ${sev}
         <span style="color:var(--text-muted);">(${fmtN(s.shortage)}개 부족)</span>
       </div>`;
     }
@@ -2521,7 +2550,7 @@ function renderSafety() {
     grid: { left: 60, right: 60, top: 50, bottom: 30 },
     xAxis: { type:'category', data: cats, axisLine:{lineStyle:{color:T.axisLine}}, axisLabel:{color:T.axisText} },
     yAxis: [
-      { type:'value', name:'수량(EA)', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter: v => v.toLocaleString()}, splitLine:{lineStyle:{color:T.split}} },
+      { type:'value', name:'수량(EA)', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter: v => Math.round(v).toLocaleString()}, splitLine:{lineStyle:{color:T.split}} },
       { type:'value', name:'확보율 %', nameTextStyle:{color:T.axisName}, axisLabel:{color:T.axisText, formatter:'{value}%'}, splitLine:{show:false},
         max: Math.max(150, Math.ceil(Math.max(...rateArr, 100) * 1.15 / 10) * 10) },
     ],
@@ -2652,14 +2681,14 @@ function computeGrowthEntities() {
 function growthRowHTML(e, rank, up, prevYear, mode, totalCur) {
   const accent = up ? 'var(--mint)' : 'var(--red)';
   const rateText = e.prev === 0 ? '신규' : e.cur === 0 ? '중단'
-    : `${up?'▲':'▼'} ${Math.abs(e.rate).toFixed(1)}%`;
+    : `${up?'▲':'▼'} ${Math.abs(e.rate).toFixed(0)}%`;
   const deltaText = `${e.delta >= 0 ? '+' : '−'}${fmtN(Math.abs(e.delta))}`;
   const big = mode === 'pct'
     ? `<div style="font-size:15px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${rateText}</div>
        <div style="font-size:11px;font-weight:700;color:${accent};">${deltaText} EA</div>`
     : `<div style="font-size:15px;font-weight:800;color:${accent};font-family:'IBM Plex Sans',sans-serif;font-variant-numeric:tabular-nums;">${deltaText}<span style="font-size:10px;font-weight:600;color:var(--text-muted);"> EA</span></div>
        <div style="font-size:11px;font-weight:700;color:${accent};">${rateText}</div>`;
-  const shareTxt = totalCur > 0 ? ` · 전체 비중 ${(e.cur / totalCur * 100).toFixed(1)}%` : '';
+  const shareTxt = totalCur > 0 ? ` · 전체 비중 ${(e.cur / totalCur * 100).toFixed(0)}%` : '';
   return `<div style="display:flex;align-items:center;gap:10px;padding:7px 4px;border-top:1px solid var(--divider);">
     <span style="flex:0 0 20px;height:20px;line-height:20px;text-align:center;border-radius:5px;background:${accent};color:#0F1520;font-weight:800;font-size:11px;">${rank}</span>
     <div style="flex:1;min-width:0;">
@@ -2898,12 +2927,12 @@ function renderShare() {
         const dpp = pct - cpct;
         const dcol = dpp > 0.05 ? mapAccent('#00E5A0') : (dpp < -0.05 ? mapAccent('#E63946') : 'var(--text-muted)');
         const arrow = dpp > 0.05 ? '▲' : (dpp < -0.05 ? '▼' : '–');
-        compCell = `<span style="flex:0 0 132px;text-align:right;font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${compYear}년 ${cpct.toFixed(1)}% <span style="color:${dcol};">${arrow}${Math.abs(dpp).toFixed(1)}p</span></span>`;
+        compCell = `<span style="flex:0 0 132px;text-align:right;font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${compYear}년 ${cpct.toFixed(0)}% <span style="color:${dcol};">${arrow}${Math.abs(dpp).toFixed(0)}p</span></span>`;
       } else if (hasComp) {
         compCell = `<span style="flex:0 0 132px;"></span>`;
       }
       const nameStyle = ex ? 'color:var(--text-muted);text-decoration:line-through;' : 'color:var(--text-primary);';
-      const pctText = ex ? '제외' : pct.toFixed(1)+'%';
+      const pctText = ex ? '제외' : pct.toFixed(0)+'%';
       const pctColor = ex ? 'var(--text-muted)' : r.color;
       const swatch = ex ? 'background:transparent;border:1.5px solid var(--text-muted);' : `background:${r.color};`;
       const tog = canToggle ? `<i style="flex:0 0 auto;font-size:11px;color:var(--text-muted);">${ex?'☐':'☑'}</i>` : '';
@@ -2913,7 +2942,7 @@ function renderShare() {
         ${tog}
         <span style="width:11px;height:11px;border-radius:2px;${swatch}flex:0 0 auto;"></span>
         <span style="flex:1;min-width:64px;font-size:13px;${nameStyle}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}</span>
-        <span style="flex:0 0 56px;height:6px;background:var(--wash-2);border-radius:3px;overflow:hidden;"><span style="display:block;height:100%;width:${pct.toFixed(1)}%;background:${r.color};"></span></span>
+        <span style="flex:0 0 56px;height:6px;background:var(--wash-2);border-radius:3px;overflow:hidden;"><span style="display:block;height:100%;width:${pct.toFixed(0)}%;background:${r.color};"></span></span>
         <span style="flex:0 0 70px;text-align:right;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${fmt(r.value)}</span>
         <span style="flex:0 0 46px;text-align:right;font-size:13px;font-weight:700;color:${pctColor};font-variant-numeric:tabular-nums;">${pctText}</span>
         ${compCell}
@@ -3072,7 +3101,7 @@ function renderCatYoySummary() {
   })();
   const chip = (label, val, g, color, strong) => {
     const gHtml = g == null ? '<span style="color:var(--text-muted);font-size:10px;">신규</span>'
-      : `<span style="color:${g >= 0 ? 'var(--mint)' : 'var(--red)'};font-weight:700;font-size:11px;">${g >= 0 ? '▲' : '▼'} ${Math.abs(g).toFixed(1)}%</span>`;
+      : `<span style="color:${g >= 0 ? 'var(--mint)' : 'var(--red)'};font-weight:700;font-size:11px;">${g >= 0 ? '▲' : '▼'} ${Math.abs(g).toFixed(0)}%</span>`;
     return `<div style="display:flex;align-items:center;gap:6px;background:${strong ? 'var(--wash-2)' : 'var(--wash)'};border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:5px 10px;"><span style="font-size:11px;font-weight:${strong ? 800 : 600};color:${strong ? color : 'var(--text-secondary)'};">${label}</span><span style="font-size:12px;font-weight:700;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtN(val)}</span>${gHtml}</div>`;
   };
   const section = (title, valKey, prevKey, totColor) => {
@@ -3122,11 +3151,12 @@ async function init() {
     return resp.text();
   }
   try {
-    const [c26_1, c26_2, c25_1, c25_2] = await Promise.all([
+    const [c26_1, c26_2, c25_1, c25_2, cDuoLog] = await Promise.all([
       fetchGviz(SHEET_ID_26, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_26, GIDS['2반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['2반']).catch(() => null),
+      fetchGviz(SHEET_ID_DUODECA_LOG, GID_DUODECA_LOG).catch(() => null),
     ]);
     // 2026: 1반은 위치기반 (행0이 markers), 2반은 헤더 기반
     if (c26_1) APP.data[2026]['1반'] = parseGeneric(c26_1, '1반', 0);
@@ -3134,6 +3164,7 @@ async function init() {
     // 2025: 둘 다 위치 기반 (행0이 markers)
     if (c25_1) APP.data[2025]['1반'] = parseGeneric(c25_1, '1반', 0);
     if (c25_2) APP.data[2025]['2반'] = parseGeneric(c25_2, '2반', 0);
+    APP.duodecaLogActual = cDuoLog ? parseDuodecaLog(cDuoLog) : null;
 
     const anyData = APP.data[2026]['1반'] || APP.data[2026]['2반'] || APP.data[2025]['1반'] || APP.data[2025]['2반'];
     if (!anyData) throw new Error('데이터 없음');
@@ -3284,7 +3315,7 @@ function rptInsights(F) {
     const up = m.g>=0, diff=Math.abs(m.o-m.o0);
     const share = Math.abs(F.totO-F.totO0)>0 ? diff/Math.abs(F.totO-F.totO0)*100 : null;
     out.push({ sev: up?2:3, rc: up?'#087C5A':'#C32330',
-      fact:`${m.cat} 수주 전년 동기 대비 <span class="${up?'up-t':'dn-t'}">${up?'▲':'▼'} ${Math.abs(m.g).toFixed(1)}%</span>`,
+      fact:`${m.cat} 수주 전년 동기 대비 <span class="${up?'up-t':'dn-t'}">${up?'▲':'▼'} ${Math.abs(m.g).toFixed(0)}%</span>`,
       so:`${F.prevYear}년 ${fmtN(m.o0)} → 올해 ${fmtN(m.o)}${share!=null&&share>=25?` — 전체 수주 ${F.gTot>=0?'증가':'감소'}분의 ${share.toFixed(0)}% 설명`:''}.`,
       now: up?'증가분 생산능력·자재 선확보 점검.':'수요 감소 vs 수주 이월 여부 영업 확인.' });
   }
@@ -3293,8 +3324,8 @@ function rptInsights(F) {
     const elapsed = F.latest ? Math.min(100, F.latest.wk/F.weeksInMonth*100) : null;
     const behind = elapsed!=null && rate < elapsed-8;
     out.push({ sev: behind?3:1, rc: behind?'#9C6610':'#1A6FB5',
-      fact:`${F.month.mo}월 생산 진척률 <b>${rate.toFixed(1)}%</b>`,
-      so:`계획 ${fmtN(F.month.plan)} 중 ${fmtN(F.month.actual)} 완료${elapsed!=null?`, 경과 기준 기대치 대비 ${(rate-elapsed>=0?'+':'')}${(rate-elapsed).toFixed(1)}%p`:''}.`,
+      fact:`${F.month.mo}월 생산 진척률 <b>${rate.toFixed(0)}%</b>`,
+      so:`계획 ${fmtN(F.month.plan)} 중 ${fmtN(F.month.actual)} 완료${elapsed!=null?`, 경과 기준 기대치 대비 ${(rate-elapsed>=0?'+':'')}${(rate-elapsed).toFixed(0)}%p`:''}.`,
       now: behind?`잔여 ${fmtN(Math.max(0,F.month.plan-F.month.actual))} — 마감 전 만회 계획 필요.`:'현 추세 유지 시 월 마감 무난.' });
   }
   if (Math.abs(F.streak)>=3) {
@@ -3332,7 +3363,7 @@ function openReport() {
     const head = pos&&neg ? `${strip(pos.fact)}, 단 ${strip(neg.fact)}.` : neg ? `${strip(neg.fact)} — 점검 필요.` : pos ? `${strip(pos.fact)}.` : '주요 지표 안정 흐름 유지.';
     const kpi = (m) => { const v=F.cur[m], p=F.prev?.[m], g=p>0?rptPct(v,p):null, y=F.yoyCur&&F.yoyCur[m]>0?rptPct(v,F.yoyCur[m]):null;
       return `<div class="r-kpi"><div class="k-l">최근주 ${m}</div><div class="k-v">${fmtN(v)}</div>
-        <div class="k-d">${g!=null?`전주 <span class="${g>=0?'up-t':'dn-t'}">${g>=0?'▲':'▼'}${Math.abs(g).toFixed(1)}%</span>`:'전주 —'}${y!=null?` · 전년 <span class="${y>=0?'up-t':'dn-t'}">${y>=0?'▲':'▼'}${Math.abs(y).toFixed(1)}%</span>`:''}</div></div>`; };
+        <div class="k-d">${g!=null?`전주 <span class="${g>=0?'up-t':'dn-t'}">${g>=0?'▲':'▼'}${Math.abs(g).toFixed(0)}%</span>`:'전주 —'}${y!=null?` · 전년 <span class="${y>=0?'up-t':'dn-t'}">${y>=0?'▲':'▼'}${Math.abs(y).toFixed(0)}%</span>`:''}</div></div>`; };
     const risks = [];
     for (const r of F.safetyRows.filter(r=>r.rate<100).slice(0,3)) risks.push(`<b>${r.cat}</b> 안전재고 ${r.rate.toFixed(0)}% (부족 ${fmtN(r.gap)})`);
     if (F.month&&F.month.status==='진행중'&&F.month.plan>0&&F.month.actual/F.month.plan*100<85) risks.push(`<b>${F.month.mo}월 계획</b> 진척 ${(F.month.actual/F.month.plan*100).toFixed(0)}% 미달 위험`);
@@ -3351,7 +3382,7 @@ function openReport() {
       <div class="r-sec">품목군별 전년 동기 대비 (${F.prevYear}년 → ${APP.year}년, 동기간 누계)</div>
       ${(() => {
         const yo = v => v==null ? '<span class="newb">신규</span>'
-          : `<span class="${v>=0?'up-t':'dn-t'}">${v>=0?'▲':'▼'}${Math.abs(v).toFixed(1)}%</span>`;
+          : `<span class="${v>=0?'up-t':'dn-t'}">${v>=0?'▲':'▼'}${Math.abs(v).toFixed(0)}%</span>`;
         const rows = F.catRows.slice().sort((a,b)=>b.o-a.o);
         return `<table class="r-cat">
           <tr><th>품목군</th><th>수주</th><th>YoY</th><th>생산</th><th>YoY</th></tr>
