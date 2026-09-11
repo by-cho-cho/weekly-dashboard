@@ -463,6 +463,19 @@ document.addEventListener('fullscreenchange', () => {
   </div>
 </section>
 
+<section id="orderDistSection" style="padding:14px 32px 0; display:none;">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+      <div>
+        <div class="kpi-label">고객별 오더 분포 (EP·ENBD·Duodeca)</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">오더일 기준 월별 집계 · Code로 품목 분류</div>
+      </div>
+      <div id="orderDistCats" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+    <div id="chartOrderDist" style="height:360px;"></div>
+  </div>
+</section>
+
 <section id="laggardSection" style="padding:0 32px 0;">
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
@@ -516,6 +529,8 @@ const GIDS = { '1반': '2145094968', '2반': '680125344' };
 const SHEET_ID_PROD_LOG = '1r35WnvOsJZQ9jzdyhZNrGQGS7q68xjqZDxxMU2mwMBs';
 const GID_PROD_LOG = '99814603';
 const PROD_LOG_OVERRIDE_FROM_MONTH = 6;
+// SHEET_ID_26의 오더 로그 탭(오더일/납기/고객/국가/목적/제품/Code/오더량 등) — 고객별 오더 분포용.
+const GID_ORDER_LOG = '1697644844';
 // 2반 월별 진척도 차트의 카테고리별 계획대비실적 메모 박스 + 전체 진척률 집계에 공용으로 쓰는 매핑
 const MEMO_CATS = [
   { cat: 'Duodeca', logKey: 'DUO DECA' },
@@ -556,6 +571,7 @@ const APP = {
   selectedItems: { '1반': new Set(), '2반': new Set() },
   activeMetrics: new Set(['수주']),
   chart: null,
+  orderDistCat: null, // null=전체(EP+ENBD+Duodeca), 또는 'EP'|'ENBD'|'DUO DECA'
 };
 
 function parseCSV(text){
@@ -599,6 +615,36 @@ function parseProductionLog(csvText) {
   return byGroup;
 }
 const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
+
+// 오더 로그 파서 — Code(품목 모델코드) 패턴으로 EP/ENBD/DUO DECA만 판별해 고객별 월별 오더 분포 집계용
+// 원본 데이터로 뽑아둠. (제품명 텍스트 컬럼도 대부분 일치하지만, 사용자 요청대로 Code를 1차 기준으로 씀:
+// SM72*=DUO DECA, TS-ENBD*=ENBD, SM5*/SM6*=EP — 실데이터 669/139/47건 전수 대조해 텍스트와 100% 일치 확인함)
+const ORDER_LOG_CUSTOMER_ALIAS = { '이머저스': '이머져스' }; // 시트 내 오타 통합
+function classifyOrderCode(code) {
+  const c = (code || '').trim();
+  if (/^SM72/.test(c)) return 'DUO DECA';
+  if (c.startsWith('TS-ENBD')) return 'ENBD';
+  if (/^SM[56]/.test(c)) return 'EP';
+  return null;
+}
+function parseOrderLog(csvText) {
+  const rows = parseCSV(csvText);
+  const out = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]; if (!r || r.length < 9) continue;
+    const cat = classifyOrderCode(r[7]);
+    if (!cat) continue;
+    const dm = (r[1] || '').trim().match(/^(\d{4})-(\d{1,2})-\d{1,2}$/); // 오더일
+    if (!dm) continue;
+    let customer = (r[3] || '').trim();
+    if (!customer) continue;
+    customer = ORDER_LOG_CUSTOMER_ALIAS[customer] || customer;
+    const qty = parseNum(r[8]);
+    if (qty <= 0) continue;
+    out.push({ year: +dm[1], mo: +dm[2], cat, customer, qty });
+  }
+  return out;
+}
 
 // 행1 마커 스캔 (위치 기반) — 1반·2반·2025 공통
 // 실제 시트 레이아웃 (월 마커 cur.col 기준):
@@ -2484,6 +2530,76 @@ function renderMonthlyProgress() {
   tableEl.innerHTML = tableHtml;
 }
 
+/* ── 2반 전용 — 고객별 오더 분포 (EP·ENBD·Duodeca, 오더일 기준 월별) ── */
+const ORDER_DIST_CATS = ['EP', 'ENBD', 'DUO DECA'];
+function selectOrderDistCat(cat) {
+  APP.orderDistCat = (APP.orderDistCat === cat) ? null : cat;
+  renderOrderDist();
+}
+function renderOrderDist() {
+  const sec = document.getElementById('orderDistSection');
+  if (!sec) return;
+  if (APP.dept !== '2반' || !APP.orderLog || !APP.orderLog.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+
+  const catsBox = document.getElementById('orderDistCats');
+  const esc = s => String(s).replace(/'/g, "\\'");
+  catsBox.innerHTML = ORDER_DIST_CATS.map(cat => {
+    const active = APP.orderDistCat === cat;
+    return `<button onclick="selectOrderDistCat('${esc(cat)}')" style="padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};">${cat === 'DUO DECA' ? 'Duodeca' : cat}</button>`;
+  }).join('');
+
+  const mos = [...APP.selectedMonths].sort((a,b)=>a-b);
+  const rows = APP.orderLog.filter(r => r.year === APP.year && mos.includes(r.mo) && (!APP.orderDistCat || r.cat === APP.orderDistCat));
+
+  // 상위 고객만 시리즈로, 나머지는 '기타'로 묶음(범례 과밀 방지)
+  const custTotals = {};
+  for (const r of rows) custTotals[r.customer] = (custTotals[r.customer] || 0) + r.qty;
+  const TOP_N = 8;
+  const topCusts = Object.keys(custTotals).sort((a,b) => custTotals[b]-custTotals[a]).slice(0, TOP_N);
+  const hasEtc = Object.keys(custTotals).length > TOP_N;
+  const seriesNames = hasEtc ? [...topCusts, '기타'] : topCusts;
+
+  const byMonthCust = {};
+  for (const mo of mos) byMonthCust[mo] = {};
+  for (const r of rows) {
+    const key = topCusts.includes(r.customer) ? r.customer : '기타';
+    byMonthCust[r.mo][key] = (byMonthCust[r.mo][key] || 0) + r.qty;
+  }
+
+  if (!APP.chartOrderDist) APP.chartOrderDist = echarts.init(document.getElementById('chartOrderDist'));
+  const T = chartTheme();
+  const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#B8C5D6'];
+  const series = seriesNames.map((name, i) => ({
+    name,
+    type: 'bar',
+    stack: 'total',
+    barMaxWidth: 36,
+    itemStyle: { color: name === '기타' ? mapAccent('#8A9BBF') : mapAccent(PALETTE[i % PALETTE.length]) },
+    data: mos.map(mo => byMonthCust[mo][name] || 0),
+  }));
+  APP.chartOrderDist.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'shadow' },
+      backgroundColor: T.tipBg, borderColor: T.tipBorder, textStyle: { color: T.tipText },
+      formatter: (params) => {
+        const tot = params.reduce((s,p) => s + p.value, 0);
+        let h = `<div style="font-weight:700;margin-bottom:4px;">${params[0].axisValue}월 · 합계 ${fmtN(tot)}</div>`;
+        params.filter(p => p.value > 0).sort((a,b)=>b.value-a.value).forEach(p => {
+          h += `<div>${p.marker} ${p.seriesName}: <b>${fmtN(p.value)}</b></div>`;
+        });
+        return h;
+      }
+    },
+    legend: { data: seriesNames, textStyle: { color: T.axisText }, top: 0, type: 'scroll' },
+    grid: { left: 60, right: 30, top: 40, bottom: 30 },
+    xAxis: { type: 'category', data: mos.map(m => `${m}월`), axisLine: { lineStyle: { color: T.axisLine } }, axisLabel: { color: T.axisText } },
+    yAxis: { type: 'value', name: '오더량(EA)', nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => Math.round(v).toLocaleString() }, splitLine: { lineStyle: { color: T.split } } },
+    series,
+  }, true);
+}
+
 function renderLaggardItems() {
   const tableEl = document.getElementById('laggardTable');
   const titleEl = document.getElementById('laggardTitle');
@@ -3181,7 +3297,7 @@ function renderCatYoySummary() {
   html += section('생산', 'p', 'p25', mapAccent('#4FC3F7'));
   box.innerHTML = html;
 }
-function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderCatYoySummary(); renderGrowth(); renderGrowthPct(); renderShare(); renderMonthlyProgress(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
+function renderBody() { paintMetricChips(); renderKPI(); renderComment(); renderChart(); renderCatYoySummary(); renderGrowth(); renderGrowthPct(); renderShare(); renderMonthlyProgress(); renderOrderDist(); renderLaggardItems(); renderTable(); renderSafety(); renderStockPanel(); }
 
 function switchDept(dept) {
   if (dept === APP.dept) return;
@@ -3201,6 +3317,7 @@ window.addEventListener('resize', () => {
   APP.chartShareYoY && APP.chartShareYoY.resize();
   APP.chartMonthly && APP.chartMonthly.resize();
   APP.chartSafety && APP.chartSafety.resize();
+  APP.chartOrderDist && APP.chartOrderDist.resize();
 });
 
 async function init() {
@@ -3211,12 +3328,13 @@ async function init() {
     return resp.text();
   }
   try {
-    const [c26_1, c26_2, c25_1, c25_2, cProdLog] = await Promise.all([
+    const [c26_1, c26_2, c25_1, c25_2, cProdLog, cOrderLog] = await Promise.all([
       fetchGviz(SHEET_ID_26, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_26, GIDS['2반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['2반']).catch(() => null),
       fetchGviz(SHEET_ID_PROD_LOG, GID_PROD_LOG).catch(() => null),
+      fetchGviz(SHEET_ID_26, GID_ORDER_LOG).catch(() => null),
     ]);
     // 2026: 1반은 위치기반 (행0이 markers), 2반은 헤더 기반
     if (c26_1) APP.data[2026]['1반'] = parseGeneric(c26_1, '1반', 0);
@@ -3225,6 +3343,7 @@ async function init() {
     if (c25_1) APP.data[2025]['1반'] = parseGeneric(c25_1, '1반', 0);
     if (c25_2) APP.data[2025]['2반'] = parseGeneric(c25_2, '2반', 0);
     APP.prodLogActual = cProdLog ? parseProductionLog(cProdLog) : null;
+    APP.orderLog = cOrderLog ? parseOrderLog(cOrderLog) : null;
 
     const anyData = APP.data[2026]['1반'] || APP.data[2026]['2반'] || APP.data[2025]['1반'] || APP.data[2025]['2반'];
     if (!anyData) throw new Error('데이터 없음');
