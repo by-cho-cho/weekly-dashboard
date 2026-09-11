@@ -472,7 +472,11 @@ document.addEventListener('fullscreenchange', () => {
       </div>
       <div id="orderDistCats" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
     </div>
-    <div id="chartOrderDist" style="height:360px;"></div>
+    <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+      <div id="chartOrderDistYoY" style="width:240px;height:240px;flex:0 0 auto;display:none;"></div>
+      <div id="chartOrderDist" style="width:240px;height:240px;flex:0 0 auto;"></div>
+      <div id="orderDistLegend" style="flex:1 1 280px;min-width:260px;display:flex;flex-direction:column;gap:2px;"></div>
+    </div>
   </div>
 </section>
 
@@ -571,7 +575,7 @@ const APP = {
   selectedItems: { '1반': new Set(), '2반': new Set() },
   activeMetrics: new Set(['수주']),
   chart: null,
-  orderDistCat: null, // null=전체(EP+ENBD+Duodeca), 또는 'EP'|'ENBD'|'DUO DECA'
+  orderDistCats: new Set(), // 빈 값=전체(EP+ENBD+Duodeca), 아니면 선택된 카테고리들(복수 선택 가능)
 };
 
 function parseCSV(text){
@@ -644,6 +648,18 @@ function parseOrderLog(csvText) {
     out.push({ year: +dm[1], mo: +dm[2], cat, customer, qty });
   }
   return out;
+}
+// 고객별 색상 고정 — 필터(연도/월/카테고리)에 따라 순위가 바뀌어도 같은 고객은 항상 같은 색.
+// 전체 기간·전체 카테고리 기준 총 오더량 순위로 한 번만 배정(전체 17개 고객 중 상위는 팔레트 색,
+// 그 아래는 모듈로 순환 — 팔레트보다 고객이 많아 일부 겹침은 감수).
+const ORDER_DIST_PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#B8C5D6'];
+function buildOrderDistColorMap(orderLog) {
+  const totals = {};
+  for (const r of orderLog) totals[r.customer] = (totals[r.customer] || 0) + r.qty;
+  const ranked = Object.keys(totals).sort((a,b) => totals[b] - totals[a]);
+  const map = {};
+  ranked.forEach((name, i) => map[name] = ORDER_DIST_PALETTE[i % ORDER_DIST_PALETTE.length]);
+  return map;
 }
 
 // 행1 마커 스캔 (위치 기반) — 1반·2반·2025 공통
@@ -2531,10 +2547,35 @@ function renderMonthlyProgress() {
 }
 
 /* ── 2반 전용 — 고객별 오더 분포 (EP·ENBD·Duodeca, 오더일 기준 월별) ── */
-const ORDER_DIST_CATS = ['EP', 'ENBD', 'DUO DECA'];
+const ORDER_DIST_CATS = ['EP', 'DUO DECA', 'ENBD'];
 function selectOrderDistCat(cat) {
-  APP.orderDistCat = (APP.orderDistCat === cat) ? null : cat;
+  if (APP.orderDistCats.has(cat)) APP.orderDistCats.delete(cat);
+  else APP.orderDistCats.add(cat);
   renderOrderDist();
+}
+// 칩을 마우스로 누른 채 슬라이딩하면 지나가는 칩들이 연속으로 선택/해제됨(체크박스 목록의 드래그 선택과 동일 UX).
+// 시작 칩의 현재 상태 반대 방향으로 드래그 내내 적용(켜져 있으면 끄면서, 꺼져 있으면 켜면서 지나감).
+function orderDistDragStart(cat) {
+  const allOn = APP.orderDistCats.size === 0;
+  const isActive = allOn || APP.orderDistCats.has(cat);
+  if (allOn && isActive) ORDER_DIST_CATS.forEach(c => APP.orderDistCats.add(c)); // 빈 집합(전체)에서 끄기 시작하려면 먼저 전체를 명시적으로 채워야 함
+  window._orderDistDragMode = isActive ? 'off' : 'on';
+  window._orderDistDragging = true;
+  orderDistDragApply(cat);
+}
+function orderDistDragOver(cat) {
+  if (!window._orderDistDragging) return;
+  orderDistDragApply(cat);
+}
+function orderDistDragApply(cat) {
+  if (window._orderDistDragMode === 'off') APP.orderDistCats.delete(cat);
+  else APP.orderDistCats.add(cat);
+  if (APP.orderDistCats.size === ORDER_DIST_CATS.length) APP.orderDistCats = new Set(); // 전부 선택 = 전체(빈 집합)로 정규화
+  renderOrderDist();
+}
+if (!window._orderDistDragBound) {
+  window._orderDistDragBound = true;
+  document.addEventListener('mouseup', () => { window._orderDistDragging = false; });
 }
 function renderOrderDist() {
   const sec = document.getElementById('orderDistSection');
@@ -2545,59 +2586,102 @@ function renderOrderDist() {
   const catsBox = document.getElementById('orderDistCats');
   const esc = s => String(s).replace(/'/g, "\\'");
   catsBox.innerHTML = ORDER_DIST_CATS.map(cat => {
-    const active = APP.orderDistCat === cat;
-    return `<button onclick="selectOrderDistCat('${esc(cat)}')" style="padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};">${cat === 'DUO DECA' ? 'Duodeca' : cat}</button>`;
+    const active = APP.orderDistCats.size === 0 || APP.orderDistCats.has(cat);
+    return `<button onmousedown="orderDistDragStart('${esc(cat)}')" onmouseenter="orderDistDragOver('${esc(cat)}')" style="padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};user-select:none;">${cat === 'DUO DECA' ? 'Duodeca' : cat}</button>`;
   }).join('');
 
   const mos = [...APP.selectedMonths].sort((a,b)=>a-b);
-  const rows = APP.orderLog.filter(r => r.year === APP.year && mos.includes(r.mo) && (!APP.orderDistCat || r.cat === APP.orderDistCat));
+  const catOk = r => APP.orderDistCats.size === 0 || APP.orderDistCats.has(r.cat);
+  const rows = APP.orderLog.filter(r => r.year === APP.year && mos.includes(r.mo) && catOk(r));
 
-  // 상위 고객만 시리즈로, 나머지는 '기타'로 묶음(범례 과밀 방지)
+  // 상위 고객만 조각으로, 나머지는 '기타'로 묶음(범례 과밀 방지) — 비교연도도 같은 고객 구성으로 맞춤
   const custTotals = {};
   for (const r of rows) custTotals[r.customer] = (custTotals[r.customer] || 0) + r.qty;
   const TOP_N = 8;
-  const topCusts = Object.keys(custTotals).sort((a,b) => custTotals[b]-custTotals[a]).slice(0, TOP_N);
-  const hasEtc = Object.keys(custTotals).length > TOP_N;
-  const seriesNames = hasEtc ? [...topCusts, '기타'] : topCusts;
+  const sortedCusts = Object.keys(custTotals).sort((a,b) => custTotals[b]-custTotals[a]);
+  const topCusts = sortedCusts.slice(0, TOP_N);
+  const etcSum = sortedCusts.slice(TOP_N).reduce((s,c) => s + custTotals[c], 0);
+  // 고객별 색상은 전체 기간 기준으로 미리 고정된 맵을 그대로 씀(필터 바뀌어도 색 안 변함)
+  const colorFor = {};
+  topCusts.forEach(name => colorFor[name] = mapAccent(APP.orderDistColorMap[name] || '#8A9BBF'));
+  colorFor['기타'] = mapAccent('#8A9BBF');
+  const names = etcSum > 0 ? [...topCusts, '기타'] : topCusts;
+  const pieRows = names.map(name => ({ name, value: name === '기타' ? etcSum : custTotals[name], color: colorFor[name] }));
+  const total = pieRows.reduce((s,r) => s + r.value, 0);
 
-  const byMonthCust = {};
-  for (const mo of mos) byMonthCust[mo] = {};
-  for (const r of rows) {
+  // 전년(비교연도) — 동일 고객 구성(topCusts+기타)으로 재집계
+  const compYear = APP.year === 2026 ? 2025 : 2026;
+  const compRowsRaw = APP.orderLog.filter(r => r.year === compYear && mos.includes(r.mo) && catOk(r));
+  const compCustTotals = {};
+  for (const r of compRowsRaw) {
     const key = topCusts.includes(r.customer) ? r.customer : '기타';
-    byMonthCust[r.mo][key] = (byMonthCust[r.mo][key] || 0) + r.qty;
+    compCustTotals[key] = (compCustTotals[key] || 0) + r.qty;
   }
+  const compTotal = names.reduce((s,name) => s + (compCustTotals[name] || 0), 0);
+  const hasComp = compTotal > 0;
+
+  const periodLabel = mos.length ? (mos.length === 1 ? mos[0]+'월' : mos[0]+'~'+mos[mos.length-1]+'월') : '전체기간';
+  const catLabel = APP.orderDistCats.size === 0
+    ? '전체(EP·ENBD·Duodeca)'
+    : ORDER_DIST_CATS.filter(c => APP.orderDistCats.has(c)).map(c => c === 'DUO DECA' ? 'Duodeca' : c).join('·');
+
+  const T = chartTheme();
+  const donutOption = (rws, tot, centerSub) => ({
+    tooltip: { trigger: 'item', backgroundColor: T.tipBg, borderColor: T.tipBorder, textStyle: { color: T.tipText, fontSize: 12 },
+      formatter: p => `${p.marker}${p.name}<br/><b>오더량 ${fmtN(p.value)}</b> · ${p.percent}%` },
+    series: [{
+      type: 'pie', radius: ['60%','86%'], center: ['50%','50%'],
+      avoidLabelOverlap: true, label: { show: false }, labelLine: { show: false },
+      itemStyle: { borderColor: T.pieBorder, borderWidth: 2, borderRadius: 3 },
+      data: rws.map(r => ({ name: r.name, value: r.value, itemStyle: { color: r.color } })),
+    }],
+    graphic: [
+      { type: 'text', left: 'center', top: '40%', z: 10, style: { text: fmtN(tot), fill: T.centerText, fontSize: 23, fontWeight: 700, textAlign: 'center' } },
+      { type: 'text', left: 'center', top: '57%', z: 10, style: { text: centerSub, fill: T.axisText, fontSize: 11, textAlign: 'center' } },
+    ],
+  });
 
   if (!APP.chartOrderDist) APP.chartOrderDist = echarts.init(document.getElementById('chartOrderDist'));
-  const T = chartTheme();
-  const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#B8C5D6'];
-  const series = seriesNames.map((name, i) => ({
-    name,
-    type: 'bar',
-    stack: 'total',
-    barMaxWidth: 36,
-    itemStyle: { color: name === '기타' ? mapAccent('#8A9BBF') : mapAccent(PALETTE[i % PALETTE.length]) },
-    data: mos.map(mo => byMonthCust[mo][name] || 0),
-  }));
-  APP.chartOrderDist.setOption({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis', axisPointer: { type: 'shadow' },
-      backgroundColor: T.tipBg, borderColor: T.tipBorder, textStyle: { color: T.tipText },
-      formatter: (params) => {
-        const tot = params.reduce((s,p) => s + p.value, 0);
-        let h = `<div style="font-weight:700;margin-bottom:4px;">${params[0].axisValue}월 · 합계 ${fmtN(tot)}</div>`;
-        params.filter(p => p.value > 0).sort((a,b)=>b.value-a.value).forEach(p => {
-          h += `<div>${p.marker} ${p.seriesName}: <b>${fmtN(p.value)}</b></div>`;
-        });
-        return h;
-      }
-    },
-    legend: { data: seriesNames, textStyle: { color: T.axisText }, top: 0, type: 'scroll' },
-    grid: { left: 60, right: 30, top: 40, bottom: 30 },
-    xAxis: { type: 'category', data: mos.map(m => `${m}월`), axisLine: { lineStyle: { color: T.axisLine } }, axisLabel: { color: T.axisText } },
-    yAxis: { type: 'value', name: '오더량(EA)', nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => Math.round(v).toLocaleString() }, splitLine: { lineStyle: { color: T.split } } },
-    series,
-  }, true);
+  APP.chartOrderDist.setOption(donutOption(pieRows.filter(r=>r.value>0), total, `${APP.year}년 · ${periodLabel}`), true);
+  APP.chartOrderDist.resize();
+
+  const yoyEl = document.getElementById('chartOrderDistYoY');
+  if (yoyEl) {
+    if (hasComp) {
+      yoyEl.style.display = '';
+      if (!APP.chartOrderDistYoY) APP.chartOrderDistYoY = echarts.init(yoyEl);
+      const compPieRows = names.map(name => ({ name, value: compCustTotals[name] || 0, color: colorFor[name] })).filter(r => r.value > 0);
+      APP.chartOrderDistYoY.setOption(donutOption(compPieRows, compTotal, `${compYear}년 · ${periodLabel}`), true);
+      APP.chartOrderDistYoY.resize();
+    } else {
+      yoyEl.style.display = 'none';
+    }
+  }
+
+  const legend = document.getElementById('orderDistLegend');
+  if (legend) {
+    legend.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">${catLabel} · ${periodLabel} 기준${hasComp ? ` · 좌측 ${compYear}년 동기간` : ''}</div>` +
+      (pieRows.length ? pieRows.map(r => {
+        const pct = total ? (r.value/total*100) : 0;
+        let compCell = '';
+        if (hasComp) {
+          const cv = compCustTotals[r.name] || 0;
+          const cpct = compTotal ? (cv/compTotal*100) : 0;
+          const dpp = pct - cpct;
+          const dcol = dpp > 0.05 ? mapAccent('#00E5A0') : (dpp < -0.05 ? mapAccent('#E63946') : 'var(--text-muted)');
+          const arrow = dpp > 0.05 ? '▲' : (dpp < -0.05 ? '▼' : '–');
+          compCell = `<span style="flex:0 0 132px;text-align:right;font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${compYear}년 ${cpct.toFixed(0)}% <span style="color:${dcol};">${arrow}${Math.abs(dpp).toFixed(0)}p</span></span>`;
+        }
+        return `<div style="display:flex;align-items:center;gap:9px;padding:5px 6px;">
+          <span style="width:11px;height:11px;border-radius:2px;background:${r.color};flex:0 0 auto;"></span>
+          <span style="flex:1;min-width:64px;font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}</span>
+          <span style="flex:0 0 56px;height:6px;background:var(--wash-2);border-radius:3px;overflow:hidden;"><span style="display:block;height:100%;width:${pct.toFixed(0)}%;background:${r.color};"></span></span>
+          <span style="flex:0 0 60px;text-align:right;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${fmtN(r.value)}</span>
+          <span style="flex:0 0 46px;text-align:right;font-size:13px;font-weight:700;color:${r.color};font-variant-numeric:tabular-nums;">${pct.toFixed(0)}%</span>
+          ${compCell}
+        </div>`;
+      }).join('') : `<div style="font-size:12px;color:var(--text-muted);padding:6px;">선택 기간에 데이터 없음</div>`);
+  }
 }
 
 function renderLaggardItems() {
@@ -3318,6 +3402,7 @@ window.addEventListener('resize', () => {
   APP.chartMonthly && APP.chartMonthly.resize();
   APP.chartSafety && APP.chartSafety.resize();
   APP.chartOrderDist && APP.chartOrderDist.resize();
+  APP.chartOrderDistYoY && APP.chartOrderDistYoY.resize();
 });
 
 async function init() {
@@ -3344,6 +3429,7 @@ async function init() {
     if (c25_2) APP.data[2025]['2반'] = parseGeneric(c25_2, '2반', 0);
     APP.prodLogActual = cProdLog ? parseProductionLog(cProdLog) : null;
     APP.orderLog = cOrderLog ? parseOrderLog(cOrderLog) : null;
+    APP.orderDistColorMap = APP.orderLog ? buildOrderDistColorMap(APP.orderLog) : {};
 
     const anyData = APP.data[2026]['1반'] || APP.data[2026]['2반'] || APP.data[2025]['1반'] || APP.data[2025]['2반'];
     if (!anyData) throw new Error('데이터 없음');
