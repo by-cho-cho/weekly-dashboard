@@ -2282,6 +2282,13 @@ function aggregateMonthlyPlanVsActual() {
     if (sel.size > 0 && !sel.has(it.model)) return false;
     return true;
   });
+  // 품목을 "일부만" 선택했는지 판정(renderShare와 동일 원칙) — 생산일지 로그는 카테고리 전체 합계만
+  // 있어서(개별 모델 단위 아님) 부분 선택 상태에서 그대로 대입하면 분자만 전체값으로 부풀려짐.
+  let selSubset = sel.size > 0 || subs.size > 0;
+  if (selSubset && sel.size > 0 && subs.size === 0) {
+    const allInd = data.items.filter(it => !it.isTotal && (cats.size === 0 || cats.has(it.category)));
+    if (allInd.length > 0 && allInd.every(it => sel.has(it.model))) selSubset = false;
+  }
   const latest = findLatestWeek(data.items); // 데이터가 들어온 최신 주차 (마감/진행중 판정 기준)
   const monthsAll = Object.keys(data.weeksByMonth).map(Number).sort((a,b)=>a-b);
   const rows = [];
@@ -2319,7 +2326,7 @@ function aggregateMonthlyPlanVsActual() {
     // 주의: 시트 "EP 합계"에는 Duodeca(SM720) 실적이 이미 포함돼 있어(filterItems 참고),
     // 통합 보기(전체/EP 선택)에서는 Duodeca가 별도 항목으로 집계되지 않음 → 그 경우 EP는
     // 로그의 EP+Duodeca 합산값으로 통째 교체해야 이중차감/누락이 안 생김.
-    if (APP.dept === '2반' && mo >= PROD_LOG_OVERRIDE_FROM_MONTH && APP.prodLogActual) {
+    if (APP.dept === '2반' && mo >= PROD_LOG_OVERRIDE_FROM_MONTH && APP.prodLogActual && !selSubset) {
       const useMonthlyCol = actualFromMonthlyCol > 0;
       const catActualOld = (cat) => {
         const catItems = items.filter(it => it.category === cat);
