@@ -497,15 +497,20 @@ document.addEventListener('fullscreenchange', () => {
 
 <section id="orderTrendSection" style="padding:0 32px 14px; display:none;">
   <div class="card">
-    <div style="margin-bottom:10px;">
-      <div class="kpi-label">수주업체·품목별 오더 추이</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">오더일 기준 월별 오더량 · 수주업체·품목을 선택하면 그 조합만 집계(클릭 또는 슬라이딩으로 다중 선택/해제)</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div>
+        <div class="kpi-label">수주업체·품목별 오더 추이</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">오더일 기준 월별 오더량 · 수주업체·품목을 선택하면 그 조합만 집계(클릭 또는 슬라이딩으로 다중 선택/해제)</div>
+      </div>
+      <button id="orderTrendToggle" class="btn" onclick="toggleOrderTrend()" style="font-size:10px;padding:4px 10px;">▾ 숨기기</button>
     </div>
-    <div style="font-size:11px;color:var(--text-muted);margin:4px 0;">수주업체</div>
-    <div id="orderTrendCustChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
-    <div style="font-size:11px;color:var(--text-muted);margin:4px 0;">품목</div>
-    <div id="orderTrendItemChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
-    <div id="chartOrderTrend" style="height:280px;"></div>
+    <div id="orderTrendBody">
+      <div style="font-size:11px;color:var(--text-muted);margin:4px 0;">수주업체</div>
+      <div id="orderTrendCustChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin:4px 0;">품목</div>
+      <div id="orderTrendItemChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+      <div id="chartOrderTrend" style="height:280px;"></div>
+    </div>
   </div>
 </section>
 
@@ -592,6 +597,7 @@ const APP = {
   orderDistCats: new Set(), // 빈 값=전체(EP+ENBD+Duodeca), 아니면 선택된 카테고리들(복수 선택 가능)
   trendCust: new Set(), // 수주업체·품목별 오더 추이 — 빈 값=전체
   trendItem: new Set(),
+  orderTrendCollapsed: false,
 };
 
 function parseCSV(text){
@@ -647,13 +653,32 @@ function classifyOrderCode(code) {
   if (/^SM[56]/.test(c)) return 'EP';
   return null;
 }
+// 1반 품목 분류 — 이 오더 로그엔 1반·2반·3반·4반 물량이 섞여 있어(포텐자 등 3반 품목 다수 포함),
+// "제품" 텍스트 컬럼으로 1반 카테고리만 골라냄(Code 컬럼은 1반 상당수 행에서 '-'라 못 씀).
+// 오타/영문 표기 변형(블루 10mL, blue 10ml, Blue Eye 10mL 등)은 접두어만 매칭해 흡수.
+const ORDER_1BAN_MAP = [
+  [/^(블랙|black)/i, 'Black Eye'],
+  [/^(블루|blue)/i, 'Blue Eye'],
+  [/^세피아/, '세피아'],
+  [/^(coupling|c\/f|cf|density|xtherma)/i, '커플링플로이드'],
+  [/^(시린지|nami\s*syringe)/i, '시린지'],
+  [/^벨라/, 'BE/벨라'],
+  [/^iot$/i, 'IOT'],
+];
+function classifyOrderProduct(product) {
+  const p = (product || '').trim();
+  for (const [re, cat] of ORDER_1BAN_MAP) if (re.test(p)) return cat;
+  return null;
+}
 function parseOrderLog(csvText) {
   const rows = parseCSV(csvText);
   const out = [];
   for (let i = 1; i < rows.length; i++) {
     const r = rows[i]; if (!r || r.length < 9) continue;
-    const cat = classifyOrderCode(r[7]);
-    if (!cat) continue;
+    let dept, cat = classifyOrderCode(r[7]);
+    if (cat) dept = '2반';
+    else { cat = classifyOrderProduct(r[6]); if (cat) dept = '1반'; }
+    if (!dept) continue;
     const dm = (r[1] || '').trim().match(/^(\d{4})-(\d{1,2})-\d{1,2}$/); // 오더일
     if (!dm) continue;
     let customer = (r[3] || '').trim();
@@ -661,8 +686,8 @@ function parseOrderLog(csvText) {
     customer = ORDER_LOG_CUSTOMER_ALIAS[customer] || customer;
     const qty = parseNum(r[8]);
     if (qty <= 0) continue;
-    const code = (r[7] || '').trim(); // 품목(모델) 코드 — 수주업체·품목별 오더 추이 필터용
-    out.push({ year: +dm[1], mo: +dm[2], cat, customer, code, qty });
+    const code = (r[7] || '').trim(); // 품목(모델) 코드 — 수주업체·품목별 오더 추이 필터용(1반 상당수는 '-')
+    out.push({ year: +dm[1], mo: +dm[2], dept, cat, customer, code, qty });
   }
   return out;
 }
@@ -672,7 +697,7 @@ function parseOrderLog(csvText) {
 const ORDER_DIST_PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#B8C5D6'];
 function buildOrderDistColorMap(orderLog) {
   const totals = {};
-  for (const r of orderLog) totals[r.customer] = (totals[r.customer] || 0) + r.qty;
+  for (const r of orderLog) { if (r.dept !== '2반') continue; totals[r.customer] = (totals[r.customer] || 0) + r.qty; }
   const ranked = Object.keys(totals).sort((a,b) => totals[b] - totals[a]);
   const map = {};
   ranked.forEach((name, i) => map[name] = ORDER_DIST_PALETTE[i % ORDER_DIST_PALETTE.length]);
@@ -2620,7 +2645,7 @@ function renderOrderDist() {
 
   const mos = [...APP.selectedMonths].sort((a,b)=>a-b);
   const catOk = r => APP.orderDistCats.size === 0 || APP.orderDistCats.has(r.cat);
-  const rows = APP.orderLog.filter(r => r.year === APP.year && mos.includes(r.mo) && catOk(r));
+  const rows = APP.orderLog.filter(r => r.dept === '2반' && r.year === APP.year && mos.includes(r.mo) && catOk(r));
 
   // 상위 고객만 조각으로, 나머지는 '기타'로 묶음(범례 과밀 방지) — 비교연도도 같은 고객 구성으로 맞춤
   const custTotals = {};
@@ -2639,7 +2664,7 @@ function renderOrderDist() {
 
   // 전년(비교연도) — 동일 고객 구성(topCusts+기타)으로 재집계
   const compYear = APP.year === 2026 ? 2025 : 2026;
-  const compRowsRaw = APP.orderLog.filter(r => r.year === compYear && mos.includes(r.mo) && catOk(r));
+  const compRowsRaw = APP.orderLog.filter(r => r.dept === '2반' && r.year === compYear && mos.includes(r.mo) && catOk(r));
   const compCustTotals = {};
   for (const r of compRowsRaw) {
     const key = topCusts.includes(r.customer) ? r.customer : '기타';
@@ -2712,8 +2737,10 @@ function renderOrderDist() {
 }
 
 /* ── 2반 전용 — 수주업체·품목별 오더 추이 (오더일 기준 월별, 다중 선택 + 슬라이딩 선택/해제) ── */
+const ORDER_TREND_CAT_ORDER = { '2반': ORDER_DIST_CATS, '1반': ['Black Eye','Blue Eye','세피아','커플링플로이드','시린지','BE/벨라','IOT'] };
+function orderLogForDept() { return (APP.orderLog||[]).filter(r => r.dept === APP.dept); }
 function trendCustDragStart(name) {
-  const universe = [...new Set((APP.orderLog||[]).map(r=>r.customer))];
+  const universe = [...new Set(orderLogForDept().map(r=>r.customer))];
   const allOn = APP.trendCust.size === 0;
   const isActive = allOn || APP.trendCust.has(name);
   if (allOn && isActive) universe.forEach(c => APP.trendCust.add(c));
@@ -2723,7 +2750,7 @@ function trendCustDragStart(name) {
 }
 function trendCustDragOver(name) {
   if (!window._trendCustDragging) return;
-  trendCustDragApply(name, [...new Set((APP.orderLog||[]).map(r=>r.customer))]);
+  trendCustDragApply(name, [...new Set(orderLogForDept().map(r=>r.customer))]);
 }
 function trendCustDragApply(name, universe) {
   if (window._trendCustDragMode === 'off') APP.trendCust.delete(name);
@@ -2732,7 +2759,7 @@ function trendCustDragApply(name, universe) {
   renderOrderTrend();
 }
 function trendItemDragStart(code) {
-  const universe = [...new Set((APP.orderLog||[]).map(r=>r.code))];
+  const universe = [...new Set(orderLogForDept().map(r=>r.code))];
   const allOn = APP.trendItem.size === 0;
   const isActive = allOn || APP.trendItem.has(code);
   if (allOn && isActive) universe.forEach(c => APP.trendItem.add(c));
@@ -2742,7 +2769,7 @@ function trendItemDragStart(code) {
 }
 function trendItemDragOver(code) {
   if (!window._trendItemDragging) return;
-  trendItemDragApply(code, [...new Set((APP.orderLog||[]).map(r=>r.code))]);
+  trendItemDragApply(code, [...new Set(orderLogForDept().map(r=>r.code))]);
 }
 function trendItemDragApply(code, universe) {
   if (window._trendItemDragMode === 'off') APP.trendItem.delete(code);
@@ -2750,52 +2777,78 @@ function trendItemDragApply(code, universe) {
   if (APP.trendItem.size === universe.length) APP.trendItem = new Set();
   renderOrderTrend();
 }
+function toggleOrderTrend() {
+  APP.orderTrendCollapsed = !APP.orderTrendCollapsed;
+  renderOrderTrend();
+}
 function renderOrderTrend() {
   const sec = document.getElementById('orderTrendSection');
   if (!sec) return;
-  if (APP.dept !== '2반' || !APP.orderLog || !APP.orderLog.length) { sec.style.display = 'none'; return; }
+  const deptLog = orderLogForDept();
+  if (!deptLog.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
+
+  const body = document.getElementById('orderTrendBody');
+  const toggleBtn = document.getElementById('orderTrendToggle');
+  if (body) body.style.display = APP.orderTrendCollapsed ? 'none' : '';
+  if (toggleBtn) toggleBtn.textContent = APP.orderTrendCollapsed ? '▸ 펼치기' : '▾ 숨기기';
+  if (APP.orderTrendCollapsed) return; // 접힌 상태면 무거운 차트 갱신은 건너뜀
+
   const esc = s => String(s).replace(/'/g, "\\'");
 
-  // 수주업체 칩 — 전체 오더량 기준 내림차순(색상 고정맵과 동일 정렬 기준)
+  // 수주업체 칩 — 전체 오더량 기준 내림차순(색상 고정맵과 동일 정렬 기준). 1반은 거래처가 수백 개라
+  // 칩을 상위 N개만 표시(값이 큰 순 — 나머지는 화면엔 없지만 "전체" 집계에는 항상 포함됨).
+  const TREND_CHIP_CAP = 40;
   const custTotals = {};
-  for (const r of APP.orderLog) custTotals[r.customer] = (custTotals[r.customer] || 0) + r.qty;
-  const custList = Object.keys(custTotals).sort((a,b) => custTotals[b]-custTotals[a]);
+  for (const r of deptLog) custTotals[r.customer] = (custTotals[r.customer] || 0) + r.qty;
+  const custListAll = Object.keys(custTotals).sort((a,b) => custTotals[b]-custTotals[a]);
+  const custList = custListAll.slice(0, TREND_CHIP_CAP);
   const custBox = document.getElementById('orderTrendCustChips');
   if (custBox) {
+    const capNote = custListAll.length > TREND_CHIP_CAP
+      ? `<div style="font-size:10px;color:var(--text-muted);flex:1 1 100%;margin-top:2px;">오더량 상위 ${TREND_CHIP_CAP}개만 표시(전체 ${custListAll.length}개) — 표시 안 된 업체도 "전체" 집계엔 포함됨</div>` : '';
     custBox.innerHTML = custList.map(name => {
       const active = APP.trendCust.size === 0 || APP.trendCust.has(name);
       return `<button onmousedown="trendCustDragStart('${esc(name)}')" onmouseenter="trendCustDragOver('${esc(name)}')" style="padding:5px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};user-select:none;">${name}</button>`;
-    }).join('');
+    }).join('') + capNote;
   }
 
-  // 품목(모델) 칩 — 카테고리별로 묶어 표시(EP > Duodeca > ENBD), 카테고리 내에서는 오더량 내림차순
+  // 품목(모델) 칩 — 카테고리별로 묶어 표시(부서별 카테고리 순서), 카테고리 내에서는 오더량 내림차순
+  const catOrder = ORDER_TREND_CAT_ORDER[APP.dept] || [];
   const itemTotals = {};
   const itemCat = {};
-  for (const r of APP.orderLog) { itemTotals[r.code] = (itemTotals[r.code] || 0) + r.qty; itemCat[r.code] = r.cat; }
-  const itemList = Object.keys(itemTotals).sort((a,b) => {
-    const ci = ORDER_DIST_CATS.indexOf(itemCat[a]) - ORDER_DIST_CATS.indexOf(itemCat[b]);
+  for (const r of deptLog) { itemTotals[r.code] = (itemTotals[r.code] || 0) + r.qty; itemCat[r.code] = r.cat; }
+  const itemListAll = Object.keys(itemTotals).sort((a,b) => {
+    const ci = catOrder.indexOf(itemCat[a]) - catOrder.indexOf(itemCat[b]);
     return ci !== 0 ? ci : itemTotals[b]-itemTotals[a];
   });
+  const itemList = itemListAll.slice(0, TREND_CHIP_CAP);
   const itemBox = document.getElementById('orderTrendItemChips');
   if (itemBox) {
+    const capNote = itemListAll.length > TREND_CHIP_CAP
+      ? `<div style="font-size:10px;color:var(--text-muted);flex:1 1 100%;margin-top:2px;">오더량 상위 ${TREND_CHIP_CAP}개만 표시(전체 ${itemListAll.length}개) — 표시 안 된 품목도 "전체" 집계엔 포함됨</div>` : '';
     itemBox.innerHTML = itemList.map(code => {
       const active = APP.trendItem.size === 0 || APP.trendItem.has(code);
       return `<button onmousedown="trendItemDragStart('${esc(code)}')" onmouseenter="trendItemDragOver('${esc(code)}')" style="padding:5px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};user-select:none;">${code}</button>`;
-    }).join('');
+    }).join('') + capNote;
   }
 
   const mos = [...APP.selectedMonths].sort((a,b)=>a-b);
   const custOk = r => APP.trendCust.size === 0 || APP.trendCust.has(r.customer);
   const itemOk = r => APP.trendItem.size === 0 || APP.trendItem.has(r.code);
-  const rows = APP.orderLog.filter(r => r.year === APP.year && mos.includes(r.mo) && custOk(r) && itemOk(r));
+  const rows = deptLog.filter(r => r.year === APP.year && mos.includes(r.mo) && custOk(r) && itemOk(r));
   const byMonth = {};
   for (const mo of mos) byMonth[mo] = 0;
   for (const r of rows) byMonth[r.mo] = (byMonth[r.mo] || 0) + r.qty;
   const data = mos.map(mo => byMonth[mo] || 0);
 
-  const custLabel = APP.trendCust.size === 0 ? '전체 수주업체' : [...APP.trendCust].join('·');
-  const itemLabel = APP.trendItem.size === 0 ? '전체 품목' : [...APP.trendItem].join('·');
+  const shortLabel = (set, allText) => {
+    if (set.size === 0) return allText;
+    const arr = [...set];
+    return arr.length <= 3 ? arr.join('·') : `${arr.slice(0,3).join('·')} 외 ${arr.length-3}개`;
+  };
+  const custLabel = shortLabel(APP.trendCust, '전체 수주업체');
+  const itemLabel = shortLabel(APP.trendItem, '전체 품목');
 
   if (!APP.chartOrderTrend) APP.chartOrderTrend = echarts.init(document.getElementById('chartOrderTrend'));
   const T = chartTheme();
@@ -3523,6 +3576,7 @@ function switchDept(dept) {
   document.getElementById('deptTitle').textContent = dept;
   document.querySelectorAll('.btn[data-dept]').forEach(b => b.classList.toggle('active', b.dataset.dept === dept));
   document.getElementById('itemSearch').value = '';
+  APP.trendCust = new Set(); APP.trendItem = new Set(); // 수주업체·품목별 오더 추이 선택은 부서 전환 시 초기화(다른 부서 값이 남아있으면 조건에 안 맞아 빈 차트가 됨)
   renderYearChips(); renderWeekChips(); renderCatChips(); renderItemChips();
   selectAllMonths();
 }
