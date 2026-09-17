@@ -505,11 +505,24 @@ document.addEventListener('fullscreenchange', () => {
       <button id="orderTrendToggle" class="btn" onclick="toggleOrderTrend()" style="font-size:10px;padding:4px 10px;">▾ 숨기기</button>
     </div>
     <div id="orderTrendBody">
-      <div style="font-size:11px;color:var(--text-muted);margin:4px 0;">수주업체</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0;">
+        <div style="font-size:11px;color:var(--text-muted);">수주업체</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn" onclick="selectAllTrendCust()" style="font-size:10px;padding:3px 8px;">전체선택</button>
+          <button class="btn" onclick="clearTrendCust()" style="font-size:10px;padding:3px 8px;">해제</button>
+        </div>
+      </div>
       <div id="orderTrendCustChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
-      <div style="font-size:11px;color:var(--text-muted);margin:4px 0;">품목</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0;">
+        <div style="font-size:11px;color:var(--text-muted);">품목</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn" onclick="selectAllTrendItem()" style="font-size:10px;padding:3px 8px;">전체선택</button>
+          <button class="btn" onclick="clearTrendItem()" style="font-size:10px;padding:3px 8px;">해제</button>
+        </div>
+      </div>
       <div id="orderTrendItemChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
       <div id="chartOrderTrend" style="height:280px;"></div>
+      <div id="orderTrendNote" style="font-size:11px;margin-top:6px;"></div>
     </div>
   </div>
 </section>
@@ -690,6 +703,21 @@ function parseOrderLog(csvText) {
     out.push({ year: +dm[1], mo: +dm[2], dept, cat, customer, code, qty });
   }
   return out;
+}
+// 2반 시트(GIDS['2반']) 맨 앞 A~D열의 품목별 판매가 표 — 매출액(오더량×판매가) 계산용.
+// 행 구조: 헤더 1행 뒤에 카테고리 합계 행(EP/ENBD/Cable total 등, 판매가 빈칸)과 개별 모델 행이
+// 섞여 있어, 판매가 있는 행만 모델코드→단가 맵으로 씀. 이미 2반 주간 파싱에 쓰는 CSV를 그대로 재사용.
+function parsePriceTable(csvText) {
+  const rows = parseCSV(csvText);
+  const map = {};
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i]; if (!r || r.length < 3) continue;
+    const model = (r[0] || '').trim().split('\n')[0].trim(); // 케이블 행은 모델명 아래 줄에 설명이 붙어 있어 첫 줄만 사용
+    const price = parseNum(r[2]);
+    if (!model || price <= 0) continue;
+    map[model] = price;
+  }
+  return map;
 }
 // 고객별 색상 고정 — 필터(연도/월/카테고리)에 따라 순위가 바뀌어도 같은 고객은 항상 같은 색.
 // 전체 기간·전체 카테고리 기준 총 오더량 순위로 한 번만 배정(전체 17개 고객 중 상위는 팔레트 색,
@@ -2739,42 +2767,40 @@ function renderOrderDist() {
 /* ── 2반 전용 — 수주업체·품목별 오더 추이 (오더일 기준 월별, 다중 선택 + 슬라이딩 선택/해제) ── */
 const ORDER_TREND_CAT_ORDER = { '2반': ORDER_DIST_CATS, '1반': ['Black Eye','Blue Eye','세피아','커플링플로이드','시린지','BE/벨라','IOT'] };
 function orderLogForDept() { return (APP.orderLog||[]).filter(r => r.dept === APP.dept); }
+// 수주업체·품목 선택 — 명시적 Set(디폴트 전체선택). 부서 바뀌면 그 부서 전체로 재초기화.
+function ensureTrendDefaults() {
+  const deptLog = orderLogForDept();
+  if (APP.trendInitDept !== APP.dept) {
+    APP.trendCust = new Set(deptLog.map(r => r.customer));
+    APP.trendItem = new Set(deptLog.map(r => r.code));
+    APP.trendInitDept = APP.dept;
+  }
+  return deptLog;
+}
+function selectAllTrendCust() { APP.trendCust = new Set(orderLogForDept().map(r=>r.customer)); renderOrderTrend(); }
+function clearTrendCust() { APP.trendCust = new Set(); renderOrderTrend(); }
+function selectAllTrendItem() { APP.trendItem = new Set(orderLogForDept().map(r=>r.code)); renderOrderTrend(); }
+function clearTrendItem() { APP.trendItem = new Set(); renderOrderTrend(); }
 function trendCustDragStart(name) {
-  const universe = [...new Set(orderLogForDept().map(r=>r.customer))];
-  const allOn = APP.trendCust.size === 0;
-  const isActive = allOn || APP.trendCust.has(name);
-  if (allOn && isActive) universe.forEach(c => APP.trendCust.add(c));
-  window._trendCustDragMode = isActive ? 'off' : 'on';
+  window._trendCustDragMode = APP.trendCust.has(name) ? 'off' : 'on';
   window._trendCustDragging = true;
-  trendCustDragApply(name, universe);
+  trendCustDragApply(name);
 }
-function trendCustDragOver(name) {
-  if (!window._trendCustDragging) return;
-  trendCustDragApply(name, [...new Set(orderLogForDept().map(r=>r.customer))]);
-}
-function trendCustDragApply(name, universe) {
+function trendCustDragOver(name) { if (window._trendCustDragging) trendCustDragApply(name); }
+function trendCustDragApply(name) {
   if (window._trendCustDragMode === 'off') APP.trendCust.delete(name);
   else APP.trendCust.add(name);
-  if (APP.trendCust.size === universe.length) APP.trendCust = new Set();
   renderOrderTrend();
 }
 function trendItemDragStart(code) {
-  const universe = [...new Set(orderLogForDept().map(r=>r.code))];
-  const allOn = APP.trendItem.size === 0;
-  const isActive = allOn || APP.trendItem.has(code);
-  if (allOn && isActive) universe.forEach(c => APP.trendItem.add(c));
-  window._trendItemDragMode = isActive ? 'off' : 'on';
+  window._trendItemDragMode = APP.trendItem.has(code) ? 'off' : 'on';
   window._trendItemDragging = true;
-  trendItemDragApply(code, universe);
+  trendItemDragApply(code);
 }
-function trendItemDragOver(code) {
-  if (!window._trendItemDragging) return;
-  trendItemDragApply(code, [...new Set(orderLogForDept().map(r=>r.code))]);
-}
-function trendItemDragApply(code, universe) {
+function trendItemDragOver(code) { if (window._trendItemDragging) trendItemDragApply(code); }
+function trendItemDragApply(code) {
   if (window._trendItemDragMode === 'off') APP.trendItem.delete(code);
   else APP.trendItem.add(code);
-  if (APP.trendItem.size === universe.length) APP.trendItem = new Set();
   renderOrderTrend();
 }
 function toggleOrderTrend() {
@@ -2784,7 +2810,7 @@ function toggleOrderTrend() {
 function renderOrderTrend() {
   const sec = document.getElementById('orderTrendSection');
   if (!sec) return;
-  const deptLog = orderLogForDept();
+  const deptLog = ensureTrendDefaults();
   if (!deptLog.length) { sec.style.display = 'none'; return; }
   sec.style.display = '';
 
@@ -2806,9 +2832,9 @@ function renderOrderTrend() {
   const custBox = document.getElementById('orderTrendCustChips');
   if (custBox) {
     const capNote = custListAll.length > TREND_CHIP_CAP
-      ? `<div style="font-size:10px;color:var(--text-muted);flex:1 1 100%;margin-top:2px;">오더량 상위 ${TREND_CHIP_CAP}개만 표시(전체 ${custListAll.length}개) — 표시 안 된 업체도 "전체" 집계엔 포함됨</div>` : '';
+      ? `<div style="font-size:10px;color:var(--text-muted);flex:1 1 100%;margin-top:2px;">오더량 상위 ${TREND_CHIP_CAP}개만 표시(전체 ${custListAll.length}개) — 선택된 상태면 표시 안 된 업체도 집계에 포함됨</div>` : '';
     custBox.innerHTML = custList.map(name => {
-      const active = APP.trendCust.size === 0 || APP.trendCust.has(name);
+      const active = APP.trendCust.has(name);
       return `<button onmousedown="trendCustDragStart('${esc(name)}')" onmouseenter="trendCustDragOver('${esc(name)}')" style="padding:5px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};user-select:none;">${name}</button>`;
     }).join('') + capNote;
   }
@@ -2826,47 +2852,101 @@ function renderOrderTrend() {
   const itemBox = document.getElementById('orderTrendItemChips');
   if (itemBox) {
     const capNote = itemListAll.length > TREND_CHIP_CAP
-      ? `<div style="font-size:10px;color:var(--text-muted);flex:1 1 100%;margin-top:2px;">오더량 상위 ${TREND_CHIP_CAP}개만 표시(전체 ${itemListAll.length}개) — 표시 안 된 품목도 "전체" 집계엔 포함됨</div>` : '';
+      ? `<div style="font-size:10px;color:var(--text-muted);flex:1 1 100%;margin-top:2px;">오더량 상위 ${TREND_CHIP_CAP}개만 표시(전체 ${itemListAll.length}개) — 선택된 상태면 표시 안 된 품목도 집계에 포함됨</div>` : '';
     itemBox.innerHTML = itemList.map(code => {
-      const active = APP.trendItem.size === 0 || APP.trendItem.has(code);
+      const active = APP.trendItem.has(code);
       return `<button onmousedown="trendItemDragStart('${esc(code)}')" onmouseenter="trendItemDragOver('${esc(code)}')" style="padding:5px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};user-select:none;">${code}</button>`;
     }).join('') + capNote;
   }
 
   const mos = [...APP.selectedMonths].sort((a,b)=>a-b);
-  const custOk = r => APP.trendCust.size === 0 || APP.trendCust.has(r.customer);
-  const itemOk = r => APP.trendItem.size === 0 || APP.trendItem.has(r.code);
-  const rows = deptLog.filter(r => r.year === APP.year && mos.includes(r.mo) && custOk(r) && itemOk(r));
-  const byMonth = {};
-  for (const mo of mos) byMonth[mo] = 0;
-  for (const r of rows) byMonth[r.mo] = (byMonth[r.mo] || 0) + r.qty;
-  const data = mos.map(mo => byMonth[mo] || 0);
-
-  const shortLabel = (set, allText) => {
-    if (set.size === 0) return allText;
-    const arr = [...set];
-    return arr.length <= 3 ? arr.join('·') : `${arr.slice(0,3).join('·')} 외 ${arr.length-3}개`;
+  const custOk = r => APP.trendCust.has(r.customer);
+  const itemOk = r => APP.trendItem.has(r.code);
+  const sumByMonth = (year) => {
+    const byMonth = {}; for (const mo of mos) byMonth[mo] = 0;
+    for (const r of deptLog) { if (r.year === year && mos.includes(r.mo) && custOk(r) && itemOk(r)) byMonth[r.mo] += r.qty; }
+    return mos.map(mo => byMonth[mo] || 0);
   };
-  const custLabel = shortLabel(APP.trendCust, '전체 수주업체');
-  const itemLabel = shortLabel(APP.trendItem, '전체 품목');
+  const data = sumByMonth(APP.year);
+  const compYear = APP.year === 2026 ? 2025 : 2026;
+  const compData = sumByMonth(compYear);
+  const hasComp = compData.some(v => v > 0);
+
+  // 매출액(오더량×판매가) — 2반만, 판매가 표에 있는 품목만 반영(가격 미확인 품목은 0으로 처리)
+  const showRevenue = APP.dept === '2반' && APP.priceMap && Object.keys(APP.priceMap).length > 0;
+  let unpricedCodes = new Set();
+  const sumRevByMonth = (year) => {
+    const byMonth = {}; for (const mo of mos) byMonth[mo] = 0;
+    for (const r of deptLog) {
+      if (r.year !== year || !mos.includes(r.mo) || !custOk(r) || !itemOk(r)) continue;
+      const price = APP.priceMap[r.code];
+      if (price == null) { unpricedCodes.add(r.code); continue; }
+      byMonth[r.mo] += r.qty * price;
+    }
+    return mos.map(mo => byMonth[mo] || 0);
+  };
+  const revData = showRevenue ? sumRevByMonth(APP.year) : null;
+  const compRevData = showRevenue && hasComp ? sumRevByMonth(compYear) : null;
+  const fmtWon = v => v == null ? '—' : Math.round(v).toLocaleString() + '원';
+
+  const allCustN = new Set(deptLog.map(r=>r.customer)).size;
+  const allItemN = new Set(deptLog.map(r=>r.code)).size;
+  const shortLabel = (set, allN) => {
+    if (set.size === allN) return '전체';
+    const arr = [...set];
+    return arr.length === 0 ? '없음' : arr.length <= 3 ? arr.join('·') : `${arr.slice(0,3).join('·')} 외 ${arr.length-3}개`;
+  };
+  const custLabel = shortLabel(APP.trendCust, allCustN);
+  const itemLabel = shortLabel(APP.trendItem, allItemN);
 
   if (!APP.chartOrderTrend) APP.chartOrderTrend = echarts.init(document.getElementById('chartOrderTrend'));
   const T = chartTheme();
+  const series = [{
+    name: `${APP.year}년`, type: 'line', data, smooth: true, symbol: 'circle', symbolSize: 8,
+    lineStyle: { color: mapAccent('#C9A961'), width: 2.5 }, itemStyle: { color: mapAccent('#C9A961') },
+    areaStyle: { color: mapAccent('#C9A961'), opacity: 0.12 },
+    label: { show: true, position: 'top', color: mapAccent('#C9A961'), fontSize: 11, fontWeight: 700, formatter: p => fmtN(p.value) },
+  }];
+  if (hasComp) {
+    series.push({
+      name: `${compYear}년`, type: 'line', data: compData, smooth: true, symbol: 'circle', symbolSize: 6,
+      lineStyle: { color: mapAccent('#8A9BBF'), width: 2, type: 'dashed' }, itemStyle: { color: mapAccent('#8A9BBF') },
+    });
+  }
+  if (showRevenue) {
+    series.push({
+      name: `${APP.year}년 매출액`, type: 'line', yAxisIndex: 1, data: revData, smooth: true, symbol: 'circle', symbolSize: 8,
+      lineStyle: { color: mapAccent('#4FC3F7'), width: 2.5 }, itemStyle: { color: mapAccent('#4FC3F7') },
+    });
+    if (compRevData) {
+      series.push({
+        name: `${compYear}년 매출액`, type: 'line', yAxisIndex: 1, data: compRevData, smooth: true, symbol: 'circle', symbolSize: 6,
+        lineStyle: { color: mapAccent('#6FC3DF'), width: 2, type: 'dashed' }, itemStyle: { color: mapAccent('#6FC3DF') },
+      });
+    }
+  }
+  const unpricedNote = showRevenue && unpricedCodes.size
+    ? `<div style="color:var(--amber);">⚠ 판매가 미확인 품목 ${unpricedCodes.size}개는 매출액에서 제외됨</div>` : '';
   APP.chartOrderTrend.setOption({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis', backgroundColor: T.tipBg, borderColor: T.tipBorder, textStyle: { color: T.tipText },
-      formatter: p => `<div style="font-weight:700;margin-bottom:4px;">${p[0].axisValue}월</div><div>${custLabel} · ${itemLabel}</div><div>오더량: <b>${fmtN(p[0].value)}</b></div>` },
-    grid: { left: 60, right: 30, top: 30, bottom: 30 },
+      formatter: p => {
+        let h = `<div style="font-weight:700;margin-bottom:4px;">${p[0].axisValue}월</div><div>수주업체: ${custLabel} · 품목: ${itemLabel}</div>`;
+        p.forEach(s => h += `<div>${s.marker}${s.seriesName}: <b>${s.seriesName.includes('매출액') ? fmtWon(s.value) : fmtN(s.value)}</b></div>`);
+        return h;
+      } },
+    legend: (hasComp || showRevenue) ? { data: series.map(s=>s.name), textStyle: { color: T.axisText }, top: 0, type: 'scroll' } : undefined,
+    grid: { left: 60, right: showRevenue ? 70 : 30, top: (hasComp || showRevenue) ? 40 : 30, bottom: 30 },
     xAxis: { type: 'category', data: mos.map(m => `${m}월`), axisLine: { lineStyle: { color: T.axisLine } }, axisLabel: { color: T.axisText } },
-    yAxis: { type: 'value', name: '오더량(EA)', nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => Math.round(v).toLocaleString() }, splitLine: { lineStyle: { color: T.split } } },
-    series: [{
-      type: 'line', data, smooth: true, symbol: 'circle', symbolSize: 8,
-      lineStyle: { color: mapAccent('#C9A961'), width: 2.5 }, itemStyle: { color: mapAccent('#C9A961') },
-      areaStyle: { color: mapAccent('#C9A961'), opacity: 0.12 },
-      label: { show: true, position: 'top', color: mapAccent('#C9A961'), fontSize: 11, fontWeight: 700, formatter: p => fmtN(p.value) },
-    }],
+    yAxis: [
+      { type: 'value', name: '오더량(EA)', nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => Math.round(v).toLocaleString() }, splitLine: { lineStyle: { color: T.split } } },
+      { type: 'value', name: '매출액(원)', nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => (v/10000).toLocaleString()+'만' }, splitLine: { show: false } },
+    ],
+    series,
   }, true);
   APP.chartOrderTrend.resize();
+  const noteEl = document.getElementById('orderTrendNote');
+  if (noteEl) noteEl.innerHTML = unpricedNote;
 }
 
 function renderLaggardItems() {
@@ -3576,7 +3656,7 @@ function switchDept(dept) {
   document.getElementById('deptTitle').textContent = dept;
   document.querySelectorAll('.btn[data-dept]').forEach(b => b.classList.toggle('active', b.dataset.dept === dept));
   document.getElementById('itemSearch').value = '';
-  APP.trendCust = new Set(); APP.trendItem = new Set(); // 수주업체·품목별 오더 추이 선택은 부서 전환 시 초기화(다른 부서 값이 남아있으면 조건에 안 맞아 빈 차트가 됨)
+  APP.trendInitDept = null; // 수주업체·품목별 오더 추이 선택을 부서 전환 시 그 부서 전체선택으로 재초기화(ensureTrendDefaults)
   renderYearChips(); renderWeekChips(); renderCatChips(); renderItemChips();
   selectAllMonths();
 }
@@ -3616,6 +3696,7 @@ async function init() {
     APP.prodLogActual = cProdLog ? parseProductionLog(cProdLog) : null;
     APP.orderLog = cOrderLog ? parseOrderLog(cOrderLog) : null;
     APP.orderDistColorMap = APP.orderLog ? buildOrderDistColorMap(APP.orderLog) : {};
+    APP.priceMap = c26_2 ? parsePriceTable(c26_2) : {}; // 2반 품목별 판매가(오더 추이 매출액 계산용)
 
     const anyData = APP.data[2026]['1반'] || APP.data[2026]['2반'] || APP.data[2025]['1반'] || APP.data[2025]['2반'];
     if (!anyData) throw new Error('데이터 없음');
