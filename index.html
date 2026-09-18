@@ -506,6 +506,11 @@ document.addEventListener('fullscreenchange', () => {
     </div>
     <div id="orderTrendBody">
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;">
+        <div id="orderTrendMetricGroup" style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--wash);border:1px solid var(--border);border-radius:8px;">
+          <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">지표</span>
+          <button class="btn" id="trendMetricQtyBtn" onclick="toggleTrendMetric('수량')" style="padding:3px 9px;font-size:10px;">수량</button>
+          <button class="btn" id="trendMetricRevBtn" onclick="toggleTrendMetric('매출액')" style="padding:3px 9px;font-size:10px;">매출액</button>
+        </div>
         <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--wash);border:1px solid var(--border);border-radius:8px;">
           <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">수주업체</span>
           <button class="btn" id="trendCustAllBtn" onclick="selectAllTrendCust()" style="padding:3px 9px;font-size:10px;">전체선택</button>
@@ -611,6 +616,7 @@ const APP = {
   orderDistCats: new Set(), // 빈 값=전체(EP+ENBD+Duodeca), 아니면 선택된 카테고리들(복수 선택 가능)
   trendCust: new Set(), // 수주업체·품목별 오더 추이 — 빈 값=전체
   trendItem: new Set(),
+  trendMetrics: new Set(['수량','매출액']), // 오더 추이 차트에 표시할 지표(복수 선택, 최소 1개)
   orderTrendCollapsed: false,
 };
 
@@ -2808,6 +2814,13 @@ function toggleOrderTrend() {
   APP.orderTrendCollapsed = !APP.orderTrendCollapsed;
   renderOrderTrend();
 }
+function toggleTrendMetric(m) {
+  if (APP.trendMetrics.has(m)) {
+    if (APP.trendMetrics.size === 1) return; // 최소 1개는 유지
+    APP.trendMetrics.delete(m);
+  } else APP.trendMetrics.add(m);
+  renderOrderTrend();
+}
 function renderOrderTrend() {
   const sec = document.getElementById('orderTrendSection');
   if (!sec) return;
@@ -2905,21 +2918,32 @@ function renderOrderTrend() {
   document.getElementById('trendItemAllBtn')?.classList.toggle('active', APP.trendItem.size === allItemN);
   document.getElementById('trendItemNoneBtn')?.classList.toggle('active', APP.trendItem.size === 0);
 
+  // 지표 선택(수량/매출액) — 매출액은 판매가 있는 부서(2반)에서만 노출
+  const revBtn = document.getElementById('trendMetricRevBtn');
+  if (revBtn) revBtn.style.display = showRevenue ? '' : 'none';
+  document.getElementById('trendMetricQtyBtn')?.classList.toggle('active', APP.trendMetrics.has('수량'));
+  revBtn?.classList.toggle('active', APP.trendMetrics.has('매출액'));
+  const showQty = APP.trendMetrics.has('수량');
+  const showRev = showRevenue && APP.trendMetrics.has('매출액');
+
   if (!APP.chartOrderTrend) APP.chartOrderTrend = echarts.init(document.getElementById('chartOrderTrend'));
   const T = chartTheme();
-  const series = [{
-    name: `${APP.year}년`, type: 'line', data, smooth: true, symbol: 'circle', symbolSize: 8,
-    lineStyle: { color: mapAccent('#C9A961'), width: 2.5 }, itemStyle: { color: mapAccent('#C9A961') },
-    areaStyle: { color: mapAccent('#C9A961'), opacity: 0.12 },
-    label: { show: true, position: 'top', color: mapAccent('#C9A961'), fontSize: 11, fontWeight: 700, formatter: p => fmtN(p.value) },
-  }];
-  if (hasComp) {
+  const series = [];
+  if (showQty) {
     series.push({
-      name: `${compYear}년`, type: 'line', data: compData, smooth: true, symbol: 'circle', symbolSize: 6,
-      lineStyle: { color: mapAccent('#8A9BBF'), width: 2, type: 'dashed' }, itemStyle: { color: mapAccent('#8A9BBF') },
+      name: `${APP.year}년`, type: 'line', yAxisIndex: 0, data, smooth: true, symbol: 'circle', symbolSize: 8,
+      lineStyle: { color: mapAccent('#C9A961'), width: 2.5 }, itemStyle: { color: mapAccent('#C9A961') },
+      areaStyle: { color: mapAccent('#C9A961'), opacity: 0.12 },
+      label: { show: true, position: 'top', color: mapAccent('#C9A961'), fontSize: 11, fontWeight: 700, formatter: p => fmtN(p.value) },
     });
+    if (hasComp) {
+      series.push({
+        name: `${compYear}년`, type: 'line', yAxisIndex: 0, data: compData, smooth: true, symbol: 'circle', symbolSize: 6,
+        lineStyle: { color: mapAccent('#8A9BBF'), width: 2, type: 'dashed' }, itemStyle: { color: mapAccent('#8A9BBF') },
+      });
+    }
   }
-  if (showRevenue) {
+  if (showRev) {
     series.push({
       name: `${APP.year}년 매출액`, type: 'line', yAxisIndex: 1, data: revData, smooth: true, symbol: 'circle', symbolSize: 8,
       lineStyle: { color: mapAccent('#4FC3F7'), width: 2.5 }, itemStyle: { color: mapAccent('#4FC3F7') },
@@ -2931,30 +2955,27 @@ function renderOrderTrend() {
       });
     }
   }
-  const unpricedNote = showRevenue && unpricedCodes.size
+  const unpricedNote = showRev && unpricedCodes.size
     ? `<div style="color:var(--amber);">⚠ 판매가 미확인 품목 ${unpricedCodes.size}개는 매출액에서 제외됨</div>` : '';
 
-  // 누적 전체 매출액 — 선택 기간 합계를 26년·25년 둘 다 항상 표시
+  // 누적 동기간 비교 — 선택 기간 합계를 26년·25년 둘 다 항상 표시(수량·매출액 각각, 선택된 지표만)
   const revSummaryEl = document.getElementById('orderTrendRevSummary');
   if (revSummaryEl) {
-    if (showRevenue) {
-      revSummaryEl.style.display = 'flex';
-      const curTotal = revData.reduce((a,b)=>a+b, 0);
-      const compTotal = (compRevData || []).reduce((a,b)=>a+b, 0);
+    const badgeGroup = (label, curTotal, compTotal, fmtFn, color1, color2) => {
       const y2026Total = APP.year === 2026 ? curTotal : compTotal;
       const y2025Total = APP.year === 2025 ? curTotal : compTotal;
       const diff = y2026Total - y2025Total;
       const rate = y2025Total > 0 ? (diff / y2025Total * 100) : null;
       const diffHtml = rate == null ? '' :
-        `<span style="color:${diff>=0?'var(--mint)':'var(--red)'};font-weight:700;font-size:11px;margin-left:6px;">${diff>=0?'▲':'▼'} ${Math.abs(rate).toFixed(0)}%</span>`;
-      const cell = (label, val, color) => `<div style="display:flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:6px 12px;"><span style="font-size:11px;color:var(--text-secondary);font-weight:600;">${label}</span><span style="font-size:14px;font-weight:800;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtWon(val)}</span></div>`;
-      revSummaryEl.innerHTML =
-        cell('26년 누적 매출액', y2026Total, mapAccent('#4FC3F7')) +
-        cell('25년 누적 매출액', y2025Total, mapAccent('#6FC3DF')) + diffHtml;
-    } else {
-      revSummaryEl.style.display = 'none';
-      revSummaryEl.innerHTML = '';
-    }
+        `<span style="color:${diff>=0?'var(--mint)':'var(--red)'};font-weight:700;font-size:11px;margin-left:2px;">${diff>=0?'▲':'▼'} ${Math.abs(rate).toFixed(0)}%</span>`;
+      const cell = (yr, val, color) => `<div style="display:flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:6px 12px;"><span style="font-size:11px;color:var(--text-secondary);font-weight:600;">${yr} 누적 ${label}</span><span style="font-size:14px;font-weight:800;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtFn(val)}</span></div>`;
+      return cell('26년', y2026Total, color1) + cell('25년', y2025Total, color2) + diffHtml;
+    };
+    let html = '';
+    if (showQty) html += badgeGroup('오더량', data.reduce((a,b)=>a+b,0), compData.reduce((a,b)=>a+b,0), fmtN, mapAccent('#C9A961'), mapAccent('#8A9BBF'));
+    if (showRev) html += badgeGroup('매출액', revData.reduce((a,b)=>a+b,0), (compRevData||[]).reduce((a,b)=>a+b,0), fmtWon, mapAccent('#4FC3F7'), mapAccent('#6FC3DF'));
+    revSummaryEl.style.display = html ? 'flex' : 'none';
+    revSummaryEl.innerHTML = html;
   }
   APP.chartOrderTrend.setOption({
     backgroundColor: 'transparent',
@@ -2964,12 +2985,12 @@ function renderOrderTrend() {
         p.forEach(s => h += `<div>${s.marker}${s.seriesName}: <b>${s.seriesName.includes('매출액') ? fmtWon(s.value) : fmtN(s.value)}</b></div>`);
         return h;
       } },
-    legend: (hasComp || showRevenue) ? { data: series.map(s=>s.name), textStyle: { color: T.axisText }, top: 0, type: 'scroll' } : undefined,
-    grid: { left: 60, right: showRevenue ? 70 : 30, top: (hasComp || showRevenue) ? 40 : 30, bottom: 30 },
+    legend: series.length > 1 ? { data: series.map(s=>s.name), textStyle: { color: T.axisText }, top: 0, type: 'scroll' } : undefined,
+    grid: { left: 60, right: showRev ? 70 : 30, top: series.length > 1 ? 40 : 30, bottom: 30 },
     xAxis: { type: 'category', data: mos.map(m => `${m}월`), axisLine: { lineStyle: { color: T.axisLine } }, axisLabel: { color: T.axisText } },
     yAxis: [
-      { type: 'value', name: '오더량(EA)', nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => Math.round(v).toLocaleString() }, splitLine: { lineStyle: { color: T.split } } },
-      { type: 'value', name: '매출액(원)', nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => (v/10000).toLocaleString()+'만' }, splitLine: { show: false } },
+      { type: 'value', name: '오더량(EA)', show: showQty, nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => Math.round(v).toLocaleString() }, splitLine: { lineStyle: { color: T.split } } },
+      { type: 'value', name: '매출액(원)', show: showRev, nameTextStyle: { color: T.axisName }, axisLabel: { color: T.axisText, formatter: v => (v/10000).toLocaleString()+'만' }, splitLine: { show: false } },
     ],
     series,
   }, true);
