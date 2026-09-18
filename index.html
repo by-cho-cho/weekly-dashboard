@@ -500,7 +500,7 @@ document.addEventListener('fullscreenchange', () => {
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <div>
         <div class="kpi-label">수주업체·품목별 오더 추이</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">오더일 기준 월별 오더량 · 수주업체·품목을 선택하면 그 조합만 집계(클릭 또는 슬라이딩으로 다중 선택/해제)</div>
+        <div id="orderTrendCaption" style="font-size:11px;color:var(--text-muted);margin-top:2px;">오더일 기준 월별 오더량 · 수주업체·품목을 선택하면 그 조합만 집계(클릭 또는 슬라이딩으로 다중 선택/해제)</div>
       </div>
       <button id="orderTrendToggle" class="btn" onclick="toggleOrderTrend()" style="font-size:10px;padding:4px 10px;">▾ 숨기기</button>
     </div>
@@ -521,6 +521,7 @@ document.addEventListener('fullscreenchange', () => {
           <button class="btn" id="trendItemAllBtn" onclick="selectAllTrendItem()" style="padding:3px 9px;font-size:10px;">전체선택</button>
           <button class="btn" id="trendItemNoneBtn" onclick="clearTrendItem()" style="padding:3px 9px;font-size:10px;">해제</button>
         </div>
+        <button id="trendYoyBtn" onclick="toggleTrendYoy()" class="btn" style="padding:6px 12px;font-size:11px;letter-spacing:0.02em;">📊 25년 동기간 비교</button>
       </div>
       <div style="font-size:10px;color:var(--text-muted);margin:2px 0;">수주업체</div>
       <div id="orderTrendCustChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
@@ -618,6 +619,7 @@ const APP = {
   trendCust: new Set(), // 수주업체·품목별 오더 추이 — 빈 값=전체
   trendItem: new Set(),
   trendMetrics: new Set(['수량','매출액']), // 오더 추이 차트에 표시할 지표(복수 선택, 최소 1개)
+  trendYoyOn: true, // 오더 추이 — 25년 동기간 비교 라인·뱃지 표시 여부
   orderTrendCollapsed: false,
 };
 
@@ -2822,6 +2824,10 @@ function toggleTrendMetric(m) {
   } else APP.trendMetrics.add(m);
   renderOrderTrend();
 }
+function toggleTrendYoy() {
+  APP.trendYoyOn = !APP.trendYoyOn;
+  renderOrderTrend();
+}
 function renderOrderTrend() {
   const sec = document.getElementById('orderTrendSection');
   if (!sec) return;
@@ -2885,7 +2891,7 @@ function renderOrderTrend() {
   const data = sumByMonth(APP.year);
   const compYear = APP.year === 2026 ? 2025 : 2026;
   const compData = sumByMonth(compYear);
-  const hasComp = compData.some(v => v > 0);
+  const hasComp = APP.trendYoyOn && compData.some(v => v > 0);
 
   // 매출액(오더량×판매가) — 2반만, 판매가 표에 있는 품목만 반영(가격 미확인 품목은 0으로 처리)
   const showRevenue = APP.dept === '2반' && APP.priceMap && Object.keys(APP.priceMap).length > 0;
@@ -2902,7 +2908,7 @@ function renderOrderTrend() {
   };
   const revData = showRevenue ? sumRevByMonth(APP.year) : null;
   const compRevData = showRevenue ? sumRevByMonth(compYear) : null; // 라인 표시 여부와 무관하게 항상 계산(누적 요약에 양쪽 연도 다 표시)
-  const hasCompRev = !!(compRevData && compRevData.some(v => v > 0));
+  const hasCompRev = APP.trendYoyOn && !!(compRevData && compRevData.some(v => v > 0));
   const fmtWon = v => v == null ? '—' : Math.round(v).toLocaleString() + '원';
 
   const allCustN = new Set(deptLog.map(r=>r.customer)).size;
@@ -2918,6 +2924,9 @@ function renderOrderTrend() {
   document.getElementById('trendCustNoneBtn')?.classList.toggle('active', APP.trendCust.size === 0);
   document.getElementById('trendItemAllBtn')?.classList.toggle('active', APP.trendItem.size === allItemN);
   document.getElementById('trendItemNoneBtn')?.classList.toggle('active', APP.trendItem.size === 0);
+  document.getElementById('trendYoyBtn')?.classList.toggle('active', APP.trendYoyOn);
+  const captionEl = document.getElementById('orderTrendCaption');
+  if (captionEl) captionEl.textContent = `${APP.year}년 · ${mos.map(m=>m+'월').join('·')} · ${custLabel} · ${itemLabel}${APP.trendYoyOn ? ' · 점선=동기간' : ''}`;
 
   // 지표 선택(수량/매출액) — 매출액은 판매가 있는 부서(2반)에서만 노출
   const revBtn = document.getElementById('trendMetricRevBtn');
@@ -2962,15 +2971,16 @@ function renderOrderTrend() {
   // 동기간 비교 — 선택 기간 합계를 26년·25년 둘 다 항상 표시(수량·매출액 각각, 선택된 지표만)
   const revSummaryEl = document.getElementById('orderTrendRevSummary');
   if (revSummaryEl) {
+    const cell = (yr, label, val, fmtFn, color) => `<div style="display:flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:6px 12px;"><span style="font-size:11px;color:var(--text-secondary);font-weight:600;">${yr} 동기간 ${label}</span><span style="font-size:14px;font-weight:800;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtFn(val)}</span></div>`;
     const badgeGroup = (label, curTotal, compTotal, fmtFn, color1, color2) => {
+      if (!APP.trendYoyOn) return cell(`${APP.year}년`, label, curTotal, fmtFn, color1);
       const y2026Total = APP.year === 2026 ? curTotal : compTotal;
       const y2025Total = APP.year === 2025 ? curTotal : compTotal;
       const diff = y2026Total - y2025Total;
       const rate = y2025Total > 0 ? (diff / y2025Total * 100) : null;
       const diffHtml = rate == null ? '' :
         `<span style="color:${diff>=0?'var(--mint)':'var(--red)'};font-weight:700;font-size:11px;margin-left:2px;">${diff>=0?'▲':'▼'} ${Math.abs(rate).toFixed(0)}%</span>`;
-      const cell = (yr, val, color) => `<div style="display:flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:6px 12px;"><span style="font-size:11px;color:var(--text-secondary);font-weight:600;">${yr} 동기간 ${label}</span><span style="font-size:14px;font-weight:800;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtFn(val)}</span></div>`;
-      return cell('26년', y2026Total, color1) + cell('25년', y2025Total, color2) + diffHtml;
+      return cell('26년', label, y2026Total, fmtFn, color1) + cell('25년', label, y2025Total, fmtFn, color2) + diffHtml;
     };
     let html = '';
     if (showQty) html += badgeGroup('오더량', data.reduce((a,b)=>a+b,0), compData.reduce((a,b)=>a+b,0), fmtN, mapAccent('#C9A961'), mapAccent('#8A9BBF'));
