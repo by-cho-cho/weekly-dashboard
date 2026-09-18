@@ -529,6 +529,7 @@ document.addEventListener('fullscreenchange', () => {
       <div id="orderTrendRevSummary" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
       <div id="chartOrderTrend" style="height:280px;"></div>
       <div id="orderTrendNote" style="font-size:11px;margin-top:6px;"></div>
+      <div id="orderTrendDrilldown" style="margin-top:10px;"></div>
     </div>
   </div>
 </section>
@@ -2958,7 +2959,7 @@ function renderOrderTrend() {
   const unpricedNote = showRev && unpricedCodes.size
     ? `<div style="color:var(--amber);">⚠ 판매가 미확인 품목 ${unpricedCodes.size}개는 매출액에서 제외됨</div>` : '';
 
-  // 누적 동기간 비교 — 선택 기간 합계를 26년·25년 둘 다 항상 표시(수량·매출액 각각, 선택된 지표만)
+  // 동기간 비교 — 선택 기간 합계를 26년·25년 둘 다 항상 표시(수량·매출액 각각, 선택된 지표만)
   const revSummaryEl = document.getElementById('orderTrendRevSummary');
   if (revSummaryEl) {
     const badgeGroup = (label, curTotal, compTotal, fmtFn, color1, color2) => {
@@ -2968,7 +2969,7 @@ function renderOrderTrend() {
       const rate = y2025Total > 0 ? (diff / y2025Total * 100) : null;
       const diffHtml = rate == null ? '' :
         `<span style="color:${diff>=0?'var(--mint)':'var(--red)'};font-weight:700;font-size:11px;margin-left:2px;">${diff>=0?'▲':'▼'} ${Math.abs(rate).toFixed(0)}%</span>`;
-      const cell = (yr, val, color) => `<div style="display:flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:6px 12px;"><span style="font-size:11px;color:var(--text-secondary);font-weight:600;">${yr} 누적 ${label}</span><span style="font-size:14px;font-weight:800;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtFn(val)}</span></div>`;
+      const cell = (yr, val, color) => `<div style="display:flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:6px 12px;"><span style="font-size:11px;color:var(--text-secondary);font-weight:600;">${yr} 동기간 ${label}</span><span style="font-size:14px;font-weight:800;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtFn(val)}</span></div>`;
       return cell('26년', y2026Total, color1) + cell('25년', y2025Total, color2) + diffHtml;
     };
     let html = '';
@@ -2997,6 +2998,43 @@ function renderOrderTrend() {
   APP.chartOrderTrend.resize();
   const noteEl = document.getElementById('orderTrendNote');
   if (noteEl) noteEl.innerHTML = unpricedNote;
+  document.getElementById('orderTrendDrilldown').innerHTML = ''; // 필터 바뀌면 이전 클릭 내역 초기화
+  APP.chartOrderTrend.off('click');
+  APP.chartOrderTrend.on('click', p => {
+    const mo = mos[p.dataIndex];
+    if (mo == null) return;
+    const year = p.seriesName.startsWith(String(compYear)) ? compYear : APP.year;
+    renderTrendDrilldown(year, mo);
+  });
+}
+// 오더 추이 차트 클릭 시 — 그 달(연도) 선택 조건에 해당하는 오더를 품목별로 펼쳐 보여줌
+function renderTrendDrilldown(year, mo) {
+  const el = document.getElementById('orderTrendDrilldown');
+  if (!el) return;
+  const deptLog = orderLogForDept();
+  const custOk = r => APP.trendCust.has(r.customer);
+  const itemOk = r => APP.trendItem.has(r.code);
+  const rows = deptLog.filter(r => r.year === year && r.mo === mo && custOk(r) && itemOk(r));
+  if (!rows.length) { el.innerHTML = `<div style="font-size:12px;color:var(--text-muted);padding:8px;">${year}년 ${mo}월 · 선택 조건에 해당하는 오더 없음</div>`; return; }
+  const byItem = {};
+  for (const r of rows) {
+    const key = r.code || '(미기재)';
+    const entry = byItem[key] || (byItem[key] = { qty: 0, rev: 0, custs: new Set() });
+    entry.qty += r.qty;
+    const price = APP.priceMap?.[r.code];
+    if (price != null) entry.rev += r.qty * price;
+    entry.custs.add(r.customer);
+  }
+  const items = Object.entries(byItem).sort((a,b) => b[1].qty - a[1].qty);
+  const totalQty = items.reduce((s,[,v]) => s + v.qty, 0);
+  const showRev = APP.dept === '2반' && APP.priceMap && Object.keys(APP.priceMap).length > 0;
+  let html = `<div style="font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">${year}년 ${mo}월 품목별 내역 · 오더량 합계 ${fmtN(totalQty)}</div>`;
+  html += `<table class="exec" style="width:100%;border-collapse:collapse;"><thead><tr><th>품목</th><th style="text-align:right">오더량</th>${showRev?'<th style="text-align:right">매출액</th>':''}<th>수주업체</th></tr></thead><tbody>`;
+  for (const [code, v] of items) {
+    html += `<tr><td style="font-weight:600;">${code}</td><td style="text-align:right;color:var(--cyan);">${fmtN(v.qty)}</td>${showRev?`<td style="text-align:right;color:var(--text-muted);">${v.rev>0?fmtN(v.rev)+'원':'—'}</td>`:''}<td style="font-size:11px;color:var(--text-muted);">${[...v.custs].join(', ')}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
 }
 
 function renderLaggardItems() {
