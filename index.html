@@ -505,22 +505,23 @@ document.addEventListener('fullscreenchange', () => {
       <button id="orderTrendToggle" class="btn" onclick="toggleOrderTrend()" style="font-size:10px;padding:4px 10px;">▾ 숨기기</button>
     </div>
     <div id="orderTrendBody">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0;">
-        <div style="font-size:11px;color:var(--text-muted);">수주업체</div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn" onclick="selectAllTrendCust()" style="font-size:10px;padding:3px 8px;">전체선택</button>
-          <button class="btn" onclick="clearTrendCust()" style="font-size:10px;padding:3px 8px;">해제</button>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0 8px;">
+        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--wash);border:1px solid var(--border);border-radius:8px;">
+          <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">수주업체</span>
+          <button class="btn" id="trendCustAllBtn" onclick="selectAllTrendCust()" style="padding:3px 9px;font-size:10px;">전체선택</button>
+          <button class="btn" id="trendCustNoneBtn" onclick="clearTrendCust()" style="padding:3px 9px;font-size:10px;">해제</button>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;padding:4px 8px;background:var(--wash);border:1px solid var(--border);border-radius:8px;">
+          <span style="font-size:10px;color:var(--text-muted);margin-right:2px;">품목</span>
+          <button class="btn" id="trendItemAllBtn" onclick="selectAllTrendItem()" style="padding:3px 9px;font-size:10px;">전체선택</button>
+          <button class="btn" id="trendItemNoneBtn" onclick="clearTrendItem()" style="padding:3px 9px;font-size:10px;">해제</button>
         </div>
       </div>
+      <div style="font-size:10px;color:var(--text-muted);margin:2px 0;">수주업체</div>
       <div id="orderTrendCustChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 0;">
-        <div style="font-size:11px;color:var(--text-muted);">품목</div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn" onclick="selectAllTrendItem()" style="font-size:10px;padding:3px 8px;">전체선택</button>
-          <button class="btn" onclick="clearTrendItem()" style="font-size:10px;padding:3px 8px;">해제</button>
-        </div>
-      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin:2px 0;">품목</div>
       <div id="orderTrendItemChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+      <div id="orderTrendRevSummary" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
       <div id="chartOrderTrend" style="height:280px;"></div>
       <div id="orderTrendNote" style="font-size:11px;margin-top:6px;"></div>
     </div>
@@ -2886,7 +2887,8 @@ function renderOrderTrend() {
     return mos.map(mo => byMonth[mo] || 0);
   };
   const revData = showRevenue ? sumRevByMonth(APP.year) : null;
-  const compRevData = showRevenue && hasComp ? sumRevByMonth(compYear) : null;
+  const compRevData = showRevenue ? sumRevByMonth(compYear) : null; // 라인 표시 여부와 무관하게 항상 계산(누적 요약에 양쪽 연도 다 표시)
+  const hasCompRev = !!(compRevData && compRevData.some(v => v > 0));
   const fmtWon = v => v == null ? '—' : Math.round(v).toLocaleString() + '원';
 
   const allCustN = new Set(deptLog.map(r=>r.customer)).size;
@@ -2898,6 +2900,10 @@ function renderOrderTrend() {
   };
   const custLabel = shortLabel(APP.trendCust, allCustN);
   const itemLabel = shortLabel(APP.trendItem, allItemN);
+  document.getElementById('trendCustAllBtn')?.classList.toggle('active', APP.trendCust.size === allCustN);
+  document.getElementById('trendCustNoneBtn')?.classList.toggle('active', APP.trendCust.size === 0);
+  document.getElementById('trendItemAllBtn')?.classList.toggle('active', APP.trendItem.size === allItemN);
+  document.getElementById('trendItemNoneBtn')?.classList.toggle('active', APP.trendItem.size === 0);
 
   if (!APP.chartOrderTrend) APP.chartOrderTrend = echarts.init(document.getElementById('chartOrderTrend'));
   const T = chartTheme();
@@ -2918,7 +2924,7 @@ function renderOrderTrend() {
       name: `${APP.year}년 매출액`, type: 'line', yAxisIndex: 1, data: revData, smooth: true, symbol: 'circle', symbolSize: 8,
       lineStyle: { color: mapAccent('#4FC3F7'), width: 2.5 }, itemStyle: { color: mapAccent('#4FC3F7') },
     });
-    if (compRevData) {
+    if (hasCompRev) {
       series.push({
         name: `${compYear}년 매출액`, type: 'line', yAxisIndex: 1, data: compRevData, smooth: true, symbol: 'circle', symbolSize: 6,
         lineStyle: { color: mapAccent('#6FC3DF'), width: 2, type: 'dashed' }, itemStyle: { color: mapAccent('#6FC3DF') },
@@ -2927,6 +2933,29 @@ function renderOrderTrend() {
   }
   const unpricedNote = showRevenue && unpricedCodes.size
     ? `<div style="color:var(--amber);">⚠ 판매가 미확인 품목 ${unpricedCodes.size}개는 매출액에서 제외됨</div>` : '';
+
+  // 누적 전체 매출액 — 선택 기간 합계를 26년·25년 둘 다 항상 표시
+  const revSummaryEl = document.getElementById('orderTrendRevSummary');
+  if (revSummaryEl) {
+    if (showRevenue) {
+      revSummaryEl.style.display = 'flex';
+      const curTotal = revData.reduce((a,b)=>a+b, 0);
+      const compTotal = (compRevData || []).reduce((a,b)=>a+b, 0);
+      const y2026Total = APP.year === 2026 ? curTotal : compTotal;
+      const y2025Total = APP.year === 2025 ? curTotal : compTotal;
+      const diff = y2026Total - y2025Total;
+      const rate = y2025Total > 0 ? (diff / y2025Total * 100) : null;
+      const diffHtml = rate == null ? '' :
+        `<span style="color:${diff>=0?'var(--mint)':'var(--red)'};font-weight:700;font-size:11px;margin-left:6px;">${diff>=0?'▲':'▼'} ${Math.abs(rate).toFixed(0)}%</span>`;
+      const cell = (label, val, color) => `<div style="display:flex;align-items:center;gap:6px;background:var(--wash);border:1px solid var(--border);border-left:3px solid ${color};border-radius:7px;padding:6px 12px;"><span style="font-size:11px;color:var(--text-secondary);font-weight:600;">${label}</span><span style="font-size:14px;font-weight:800;color:var(--text-primary);font-variant-numeric:tabular-nums;">${fmtWon(val)}</span></div>`;
+      revSummaryEl.innerHTML =
+        cell('26년 누적 매출액', y2026Total, mapAccent('#4FC3F7')) +
+        cell('25년 누적 매출액', y2025Total, mapAccent('#6FC3DF')) + diffHtml;
+    } else {
+      revSummaryEl.style.display = 'none';
+      revSummaryEl.innerHTML = '';
+    }
+  }
   APP.chartOrderTrend.setOption({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis', backgroundColor: T.tipBg, borderColor: T.tipBorder, textStyle: { color: T.tipText },
