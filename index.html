@@ -682,12 +682,14 @@ function classifyOrderCode(code) {
 // 1반 품목 분류 — 이 오더 로그엔 1반·2반·3반·4반 물량이 섞여 있어(포텐자 등 3반 품목 다수 포함),
 // "제품" 텍스트 컬럼으로 1반 카테고리만 골라냄(Code 컬럼은 1반 상당수 행에서 '-'라 못 씀).
 // 오타/영문 표기 변형(블루 10mL, blue 10ml, Blue Eye 10mL 등)은 접두어만 매칭해 흡수.
+// 카테고리는 이 대시보드가 실제 관리하는 1반 품목군(CAT_1BAN_ROWS·품목군 칩)과 동일하게 한정 —
+// 세피아·시린지는 이 오더 로그엔 있어도 대시보드가 관리하는 1반 카테고리가 아니라서 제외(분류 실패
+// 처리돼 전체 집계에서도 빠짐, 2026-09-18 사용자 지시).
 const ORDER_1BAN_MAP = [
   [/^(블랙|black)/i, 'Black Eye'],
   [/^(블루|blue)/i, 'Blue Eye'],
-  [/^세피아/, '세피아'],
   [/^(coupling|c\/f|cf|density|xtherma)/i, '커플링플로이드'],
-  [/^(시린지|nami\s*syringe)/i, '시린지'],
+  [/^(무코닥터|뮤코닥터|스토케어)/i, '창상피복제'],
   [/^벨라/, 'BE/벨라'],
   [/^iot$/i, 'IOT'],
 ];
@@ -2778,7 +2780,7 @@ function renderOrderDist() {
 }
 
 /* ── 2반 전용 — 수주업체·품목별 오더 추이 (오더일 기준 월별, 다중 선택 + 슬라이딩 선택/해제) ── */
-const ORDER_TREND_CAT_ORDER = { '2반': ORDER_DIST_CATS, '1반': ['Black Eye','Blue Eye','세피아','커플링플로이드','시린지','BE/벨라','IOT'] };
+const ORDER_TREND_CAT_ORDER = { '2반': ORDER_DIST_CATS, '1반': ['Black Eye','Blue Eye','커플링플로이드','창상피복제','BE/벨라','IOT'] };
 function orderLogForDept() { return (APP.orderLog||[]).filter(r => r.dept === APP.dept); }
 // 수주업체·품목 선택 — 명시적 Set(디폴트 전체선택). 부서 바뀌면 그 부서 전체로 재초기화.
 function ensureTrendDefaults() {
