@@ -3799,6 +3799,17 @@ async function init() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.text();
   }
+  // gviz(tqx=out:csv)는 시트에 기본 필터(Data→Create a filter)가 걸려 있으면 화면에 보이는 행만
+  // 내려줌(숨겨진 행 제외) — 오더 로그 탭이 이 문제로 세 번이나 "일부 거래처만 보임" 버그를 냄.
+  // /export?format=csv는 필터와 무관하게 시트 원본 전체를 내려줌. 단, 병합 헤더가 있는 시트(2반/1반
+  // 주간 시트, 생산일지)는 gviz가 병합행을 합쳐서 내려주는 것과 열 구조가 달라져 기존 파서가 깨지므로,
+  // 헤더가 단순(병합 없음)한 오더 로그 탭에만 한정 적용.
+  async function fetchExportCsv(sheetId, gid) {
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.text();
+  }
   try {
     const [c26_1, c26_2, c25_1, c25_2, cProdLog, cOrderLog] = await Promise.all([
       fetchGviz(SHEET_ID_26, GIDS['1반']).catch(() => null),
@@ -3806,7 +3817,7 @@ async function init() {
       fetchGviz(SHEET_ID_25, GIDS['1반']).catch(() => null),
       fetchGviz(SHEET_ID_25, GIDS['2반']).catch(() => null),
       fetchGviz(SHEET_ID_PROD_LOG, GID_PROD_LOG).catch(() => null),
-      fetchGviz(SHEET_ID_26, GID_ORDER_LOG).catch(() => null),
+      fetchExportCsv(SHEET_ID_26, GID_ORDER_LOG).catch(() => fetchGviz(SHEET_ID_26, GID_ORDER_LOG).catch(() => null)),
     ]);
     // 2026: 1반은 위치기반 (행0이 markers), 2반은 헤더 기반
     if (c26_1) APP.data[2026]['1반'] = parseGeneric(c26_1, '1반', 0);
