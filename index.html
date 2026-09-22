@@ -622,7 +622,7 @@ const APP = {
   trendItem: new Set(),
   trendMetrics: new Set(['수량','매출액']), // 오더 추이 차트에 표시할 지표(복수 선택, 최소 1개)
   trendYoyOn: true, // 오더 추이 — 25년 동기간 비교 라인·뱃지 표시 여부
-  trendItemCatFilter: null, // 오더 추이 품목 칩 화면표시용 카테고리 필터(null=전체) — 실제 집계(trendItem)엔 영향 없음
+  trendItemCatFilter: new Set(), // 오더 추이 품목 칩 화면표시용 카테고리 필터(빈 값=전체, 복수 선택 가능) — 실제 집계(trendItem)엔 영향 없음
   orderTrendCollapsed: false,
 };
 
@@ -2671,6 +2671,7 @@ if (!window._orderDistDragBound) {
     window._orderDistDragging = false;
     window._trendCustDragging = false;
     window._trendItemDragging = false;
+    window._trendItemCatDragging = false;
   });
 }
 function renderOrderDist() {
@@ -2833,8 +2834,47 @@ function toggleTrendYoy() {
   APP.trendYoyOn = !APP.trendYoyOn;
   renderOrderTrend();
 }
+// 품목군 필터 — 복수 선택 가능(빈 집합=전체), 클릭 또는 슬라이딩으로 선택/해제.
+// orderDistCats와 동일한 드래그 패턴(시작 칩의 현재 상태 반대로 드래그 내내 적용, 전부 선택되면
+// 전체로 정규화). 화면에 뜨는 품목 칩 범위뿐 아니라 실제 집계(trendItem)도 이 카테고리로
+// 맞춰줌(선택한 카테고리의 품목 전체를 trendItem에 채움) — 그래야 차트도 같이 바뀜.
+function syncTrendItemFromCatFilter() {
+  const deptLog = orderLogForDept();
+  const itemCat = {};
+  for (const r of deptLog) itemCat[r.code] = r.cat;
+  const allCodes = Object.keys(itemCat);
+  APP.trendItem = new Set(APP.trendItemCatFilter.size === 0
+    ? allCodes
+    : allCodes.filter(code => APP.trendItemCatFilter.has(itemCat[code])));
+}
 function selectTrendItemCat(cat) {
-  APP.trendItemCatFilter = (APP.trendItemCatFilter === cat) ? null : cat;
+  if (APP.trendItemCatFilter.has(cat)) APP.trendItemCatFilter.delete(cat);
+  else APP.trendItemCatFilter.add(cat);
+  syncTrendItemFromCatFilter();
+  renderOrderTrend();
+}
+function trendItemCatDragStart(cat, universe) {
+  const allOn = APP.trendItemCatFilter.size === 0;
+  const isActive = allOn || APP.trendItemCatFilter.has(cat);
+  if (allOn && isActive) universe.forEach(c => APP.trendItemCatFilter.add(c));
+  window._trendItemCatDragMode = isActive ? 'off' : 'on';
+  window._trendItemCatDragging = true;
+  trendItemCatDragApply(cat, universe);
+}
+function trendItemCatDragOver(cat, universe) {
+  if (!window._trendItemCatDragging) return;
+  trendItemCatDragApply(cat, universe);
+}
+function trendItemCatDragApply(cat, universe) {
+  if (window._trendItemCatDragMode === 'off') APP.trendItemCatFilter.delete(cat);
+  else APP.trendItemCatFilter.add(cat);
+  if (APP.trendItemCatFilter.size === universe.length) APP.trendItemCatFilter = new Set();
+  syncTrendItemFromCatFilter();
+  renderOrderTrend();
+}
+function clearTrendItemCatFilter() {
+  APP.trendItemCatFilter = new Set();
+  syncTrendItemFromCatFilter();
   renderOrderTrend();
 }
 function renderOrderTrend() {
@@ -2879,14 +2919,17 @@ function renderOrderTrend() {
   const presentCats = catOrder.filter(c => Object.values(itemCat).includes(c));
   const catBox = document.getElementById('orderTrendItemCatChips');
   if (catBox) {
-    const catChip = (label, val) => {
-      const active = APP.trendItemCatFilter === val;
-      return `<button onclick="selectTrendItemCat(${val === null ? 'null' : `'${esc(val)}'`})" style="padding:5px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};">${label}</button>`;
-    };
-    catBox.innerHTML = catChip('전체', null) + presentCats.map(c => catChip(c === 'DUO DECA' ? 'Duodeca' : c, c)).join('');
+    const allActive = APP.trendItemCatFilter.size === 0;
+    const allChip = `<button onclick="clearTrendItemCatFilter()" style="padding:5px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${allActive?800:600};border:1px solid ${allActive?'var(--gold)':'var(--border)'};background:${allActive?'var(--wash-2)':'var(--wash)'};color:${allActive?'var(--gold)':'var(--text-secondary)'};">전체</button>`;
+    catBox.innerHTML = allChip + presentCats.map(c => {
+      const active = allActive || APP.trendItemCatFilter.has(c);
+      const label = c === 'DUO DECA' ? 'Duodeca' : c;
+      const universeAttr = JSON.stringify(presentCats).replace(/"/g, '&quot;');
+      return `<button onmousedown="trendItemCatDragStart('${esc(c)}', ${universeAttr})" onmouseenter="trendItemCatDragOver('${esc(c)}', ${universeAttr})" style="padding:5px 10px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};user-select:none;">${label}</button>`;
+    }).join('');
   }
   const itemListAll = Object.keys(itemTotals)
-    .filter(code => !APP.trendItemCatFilter || itemCat[code] === APP.trendItemCatFilter)
+    .filter(code => APP.trendItemCatFilter.size === 0 || APP.trendItemCatFilter.has(itemCat[code]))
     .sort((a,b) => {
       const ci = catOrder.indexOf(itemCat[a]) - catOrder.indexOf(itemCat[b]);
       return ci !== 0 ? ci : itemTotals[b]-itemTotals[a];
@@ -3777,7 +3820,7 @@ function switchDept(dept) {
   document.querySelectorAll('.btn[data-dept]').forEach(b => b.classList.toggle('active', b.dataset.dept === dept));
   document.getElementById('itemSearch').value = '';
   APP.trendInitDept = null; // 수주업체·품목별 오더 추이 선택을 부서 전환 시 그 부서 전체선택으로 재초기화(ensureTrendDefaults)
-  APP.trendItemCatFilter = null; // 품목 칩 카테고리 필터도 부서 전환 시 초기화
+  APP.trendItemCatFilter = new Set(); // 품목 칩 카테고리 필터도 부서 전환 시 초기화
   renderYearChips(); renderWeekChips(); renderCatChips(); renderItemChips();
   selectAllMonths();
 }
