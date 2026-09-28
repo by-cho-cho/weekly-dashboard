@@ -467,8 +467,8 @@ document.addEventListener('fullscreenchange', () => {
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
       <div>
-        <div class="kpi-label">고객별 오더 분포 (EP·ENBD·Duodeca)</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">오더일 기준 월별 집계 · Code로 품목 분류</div>
+        <div class="kpi-label" id="orderDistTitle">고객별 오더 분포</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">오더일 기준 월별 집계 · 1반은 제품명, 2반은 Code로 품목 분류</div>
       </div>
       <div id="orderDistCats" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
     </div>
@@ -476,6 +476,14 @@ document.addEventListener('fullscreenchange', () => {
       <div id="chartOrderDistYoY" style="width:240px;height:240px;flex:0 0 auto;display:none;"></div>
       <div id="chartOrderDist" style="width:240px;height:240px;flex:0 0 auto;"></div>
       <div id="orderDistLegend" style="flex:1 1 280px;min-width:260px;display:flex;flex-direction:column;gap:2px;"></div>
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--divider);">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">대륙별 오더 분포</div>
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+        <div id="chartOrderDistContYoY" style="width:200px;height:200px;flex:0 0 auto;display:none;"></div>
+        <div id="chartOrderDistCont" style="width:200px;height:200px;flex:0 0 auto;"></div>
+        <div id="orderDistContLegend" style="flex:1 1 280px;min-width:260px;display:flex;flex-direction:column;gap:2px;"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -698,6 +706,15 @@ function classifyOrderProduct(product) {
   for (const [re, cat] of ORDER_1BAN_MAP) if (re.test(p)) return cat;
   return null;
 }
+// 대륙 컬럼(index 29) 표기 정규화 — 해외 주문에만 채워져 있고 국내는 '-'/빈칸,
+// 오타/중복 표기(South america, Australia)·비대륙 값(전시회)은 한 버킷으로 합침.
+const CONTINENT_ALIAS = { 'south america': 'South America', 'australia': 'Oceania' };
+function normalizeContinent(raw) {
+  const v = (raw || '').trim();
+  if (!v || v === '-') return '국내';
+  if (v === '전시회') return '기타';
+  return CONTINENT_ALIAS[v.toLowerCase()] || v;
+}
 function parseOrderLog(csvText) {
   const rows = parseCSV(csvText);
   const out = [];
@@ -715,7 +732,8 @@ function parseOrderLog(csvText) {
     const qty = parseNum(r[8]);
     if (qty <= 0) continue;
     const code = (r[7] || '').trim(); // 품목(모델) 코드 — 수주업체·품목별 오더 추이 필터용(1반 상당수는 '-')
-    out.push({ year: +dm[1], mo: +dm[2], dept, cat, customer, code, qty });
+    const continent = normalizeContinent(r[29]);
+    out.push({ year: +dm[1], mo: +dm[2], dept, cat, customer, code, continent, qty });
   }
   return out;
 }
@@ -739,11 +757,15 @@ function parsePriceTable(csvText) {
 // 그 아래는 모듈로 순환 — 팔레트보다 고객이 많아 일부 겹침은 감수).
 const ORDER_DIST_PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#B8C5D6'];
 function buildOrderDistColorMap(orderLog) {
-  const totals = {};
-  for (const r of orderLog) { if (r.dept !== '2반') continue; totals[r.customer] = (totals[r.customer] || 0) + r.qty; }
-  const ranked = Object.keys(totals).sort((a,b) => totals[b] - totals[a]);
+  // 부서별로 따로 순위 매김(1반 313개·2반 17개로 규모 차이가 커서, 합쳐서 매기면 2반 고객이
+  // 죄다 뒤로 밀려 팔레트를 못 받음 — 부서마다 자기 안에서만 상위 색을 받도록 분리).
   const map = {};
-  ranked.forEach((name, i) => map[name] = ORDER_DIST_PALETTE[i % ORDER_DIST_PALETTE.length]);
+  for (const dept of ['1반', '2반']) {
+    const totals = {};
+    for (const r of orderLog) { if (r.dept !== dept) continue; totals[r.customer] = (totals[r.customer] || 0) + r.qty; }
+    Object.keys(totals).sort((a,b) => totals[b] - totals[a])
+      .forEach((name, i) => { if (!(name in map)) map[name] = ORDER_DIST_PALETTE[i % ORDER_DIST_PALETTE.length]; });
+  }
   return map;
 }
 
@@ -2677,19 +2699,24 @@ if (!window._orderDistDragBound) {
 function renderOrderDist() {
   const sec = document.getElementById('orderDistSection');
   if (!sec) return;
-  if (APP.dept !== '2반' || !APP.orderLog || !APP.orderLog.length) { sec.style.display = 'none'; return; }
+  const deptCats = ORDER_TREND_CAT_ORDER[APP.dept] || [];
+  const deptLogAny = (APP.orderLog||[]).some(r => r.dept === APP.dept);
+  if (!deptLogAny) { sec.style.display = 'none'; return; }
   sec.style.display = '';
+
+  const titleEl = document.getElementById('orderDistTitle');
+  if (titleEl) titleEl.textContent = `고객별 오더 분포 (${deptCats.map(c => c === 'DUO DECA' ? 'Duodeca' : c).join('·')})`;
 
   const catsBox = document.getElementById('orderDistCats');
   const esc = s => String(s).replace(/'/g, "\\'");
-  catsBox.innerHTML = ORDER_DIST_CATS.map(cat => {
+  catsBox.innerHTML = deptCats.map(cat => {
     const active = APP.orderDistCats.size === 0 || APP.orderDistCats.has(cat);
     return `<button onmousedown="orderDistDragStart('${esc(cat)}')" onmouseenter="orderDistDragOver('${esc(cat)}')" style="padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:${active?800:600};border:1px solid ${active?'var(--gold)':'var(--border)'};background:${active?'var(--wash-2)':'var(--wash)'};color:${active?'var(--gold)':'var(--text-secondary)'};user-select:none;">${cat === 'DUO DECA' ? 'Duodeca' : cat}</button>`;
   }).join('');
 
   const mos = [...APP.selectedMonths].sort((a,b)=>a-b);
   const catOk = r => APP.orderDistCats.size === 0 || APP.orderDistCats.has(r.cat);
-  const rows = APP.orderLog.filter(r => r.dept === '2반' && r.year === APP.year && mos.includes(r.mo) && catOk(r));
+  const rows = APP.orderLog.filter(r => r.dept === APP.dept && r.year === APP.year && mos.includes(r.mo) && catOk(r));
 
   // 상위 고객만 조각으로, 나머지는 '기타'로 묶음(범례 과밀 방지) — 비교연도도 같은 고객 구성으로 맞춤
   const custTotals = {};
@@ -2708,7 +2735,7 @@ function renderOrderDist() {
 
   // 전년(비교연도) — 동일 고객 구성(topCusts+기타)으로 재집계
   const compYear = APP.year === 2026 ? 2025 : 2026;
-  const compRowsRaw = APP.orderLog.filter(r => r.dept === '2반' && r.year === compYear && mos.includes(r.mo) && catOk(r));
+  const compRowsRaw = APP.orderLog.filter(r => r.dept === APP.dept && r.year === compYear && mos.includes(r.mo) && catOk(r));
   const compCustTotals = {};
   for (const r of compRowsRaw) {
     const key = topCusts.includes(r.customer) ? r.customer : '기타';
@@ -2719,8 +2746,8 @@ function renderOrderDist() {
 
   const periodLabel = mos.length ? (mos.length === 1 ? mos[0]+'월' : mos[0]+'~'+mos[mos.length-1]+'월') : '전체기간';
   const catLabel = APP.orderDistCats.size === 0
-    ? '전체(EP·ENBD·Duodeca)'
-    : ORDER_DIST_CATS.filter(c => APP.orderDistCats.has(c)).map(c => c === 'DUO DECA' ? 'Duodeca' : c).join('·');
+    ? `전체(${deptCats.map(c => c === 'DUO DECA' ? 'Duodeca' : c).join('·')})`
+    : deptCats.filter(c => APP.orderDistCats.has(c)).map(c => c === 'DUO DECA' ? 'Duodeca' : c).join('·');
 
   const T = chartTheme();
   const donutOption = (rws, tot, centerSub) => ({
@@ -2764,6 +2791,61 @@ function renderOrderDist() {
         if (hasComp) {
           const cv = compCustTotals[r.name] || 0;
           const cpct = compTotal ? (cv/compTotal*100) : 0;
+          const dpp = pct - cpct;
+          const dcol = dpp > 0.05 ? mapAccent('#00E5A0') : (dpp < -0.05 ? mapAccent('#E63946') : 'var(--text-muted)');
+          const arrow = dpp > 0.05 ? '▲' : (dpp < -0.05 ? '▼' : '–');
+          compCell = `<span title="${compYear}년 ${cpct.toFixed(0)}%" style="flex:0 0 44px;text-align:right;font-size:11px;color:${dcol};font-weight:700;font-variant-numeric:tabular-nums;">${arrow}${Math.abs(dpp).toFixed(0)}p</span>`;
+        }
+        return `<div style="display:flex;align-items:center;gap:6px;padding:5px 4px;">
+          <span style="width:10px;height:10px;border-radius:2px;background:${r.color};flex:0 0 auto;"></span>
+          <span style="flex:0 0 96px;font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.name}</span>
+          <span style="flex:0 0 52px;text-align:right;font-size:12px;color:var(--text-muted);font-variant-numeric:tabular-nums;">${fmtN(r.value)}</span>
+          <span style="flex:0 0 38px;text-align:right;font-size:13px;font-weight:700;color:${r.color};font-variant-numeric:tabular-nums;">${pct.toFixed(0)}%</span>
+          ${compCell}
+        </div>`;
+      }).join('') : `<div style="font-size:12px;color:var(--text-muted);padding:6px;">선택 기간에 데이터 없음</div>`);
+  }
+
+  // 대륙별 오더 분포 — 같은 rows/compRowsRaw(연도·월·카테고리 필터 동일)를 대륙 기준으로 재집계
+  const CONT_COLORS = { 'Asia': '#C9A961', 'Europe': '#4FC3F7', '국내': '#00E5A0', 'North America': '#E63946', 'South America': '#AB8FE0', 'Middle East': '#FFB547', 'Africa': '#7BD389', 'Oceania': '#FF6B9D', '기타': '#8A9BBF' };
+  const contColor = c => mapAccent(CONT_COLORS[c] || '#8A9BBF');
+  const contTotals = {};
+  for (const r of rows) contTotals[r.continent] = (contTotals[r.continent] || 0) + r.qty;
+  const contNames = Object.keys(contTotals).sort((a,b) => contTotals[b]-contTotals[a]);
+  const contPieRows = contNames.map(name => ({ name, value: contTotals[name], color: contColor(name) }));
+  const contTotal = contPieRows.reduce((s,r) => s + r.value, 0);
+
+  const compContTotals = {};
+  for (const r of compRowsRaw) compContTotals[r.continent] = (compContTotals[r.continent] || 0) + r.qty;
+  const compContTotal = contNames.reduce((s,name) => s + (compContTotals[name] || 0), 0);
+  const hasCompCont = compContTotal > 0;
+
+  if (!APP.chartOrderDistCont) APP.chartOrderDistCont = echarts.init(document.getElementById('chartOrderDistCont'));
+  APP.chartOrderDistCont.setOption(donutOption(contPieRows.filter(r=>r.value>0), contTotal, `${APP.year}년 · ${periodLabel}`), true);
+  APP.chartOrderDistCont.resize();
+
+  const contYoyEl = document.getElementById('chartOrderDistContYoY');
+  if (contYoyEl) {
+    if (hasCompCont) {
+      contYoyEl.style.display = '';
+      if (!APP.chartOrderDistContYoY) APP.chartOrderDistContYoY = echarts.init(contYoyEl);
+      const compContPieRows = contNames.map(name => ({ name, value: compContTotals[name] || 0, color: contColor(name) })).filter(r => r.value > 0);
+      APP.chartOrderDistContYoY.setOption(donutOption(compContPieRows, compContTotal, `${compYear}년 · ${periodLabel}`), true);
+      APP.chartOrderDistContYoY.resize();
+    } else {
+      contYoyEl.style.display = 'none';
+    }
+  }
+
+  const contLegend = document.getElementById('orderDistContLegend');
+  if (contLegend) {
+    contLegend.innerHTML = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">${catLabel} · ${periodLabel} 기준${hasCompCont ? ` · 좌측 ${compYear}년 동기간` : ''}</div>` +
+      (contPieRows.length ? contPieRows.map(r => {
+        const pct = contTotal ? (r.value/contTotal*100) : 0;
+        let compCell = '';
+        if (hasCompCont) {
+          const cv = compContTotals[r.name] || 0;
+          const cpct = compContTotal ? (cv/compContTotal*100) : 0;
           const dpp = pct - cpct;
           const dcol = dpp > 0.05 ? mapAccent('#00E5A0') : (dpp < -0.05 ? mapAccent('#E63946') : 'var(--text-muted)');
           const arrow = dpp > 0.05 ? '▲' : (dpp < -0.05 ? '▼' : '–');
@@ -3821,6 +3903,7 @@ function switchDept(dept) {
   document.getElementById('itemSearch').value = '';
   APP.trendInitDept = null; // 수주업체·품목별 오더 추이 선택을 부서 전환 시 그 부서 전체선택으로 재초기화(ensureTrendDefaults)
   APP.trendItemCatFilter = new Set(); // 품목 칩 카테고리 필터도 부서 전환 시 초기화
+  APP.orderDistCats = new Set(); // 고객별 오더 분포 카테고리 필터도 부서마다 어휘가 달라 초기화(EP 등↔Black Eye 등)
   renderYearChips(); renderWeekChips(); renderCatChips(); renderItemChips();
   selectAllMonths();
 }
@@ -3832,6 +3915,8 @@ window.addEventListener('resize', () => {
   APP.chartSafety && APP.chartSafety.resize();
   APP.chartOrderDist && APP.chartOrderDist.resize();
   APP.chartOrderDistYoY && APP.chartOrderDistYoY.resize();
+  APP.chartOrderDistCont && APP.chartOrderDistCont.resize();
+  APP.chartOrderDistContYoY && APP.chartOrderDistContYoY.resize();
   APP.chartOrderTrend && APP.chartOrderTrend.resize();
 });
 
