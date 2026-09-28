@@ -2660,8 +2660,8 @@ function renderMonthlyProgress() {
   tableEl.innerHTML = tableHtml;
 }
 
-/* ── 2반 전용 — 고객별 오더 분포 (EP·ENBD·Duodeca, 오더일 기준 월별) ── */
-const ORDER_DIST_CATS = ['EP', 'DUO DECA', 'ENBD'];
+/* ── 고객별 오더 분포 (부서별 카테고리, 오더일 기준 월별) ── */
+const ORDER_DIST_CATS = ['EP', 'DUO DECA', 'ENBD']; // 2반 카테고리 목록(하위호환용) — 실제 필터링은 부서별 ORDER_TREND_CAT_ORDER 사용
 function selectOrderDistCat(cat) {
   if (APP.orderDistCats.has(cat)) APP.orderDistCats.delete(cat);
   else APP.orderDistCats.add(cat);
@@ -2669,22 +2669,26 @@ function selectOrderDistCat(cat) {
 }
 // 칩을 마우스로 누른 채 슬라이딩하면 지나가는 칩들이 연속으로 선택/해제됨(체크박스 목록의 드래그 선택과 동일 UX).
 // 시작 칩의 현재 상태 반대 방향으로 드래그 내내 적용(켜져 있으면 끄면서, 꺼져 있으면 켜면서 지나감).
+// 부서마다 카테고리 어휘가 달라서(2반=EP 등 3개, 1반=Black Eye 등 6개) 항상 현재 부서의
+// 카테고리 목록(ORDER_TREND_CAT_ORDER[APP.dept])을 기준으로 판단해야 함 — 고정된 2반용
+// ORDER_DIST_CATS를 그대로 쓰면 1반에서 개수가 안 맞아 정규화 로직이 엉뚱하게 동작함.
 function orderDistDragStart(cat) {
+  const deptCats = ORDER_TREND_CAT_ORDER[APP.dept] || ORDER_DIST_CATS;
   const allOn = APP.orderDistCats.size === 0;
   const isActive = allOn || APP.orderDistCats.has(cat);
-  if (allOn && isActive) ORDER_DIST_CATS.forEach(c => APP.orderDistCats.add(c)); // 빈 집합(전체)에서 끄기 시작하려면 먼저 전체를 명시적으로 채워야 함
+  if (allOn && isActive) deptCats.forEach(c => APP.orderDistCats.add(c)); // 빈 집합(전체)에서 끄기 시작하려면 먼저 전체를 명시적으로 채워야 함
   window._orderDistDragMode = isActive ? 'off' : 'on';
   window._orderDistDragging = true;
-  orderDistDragApply(cat);
+  orderDistDragApply(cat, deptCats);
 }
 function orderDistDragOver(cat) {
   if (!window._orderDistDragging) return;
-  orderDistDragApply(cat);
+  orderDistDragApply(cat, ORDER_TREND_CAT_ORDER[APP.dept] || ORDER_DIST_CATS);
 }
-function orderDistDragApply(cat) {
+function orderDistDragApply(cat, deptCats) {
   if (window._orderDistDragMode === 'off') APP.orderDistCats.delete(cat);
   else APP.orderDistCats.add(cat);
-  if (APP.orderDistCats.size === ORDER_DIST_CATS.length) APP.orderDistCats = new Set(); // 전부 선택 = 전체(빈 집합)로 정규화
+  if (APP.orderDistCats.size === deptCats.length) APP.orderDistCats = new Set(); // 전부 선택 = 전체(빈 집합)로 정규화
   renderOrderDist();
 }
 if (!window._orderDistDragBound) {
