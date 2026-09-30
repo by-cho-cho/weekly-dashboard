@@ -1851,6 +1851,7 @@ function renderChart() {
   // 빈 주차도 X축에 노출 — data.items 전체를 기준으로 최신 주까지 유지
   const isWeek = APP.granularity === 'week';
   const agg = curAgg(items, months, data.items);
+  if (APP.granularity !== 'quarter') applyProdLogOverrideToAgg(agg, isWeek); // 2반_생산일지 실적 반영(6월~) — 이 차트 전용
   const yoy = APP.yoyOn ? curYoY(items, months, APP.year === 2026 ? 2025 : 2026, data.items) : null;
   const xData = agg.map(r => r.label);
 
@@ -1922,7 +1923,9 @@ function renderChart() {
     ? (ytdLatest ? Array.from({length: ytdLatest.mo}, (_,i)=>i+1) : (months.length ? months : []))
     : months;
   // 선택 기간 모드는 차트에 그려진 집계(agg/yoy)를 그대로 재사용해 화면 값과 항상 일치시킴
-  const ytdAggCur = ytdIsYtd ? (ytdMonths.length ? curAgg(items, ytdMonths, data.items) : []) : agg;
+  const ytdAggCur = ytdIsYtd
+    ? (ytdMonths.length ? (APP.granularity !== 'quarter' ? applyProdLogOverrideToAgg(curAgg(items, ytdMonths, data.items), isWeek) : curAgg(items, ytdMonths, data.items)) : [])
+    : agg;
   const ytdAggYoy = (() => {
     if (!APP.yoyOn) return null;
     if (!ytdIsYtd) return yoy;
@@ -2371,6 +2374,74 @@ function renderTable() {
   html += '</tbody></table>';
   if (agg.length === 0) html = `<div style="text-align:center;padding:24px;color:var(--text-muted);">선택된 조건에 ${gl().data} 데이터가 없습니다.</div>`;
   document.getElementById('weekTable').innerHTML = html;
+}
+
+// 수주추이 차트 전용 — 2반_생산일지 실적 오버라이드를 '생산' 지표에 반영(6월~).
+// aggregateMonthlyPlanVsActual의 오버라이드(2026-09-11)와 같은 원칙(EP합계=EP+Duodeca 포함이라
+// 통합보기에선 EP 자리에 로그의 EP+Duodeca 합산값 대입)이지만, 이 차트는 항상 weekData 기준으로만
+// '생산'을 집계하므로 useMonthlyCol 분기 없이 단순화. 월별 델타(구시트 합계와 로그 합계의 차이)만
+// 구해서 반환 — 실제 주차별 분배는 호출부(applyProdLogOverrideToAgg)에서 처리.
+// 다른 화면(KPI 카드·도넛·성장TOP·상세표)은 건드리지 않도록 이 차트 렌더링 경로에서만 사용.
+function prodLogDeltaForMonth(mo, items) {
+  if (APP.dept !== '2반' || mo < PROD_LOG_OVERRIDE_FROM_MONTH || !APP.prodLogActual) return 0;
+  const catActualOld = (cat) => {
+    const catItems = items.filter(it => it.category === cat);
+    if (!catItems.length) return null;
+    let s = 0;
+    for (const it of catItems) {
+      const wd = it.weekData?.[mo]; if (!wd) continue;
+      for (const wk of Object.keys(wd)) s += wd[wk]?.생산 || 0;
+    }
+    return s;
+  };
+  const hasDuodecaInItems = items.some(it => it.category === 'Duodeca');
+  const logDuo = APP.prodLogActual['DUO DECA']?.[mo];
+  const logEP = APP.prodLogActual['EP']?.[mo];
+  const logENBD = APP.prodLogActual['ENBD']?.[mo];
+  let delta = 0;
+  const epOld = catActualOld('EP');
+  if (epOld != null) {
+    if (!hasDuodecaInItems && logEP != null && logDuo != null) delta += (logEP + logDuo) - epOld;
+    else if (hasDuodecaInItems && logEP != null) delta += logEP - epOld;
+  }
+  if (hasDuodecaInItems && logDuo != null) {
+    const duoOld = catActualOld('Duodeca');
+    if (duoOld != null) delta += logDuo - duoOld;
+  }
+  if (logENBD != null) {
+    const enbdOld = catActualOld('ENBD');
+    if (enbdOld != null) delta += logENBD - enbdOld;
+  }
+  return delta;
+}
+// agg(aggregateByWeek/aggregateByMonth 결과)의 '생산' 값에 월별 델타를 반영.
+// 주간 보기는 그 달 주차들에 기존 생산량 비중대로 델타를 나눠 더함(기존 없던 주에 억지로
+// 생산량을 만들어내지 않도록 — 0이었던 주는 계속 0). 월간 보기는 한 행이 곧 한 달이라 그대로 더함.
+function applyProdLogOverrideToAgg(agg, isWeekly) {
+  if (APP.dept !== '2반' || !APP.prodLogActual) return agg;
+  const data = getData(); if (!data) return agg;
+  const items = filterItems(data.items);
+  const byMonth = {};
+  agg.forEach((r, i) => { (byMonth[r.mo] = byMonth[r.mo] || []).push(i); });
+  for (const moStr of Object.keys(byMonth)) {
+    const mo = Number(moStr);
+    if (mo < PROD_LOG_OVERRIDE_FROM_MONTH) continue;
+    const delta = prodLogDeltaForMonth(mo, items);
+    if (!delta) continue;
+    const idxs = byMonth[mo];
+    if (!isWeekly || idxs.length === 1) {
+      agg[idxs[0]].생산 = Math.max(0, agg[idxs[0]].생산 + delta);
+      continue;
+    }
+    const oldTotal = idxs.reduce((s, i) => s + agg[i].생산, 0);
+    if (oldTotal > 0) {
+      idxs.forEach(i => { agg[i].생산 = Math.max(0, agg[i].생산 + delta * (agg[i].생산 / oldTotal)); });
+    } else {
+      const share = delta / idxs.length;
+      idxs.forEach(i => { agg[i].생산 = Math.max(0, agg[i].생산 + share); });
+    }
+  }
+  return agg;
 }
 
 /* ============================================================
