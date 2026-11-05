@@ -687,7 +687,7 @@ const fmtN = v => v == null ? '—' : Math.round(v).toLocaleString();
 // 오더 로그 파서 — Code(품목 모델코드) 패턴으로 EP/ENBD/DUO DECA만 판별해 고객별 월별 오더 분포 집계용
 // 원본 데이터로 뽑아둠. (제품명 텍스트 컬럼도 대부분 일치하지만, 사용자 요청대로 Code를 1차 기준으로 씀:
 // SM72*=DUO DECA, TS-ENBD*=ENBD, SM5*/SM6*=EP — 실데이터 669/139/47건 전수 대조해 텍스트와 100% 일치 확인함)
-const ORDER_LOG_CUSTOMER_ALIAS = { '이머저스': '이머져스', 'JS': '제이시스' }; // 시트 내 오타·동일 업체 표기 통합(JS=제이시스, 2026-11-05 사용자 지시)
+const ORDER_LOG_CUSTOMER_ALIAS = { '이머저스': '이머져스', 'JS': '제이시스', '라온메드': '라온메드·조메드', '조메드': '라온메드·조메드', 'omnimed': 'Omnimed' }; // 시트 내 오타·동일 업체 표기 통합(JS=제이시스, 2026-11-05 사용자 지시)
 function classifyOrderCode(code) {
   const c = (code || '').trim();
   if (/^SM72/.test(c)) return 'DUO DECA';
