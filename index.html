@@ -3905,12 +3905,8 @@ function renderCatYoySummary() {
   if (!data) { box.innerHTML = ''; return; }
   const prevYear = APP.year === 2026 ? 2025 : 2026;
   const prevData = APP.data[prevYear]?.[APP.dept];
-  // 차트 우상단 "누계" 배지와 항상 동일 기준 — APP.ytdScope 선택을 그대로 따름
-  // ('선택 기간'=월/주차 필터 그대로, '현재까지 누적'=월 필터 무시하고 1월~동기화월)
-  const ytdLatest = findLatestWeek(data.items);
-  const months = APP.ytdScope === 'ytd'
-    ? (ytdLatest ? Array.from({length: ytdLatest.mo}, (_, i) => i + 1) : [...APP.selectedMonths].sort((a, b) => a - b))
-    : [...APP.selectedMonths].sort((a, b) => a - b);
+  // 항상 사용자가 선택한 월 기준(차트의 "현재까지 누적" 토글과 무관) — 성장·하락 TOP, 구성비중과 동일 기준
+  const months = [...APP.selectedMonths].sort((a, b) => a - b);
   const curGlobal = data.items;  // 작년을 올해 최신 주차 기준으로 컷(동기간 공정 비교)
   const PALETTE = ['#C9A961','#4FC3F7','#00E5A0','#E63946','#AB8FE0','#FFB547','#FF6B9D','#7BD389','#6FC3DF','#F2A65A'];
   const sumM = (srcData, its, metric) => (srcData && its.length) ? aggregateByWeek(its, months, curGlobal).reduce((s, r) => s + (r[metric] || 0), 0) : 0;
@@ -3943,7 +3939,6 @@ function renderCatYoySummary() {
   if (!rows.length) { box.innerHTML = ''; return; }
   const periodLabel = (() => {
     const base = months.length ? (months.length === 1 ? months[0] + '월' : months[0] + '~' + months[months.length - 1] + '월') : '전체기간';
-    if (APP.ytdScope === 'ytd') return base + ' 누적';
     const wks = [...APP.selectedWeeks].sort((a, b) => a - b);
     return (APP.granularity !== 'week' || wks.length === 0 || wks.length >= 5) ? base : `${base} ${wks.join('·')}주`;
   })();
@@ -4169,7 +4164,8 @@ function rptCatCum(year, cat, metric) {
   const ci = d.items.filter(it => it.category === cat);
   const inds = ci.filter(it=>!it.isTotal), tots = ci.filter(it=>it.isTotal);
   const use = APP.dept==='2반' ? (tots.length?tots:inds) : (inds.length?inds:tots);
-  const months = Object.keys(d.weeksByMonth).map(Number).sort((a,b)=>a-b);
+  // 선택한 월 기준(다른 분석 패널과 동일) — rptFacts의 주간 흐름(agg)은 전체 월 그대로
+  const months = [...APP.selectedMonths].sort((a,b)=>a-b);
   return aggregateByWeek(use, months, cur.items).reduce((s,r)=>s+(r[metric]||0),0);
 }
 function rptFacts() {
